@@ -1594,6 +1594,55 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_multiagent_from_dict_parent_kwargs_override(self):
+        """Test that kwargs passed to from_dict override only the parent agent, not managed agents."""
+        sub_agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            name="sympy_agent",
+            description="Math expert using sympy",
+            max_steps=3,
+            additional_authorized_imports=["stat", "time"],
+        )
+
+        main_agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            managed_agents=[sub_agent],
+            name="main_agent",
+            description="Main orchestrator",
+            max_steps=2,
+            additional_authorized_imports=["re"],
+        )
+
+        agent_dict = main_agent.to_dict()
+
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
+
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            restored_agent = CodeAgent.from_dict(
+                agent_dict,
+                max_steps=100,
+                additional_authorized_imports=["json"],
+            )
+
+        # Verify parent agent received overridden kwargs
+        assert restored_agent.name == "main_agent"
+        assert restored_agent.max_steps == 100
+        assert restored_agent.additional_authorized_imports == ["json"]
+
+        # Verify child agent retained its own original serialized attributes
+        assert len(restored_agent.managed_agents) == 1
+        restored_sub_agent = restored_agent.managed_agents["sympy_agent"]
+        assert restored_sub_agent.name == "sympy_agent"
+        assert restored_sub_agent.description == "Math expert using sympy"
+        assert restored_sub_agent.max_steps == 3
+        assert "stat" in restored_sub_agent.authorized_imports
+        assert "time" in restored_sub_agent.authorized_imports
+        assert "json" not in restored_sub_agent.authorized_imports
+
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
         agent_dict = {
