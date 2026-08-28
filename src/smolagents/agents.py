@@ -600,8 +600,13 @@ You have been provided with these additional arguments, that you can access dire
             finally:
                 self._finalize_step(action_step)
                 self.memory.steps.append(action_step)
-                yield action_step
-                self.step_number += 1
+
+            # Note: yield must live outside the finally block. Yielding from inside
+            # a finally that runs during generator finalization (e.g. when the caller
+            # closes the stream early via `gen.close()`, a `break`, or GC) raises
+            # `RuntimeError: generator ignored GeneratorExit` (#2703).
+            yield action_step
+            self.step_number += 1
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
