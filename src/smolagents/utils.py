@@ -428,6 +428,17 @@ def get_source(obj) -> str:
 
 
 def encode_image_base64(image):
+    """Encode a PIL image or an image file path as a base64 PNG string.
+
+    GradioUI and other callers may pass filesystem paths rather than opened
+    ``PIL.Image.Image`` objects. Loading those paths here keeps encoding robust
+    without requiring every caller to convert first.
+    """
+    from PIL import Image as PILImage
+
+    if isinstance(image, (str, os.PathLike)):
+        with PILImage.open(image) as opened:
+            image = opened.copy()
     buffered = BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
