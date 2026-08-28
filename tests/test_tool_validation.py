@@ -187,3 +187,90 @@ class TestMethodChecker:
         method_checker = MethodChecker(set())
         method_checker.visit(ast.parse(source_code))
         assert method_checker.errors == []
+
+    def test_posonly_and_kwonly_args(self):
+        source_code = dedent(
+            """
+            def forward(self, pos_only, /, standard_arg, *, kw_only="default") -> str:
+                return pos_only + standard_arg + kw_only
+            """
+        )
+        method_checker = MethodChecker(set())
+        method_checker.visit(ast.parse(source_code))
+        assert method_checker.errors == []
+
+
+class InvalidToolRequiredKwonly(Tool):
+    name = "invalid_kwonly_tool"
+    description = "Tool with required keyword-only param"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, *, required_kw):
+        super().__init__()
+        self.required_kw = required_kw
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class InvalidToolRequiredPosonly(Tool):
+    name = "invalid_posonly_tool"
+    description = "Tool with required positional-only param"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, required_pos, /, opt=1):
+        super().__init__()
+        self.required_pos = required_pos
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class InvalidToolNonLiteralKwonly(Tool):
+    name = "invalid_kwonly_nonliteral_tool"
+    description = "Tool with non-literal keyword-only default"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, *, kw=UNDEFINED_VARIABLE):
+        super().__init__()
+        self.kw = kw
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class ValidToolKwonlyAndPosonly(Tool):
+    name = "valid_kwonly_posonly_tool"
+    description = "Tool with valid keyword-only and positional-only defaults"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, pos="pos_default", /, opt="opt_default", *, kw="kw_default"):
+        super().__init__()
+        self.pos = pos
+        self.opt = opt
+        self.kw = kw
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+@pytest.mark.parametrize(
+    "tool_class, expected_error",
+    [
+        (InvalidToolRequiredKwonly, "Parameters in __init__ must have default values, found required parameters: required_kw"),
+        (InvalidToolRequiredPosonly, "Parameters in __init__ must have default values, found required parameters: required_pos"),
+        (InvalidToolNonLiteralKwonly, "Parameters in __init__ must have literal default values, found non-literal defaults: kw"),
+    ],
+)
+def test_validate_tool_attributes_posonly_kwonly_exceptions(tool_class, expected_error):
+    with pytest.raises(ValueError, match=expected_error):
+        validate_tool_attributes(tool_class)
+
+
+def test_validate_tool_attributes_valid_posonly_kwonly():
+    assert validate_tool_attributes(ValidToolKwonlyAndPosonly) is None
+
