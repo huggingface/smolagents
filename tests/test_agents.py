@@ -2666,3 +2666,17 @@ def test_stream_generator_close_via_break_is_safe():
 
     for _ in gen:
         break  # early exit -> generator finalized with GeneratorExit
+
+
+def test_stream_step_counter_in_sync_after_early_break():
+    """After consuming one step and breaking, step_number must reflect the consumed step."""
+    agent = CodeAgent(tools=[], model=FakeStreamingModel(), verbosity_level=0)
+    gen = agent.run("Add one and one.", stream=True)
+
+    for _ in gen:
+        break
+
+    # The counter is bumped before yielding, so early termination leaves the
+    # agent state consistent with the steps actually consumed.
+    assert agent.step_number == 2
+    assert len(agent.memory.steps) == 1
