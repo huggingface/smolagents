@@ -63,8 +63,8 @@ In this case, you can build your tool by subclassing [`Tool`] as described above
 The way a custom tool reports a failure affects what the agent can do next. Raise an exception when the tool did not produce a valid result; the agent records the exception and exposes it to the model as an error observation. The model can then correct its input, retry the tool, or choose another tool.
 
 - For invalid or incomplete user-provided input, raise `ValueError` or `TypeError` with a specific correction. Include the accepted values or format when possible.
-- For a temporary dependency failure, catch the known low-level exception and raise a new exception with context, preserving the original exception with `from`. This tells the agent that retrying may help without exposing an implementation-only traceback.
-- For a permanent or unsafe failure, raise an exception that says the operation cannot be completed and what alternative is safe. The agent loop does not classify exceptions as retryable or fatal, so use `max_steps` and, when appropriate, `final_answer_checks` to bound repeated attempts.
+- For a temporary dependency failure, catch the known low-level exception and raise a new exception with context, preserving the original exception with `from` for debugging. The model-facing observation uses the outer exception's type and message plus generic retry guidance; the cause chain is not a retryability signal.
+- For a permanent or unsafe failure, raise an exception that says the operation cannot be completed and what alternative is safe. The agent loop does not classify exceptions as retryable or fatal, so use `max_steps` to bound repeated tool calls. `final_answer_checks` runs only after the model proposes a final answer; a failed check consumes another agent step and validates answer acceptance rather than bounding tool retries.
 
 Returning an error message as a normal string is different: it is treated as a successful tool result. Use that pattern only when the error is intentionally part of the tool's data contract.
 
