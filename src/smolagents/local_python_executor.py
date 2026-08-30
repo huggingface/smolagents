@@ -304,16 +304,20 @@ def timeout(timeout_seconds: int):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # Create a new ThreadPoolExecutor for each call to avoid threading issues
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(func, *args, **kwargs)
+            try:
+                result = future.result(timeout=timeout_seconds)
+                executor.shutdown(wait=False)
+                return result
+            except FuturesTimeoutError:
                 try:
-                    result = future.result(timeout=timeout_seconds)
-                    return result
-                except FuturesTimeoutError:
-                    raise ExecutionTimeoutError(
-                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
-                    )
+                    executor.shutdown(wait=False, cancel_futures=True)
+                except TypeError:
+                    executor.shutdown(wait=False)
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
 
         return wrapper
 

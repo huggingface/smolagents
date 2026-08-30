@@ -2198,6 +2198,20 @@ class TestTimeout:
         with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
             long_task()
 
+    def test_timeout_decorator_does_not_block_on_hanging_thread(self):
+        """Test that timeout returns immediately without waiting for hanging thread to join."""
+
+        @timeout(1)
+        def hanging_task():
+            time.sleep(5)
+            return "should not complete"
+
+        start_time = time.time()
+        with pytest.raises(ExecutionTimeoutError):
+            hanging_task()
+        elapsed = time.time() - start_time
+        assert elapsed < 2.0, f"Expected timeout to release within ~1s, took {elapsed:.2f}s"
+
     def test_evaluate_python_code_with_timeout_completes(self):
         """Test that evaluate_python_code completes within timeout for quick code."""
         code = "result = 2 + 2"
