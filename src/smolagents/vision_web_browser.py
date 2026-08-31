@@ -112,7 +112,7 @@ def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
     """
     escaped_text = _escape_xpath_string(text)
     elements = driver.find_elements(By.XPATH, f"//*[contains(text(), {escaped_text})]")
-    if nth_result > len(elements):
+    if nth_result < 1 or nth_result > len(elements):
         raise Exception(f"Match n°{nth_result} not found (only {len(elements)} matches found)")
     result = f"Found {len(elements)} matches for '{text}'."
     elem = elements[nth_result - 1]
