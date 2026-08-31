@@ -1484,6 +1484,32 @@ class TestMultiStepAgent:
         with pytest.raises(GeneratorExit):
             generator.throw(GeneratorExit)
 
+    def test_fatal_error_stream_matches_memory(self):
+        """A fatal model error must not drop the failing step from the stream.
+
+        On AgentGenerationError the failing ActionStep is yielded before the
+        exception propagates, so every ActionStep recorded in memory is also
+        emitted to the streaming consumer.
+        """
+
+        class FailsOnSecondCallModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                if "special_marker" not in str(messages):
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="Thought: first step. special_marker\n<code>\nresult = 1 + 1\n</code>",
+                    )
+                raise ValueError("model backend failure")
+
+        agent = CodeAgent(tools=[], model=FailsOnSecondCallModel(), max_steps=3)
+        streamed = []
+        with pytest.raises(AgentGenerationError):
+            for event in agent.run("Test task", stream=True):
+                if isinstance(event, ActionStep):
+                    streamed.append(event.step_number)
+        recorded = [step.step_number for step in agent.memory.steps if isinstance(step, ActionStep)]
+        assert streamed == recorded == [1, 2]
+
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
         [
