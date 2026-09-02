@@ -265,6 +265,22 @@ StreamEvent: TypeAlias = Union[
 ]
 
 
+def _plan_message_content_to_text(content: Any) -> str:
+    """Return the text of a ChatMessage content for display in a planning step.
+
+    A provider may return structured content (a list of content blocks) for the
+    plan response. The plan field is a string, so a list would otherwise be
+    embedded as its Python repr. Keep only the text blocks; images and other
+    block types have no place in the markdown plan text.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_blocks = [block.get("text", "") for block in content if block.get("type") == "text"]
+        return "\n".join(text_blocks)
+    return ""
+
+
 class MultiStepAgent(ABC):
     """
     Agent class that solves the given task step by step, using the ReAct framework:
@@ -676,7 +692,7 @@ You have been provided with these additional arguments, that you can access dire
                     input_tokens = plan_message.token_usage.input_tokens
                     output_tokens = plan_message.token_usage.output_tokens
             plan = textwrap.dedent(
-                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{plan_message_content}\n```"""
+                f"""Here are the facts I know and the plan of action that I will follow to solve the task:\n```\n{_plan_message_content_to_text(plan_message_content)}\n```"""
             )
         else:
             # Summary mode removes the system prompt and previous planning messages output by the model.
@@ -734,7 +750,7 @@ You have been provided with these additional arguments, that you can access dire
                     input_tokens = plan_message.token_usage.input_tokens
                     output_tokens = plan_message.token_usage.output_tokens
             plan = textwrap.dedent(
-                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{plan_message_content}\n```"""
+                f"""I still need to solve the task I was given:\n```\n{self.task}\n```\n\nHere are the facts I know and my new/updated plan of action to solve the task:\n```\n{_plan_message_content_to_text(plan_message_content)}\n```"""
             )
         log_headline = "Initial plan" if is_first_step else "Updated plan"
         self.logger.log(Rule(f"[bold]{log_headline}", style="orange"), Text(plan), level=LogLevel.INFO)
