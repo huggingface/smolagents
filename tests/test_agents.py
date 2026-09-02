@@ -285,6 +285,23 @@ result = 2**3.6452
             )
 
 
+class FakeStructuredPlanModel(Model):
+    def generate(self, messages, stop_sequences=None):
+        if stop_sequences and stop_sequences[0] == "<end_plan>":
+            # A provider returning structured content (list of blocks) for the
+            # plan response; see issue #2720.
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=[{"type": "text", "text": "Step 1: do the thing."}],
+                token_usage=TokenUsage(input_tokens=10, output_tokens=10),
+            )
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content='Thought: done\n<code>\nfinal_answer("ok")\n</code>',
+            token_usage=TokenUsage(input_tokens=10, output_tokens=10),
+        )
+
+
 class FakeCodeModelError(Model):
     def generate(self, messages, stop_sequences=None):
         prompt = str(messages)
@@ -819,6 +836,28 @@ nested_answer()
         assert previous_task in conversation_text, "Previous task should be included in the conversation history"
         assert task in conversation_text, "Current task should be included in the conversation history"
         assert "tools" in conversation_text, "Tool interactions should be included in the conversation history"
+
+    def test_planning_step_with_structured_plan_content(self):
+        """A plan response with structured content produces readable plan text.
+
+        Providers may return a list of content blocks for the plan response.
+        Rather than embedding the Python repr of that list into `plan`, the
+        text of the text blocks should be used.
+        """
+        agent = CodeAgent(
+            tools=[],
+            planning_interval=1,
+            model=FakeStructuredPlanModel(),
+            max_steps=1,
+        )
+
+        agent.run("test task")
+
+        planning_steps = [step for step in agent.memory.steps if isinstance(step, PlanningStep)]
+        assert len(planning_steps) == 1, "Expected a single planning step"
+        plan_text = planning_steps[0].plan
+        assert "Step 1: do the thing." in plan_text, f"Plan did not include the text block: {plan_text!r}"
+        assert "[{" not in plan_text, f"Plan contains the Python repr of the content blocks: {plan_text!r}"
 
 
 class CustomFinalAnswerTool(FinalAnswerTool):
