@@ -1,5 +1,10 @@
 import ast
+import os
+import subprocess
+import sys
+from pathlib import Path
 from textwrap import dedent
+from typing import Optional
 
 import pytest
 
@@ -187,3 +192,518 @@ class TestMethodChecker:
         method_checker = MethodChecker(set())
         method_checker.visit(ast.parse(source_code))
         assert method_checker.errors == []
+
+
+# ---------------------------------------------------------------------------
+# Issue #2736 Regression Test Suite: Deterministic Validation & Optimization Invariance
+# ---------------------------------------------------------------------------
+
+
+def run_in_python_subprocess(code: str, optimize_flags: list[str]) -> subprocess.CompletedProcess:
+    cmd = [sys.executable] + optimize_flags + ["-c", code]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent / "src") + os.pathsep + env.get("PYTHONPATH", "")
+    return subprocess.run(cmd, capture_output=True, text=True, env=env)
+
+
+class NonDictInputTool(Tool):
+    name = "non_dict_input_tool"
+    description = "Tool with non-dict input"
+    inputs = {"input": "not a dict"}
+    output_type = "string"
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class BrokenTool(Tool):
+    name = "broken_tool"
+    description = "Tool with missing description in inputs"
+    inputs = {"input": {"type": "string"}}
+    output_type = "string"
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class MissingTypeTool(Tool):
+    name = "missing_type_tool"
+    description = "Tool with missing type in inputs"
+    inputs = {"input": {"description": "input without type"}}
+    output_type = "string"
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class InvalidOutputTypeTool(Tool):
+    name = "invalid_output_type_tool"
+    description = "Tool with invalid output_type"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "invalid_output_type"
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class NullableInInputsOnlyTool(Tool):
+    name = "nullable_in_inputs_only_tool"
+    description = "Tool with nullable in inputs but not in forward signature"
+    inputs = {"input": {"type": "string", "description": "input", "nullable": True}}
+    output_type = "string"
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class NullableInSigOnlyTool(Tool):
+    name = "nullable_in_sig_only_tool"
+    description = "Tool with nullable in signature but not in inputs"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def forward(self, input: Optional[str] = None) -> str:
+        return input or ""
+
+
+class SignatureMismatchTool(Tool):
+    name = "signature_mismatch_tool"
+    description = "Tool with parameter mismatch between inputs and forward signature"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def forward(self, wrong_param: str) -> str:
+        return wrong_param
+
+
+class RegressionValidTool(Tool):
+    name = "regression_valid_tool"
+    description = "Valid tool for regression testing"
+    inputs = {
+        "text": {"type": "string", "description": "Text input"},
+        "flag": {"type": "boolean", "description": "Optional boolean flag", "nullable": True},
+    }
+    output_type = "string"
+
+    def forward(self, text: str, flag: Optional[bool] = None) -> str:
+        return text if flag else text.lower()
+
+
+CODE_NON_DICT_INPUT = dedent(
+    """
+    from smolagents.tools import Tool
+
+    class NonDictInputTool(Tool):
+        name = "non_dict_input_tool"
+        description = "Tool with non-dict input"
+        inputs = {"input": "not a dict"}
+        output_type = "string"
+
+        def forward(self, input: str) -> str:
+            return input
+
+    NonDictInputTool()
+    """
+)
+
+CODE_MISSING_DESCRIPTION = dedent(
+    """
+    from smolagents.tools import Tool
+
+    class BrokenTool(Tool):
+        name = "broken_tool"
+        description = "Tool with missing description in inputs"
+        inputs = {"input": {"type": "string"}}
+        output_type = "string"
+
+        def forward(self, input: str) -> str:
+            return input
+
+    BrokenTool()
+    """
+)
+
+CODE_MISSING_TYPE = dedent(
+    """
+    from smolagents.tools import Tool
+
+    class MissingTypeTool(Tool):
+        name = "missing_type_tool"
+        description = "Tool with missing type in inputs"
+        inputs = {"input": {"description": "input without type"}}
+        output_type = "string"
+
+        def forward(self, input: str) -> str:
+            return input
+
+    MissingTypeTool()
+    """
+)
+
+CODE_INVALID_OUTPUT_TYPE = dedent(
+    """
+    from smolagents.tools import Tool
+
+    class InvalidOutputTypeTool(Tool):
+        name = "invalid_output_type_tool"
+        description = "Tool with invalid output_type"
+        inputs = {"input": {"type": "string", "description": "input"}}
+        output_type = "invalid_output_type"
+
+        def forward(self, input: str) -> str:
+            return input
+
+    InvalidOutputTypeTool()
+    """
+)
+
+CODE_NULLABLE_IN_INPUTS_ONLY = dedent(
+    """
+    from smolagents.tools import Tool
+
+    class NullableInInputsOnlyTool(Tool):
+        name = "nullable_in_inputs_only_tool"
+        description = "Tool with nullable in inputs but not in forward signature"
+        inputs = {"input": {"type": "string", "description": "input", "nullable": True}}
+        output_type = "string"
+
+        def forward(self, input: str) -> str:
+            return input
+
+    NullableInInputsOnlyTool()
+    """
+)
+
+CODE_NULLABLE_IN_SIG_ONLY = dedent(
+    """
+    from typing import Optional
+    from smolagents.tools import Tool
+
+    class NullableInSigOnlyTool(Tool):
+        name = "nullable_in_sig_only_tool"
+        description = "Tool with nullable in signature but not in inputs"
+        inputs = {"input": {"type": "string", "description": "input"}}
+        output_type = "string"
+
+        def forward(self, input: Optional[str] = None) -> str:
+            return input or ""
+
+    NullableInSigOnlyTool()
+    """
+)
+
+CODE_SIGNATURE_MISMATCH = dedent(
+    """
+    from smolagents.tools import Tool
+
+    class SignatureMismatchTool(Tool):
+        name = "signature_mismatch_tool"
+        description = "Tool with parameter mismatch between inputs and forward signature"
+        inputs = {"input": {"type": "string", "description": "input"}}
+        output_type = "string"
+
+        def forward(self, wrong_param: str) -> str:
+            return wrong_param
+
+    SignatureMismatchTool()
+    """
+)
+
+CODE_VALID_TOOL = dedent(
+    """
+    from typing import Optional
+    from smolagents.tools import Tool
+
+    class RegressionValidTool(Tool):
+        name = "regression_valid_tool"
+        description = "Valid tool for regression testing"
+        inputs = {
+            "text": {"type": "string", "description": "Text input"},
+            "flag": {"type": "boolean", "description": "Optional boolean flag", "nullable": True},
+        }
+        output_type = "string"
+
+        def forward(self, text: str, flag: Optional[bool] = None) -> str:
+            return text if flag else text.lower()
+
+    tool = RegressionValidTool()
+    assert tool.name == "regression_valid_tool"
+    assert tool("HELLO", flag=False) == "hello"
+    """
+)
+
+
+# Feature 1: Non-dict input validation (R1)
+def test_non_dict_input_normal():
+    with pytest.raises(TypeError, match="Input 'input' should be a dictionary."):
+        NonDictInputTool()
+
+
+def test_non_dict_input_opt():
+    res = run_in_python_subprocess(CODE_NON_DICT_INPUT, ["-O"])
+    assert res.returncode != 0
+    assert "TypeError" in res.stderr
+    assert "Input 'input' should be a dictionary." in res.stderr
+
+
+def test_non_dict_input_opt_oo():
+    res = run_in_python_subprocess(CODE_NON_DICT_INPUT, ["-OO"])
+    assert res.returncode != 0
+    assert "TypeError" in res.stderr
+    assert "Input 'input' should be a dictionary." in res.stderr
+
+
+# Feature 2: Missing description in input (R1, R2)
+def test_missing_description_normal():
+    with pytest.raises(
+        ValueError,
+        match=r"Input 'input' should have keys 'type' and 'description', has only \['type'\]\.",
+    ):
+        BrokenTool()
+
+
+def test_missing_description_opt():
+    res = run_in_python_subprocess(CODE_MISSING_DESCRIPTION, ["-O"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert "Input 'input' should have keys 'type' and 'description'" in res.stderr
+
+
+def test_missing_description_opt_oo():
+    res = run_in_python_subprocess(CODE_MISSING_DESCRIPTION, ["-OO"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert "Input 'input' should have keys 'type' and 'description'" in res.stderr
+
+
+# Feature 3: Missing type in input (R1, R2)
+def test_missing_type_normal():
+    with pytest.raises(
+        ValueError,
+        match=r"Input 'input' should have keys 'type' and 'description', has only \['description'\]\.",
+    ):
+        MissingTypeTool()
+
+
+def test_missing_type_opt():
+    res = run_in_python_subprocess(CODE_MISSING_TYPE, ["-O"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert "Input 'input' should have keys 'type' and 'description'" in res.stderr
+
+
+def test_missing_type_opt_oo():
+    res = run_in_python_subprocess(CODE_MISSING_TYPE, ["-OO"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert "Input 'input' should have keys 'type' and 'description'" in res.stderr
+
+
+# Feature 4: Invalid output_type (R1, R2)
+def test_invalid_output_type_normal():
+    with pytest.raises(
+        ValueError,
+        match="Tool 'invalid_output_type_tool': output_type 'invalid_output_type' must be one of",
+    ):
+        InvalidOutputTypeTool()
+
+
+def test_invalid_output_type_opt():
+    res = run_in_python_subprocess(CODE_INVALID_OUTPUT_TYPE, ["-O"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert "output_type 'invalid_output_type' must be one of" in res.stderr
+
+
+def test_invalid_output_type_opt_oo():
+    res = run_in_python_subprocess(CODE_INVALID_OUTPUT_TYPE, ["-OO"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert "output_type 'invalid_output_type' must be one of" in res.stderr
+
+
+# Feature 5: Nullable in inputs only (R1, R2)
+def test_nullable_in_inputs_normal():
+    with pytest.raises(
+        ValueError,
+        match="Nullable argument 'input' in inputs should have key 'nullable' set to True in function signature.",
+    ):
+        NullableInInputsOnlyTool()
+
+
+def test_nullable_in_inputs_opt():
+    res = run_in_python_subprocess(CODE_NULLABLE_IN_INPUTS_ONLY, ["-O"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert (
+        "Nullable argument 'input' in inputs should have key 'nullable' set to True in function signature."
+        in res.stderr
+    )
+
+
+def test_nullable_in_inputs_opt_oo():
+    res = run_in_python_subprocess(CODE_NULLABLE_IN_INPUTS_ONLY, ["-OO"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert (
+        "Nullable argument 'input' in inputs should have key 'nullable' set to True in function signature."
+        in res.stderr
+    )
+
+
+# Feature 6: Nullable in signature only (R1, R2)
+def test_nullable_in_sig_normal():
+    with pytest.raises(
+        ValueError,
+        match="Nullable argument 'input' in function signature should have key 'nullable' set to True in inputs.",
+    ):
+        NullableInSigOnlyTool()
+
+
+def test_nullable_in_sig_opt():
+    res = run_in_python_subprocess(CODE_NULLABLE_IN_SIG_ONLY, ["-O"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert (
+        "Nullable argument 'input' in function signature should have key 'nullable' set to True in inputs."
+        in res.stderr
+    )
+
+
+def test_nullable_in_sig_opt_oo():
+    res = run_in_python_subprocess(CODE_NULLABLE_IN_SIG_ONLY, ["-OO"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert (
+        "Nullable argument 'input' in function signature should have key 'nullable' set to True in inputs."
+        in res.stderr
+    )
+
+
+# Feature 7: Signature parameter mismatch (R1, R2)
+def test_signature_mismatch_normal():
+    with pytest.raises(
+        ValueError,
+        match=r"In tool 'signature_mismatch_tool', 'forward' method parameters were \{'wrong_param'\}, but expected \{'input'\}\.",
+    ):
+        SignatureMismatchTool()
+
+
+def test_signature_mismatch_opt():
+    res = run_in_python_subprocess(CODE_SIGNATURE_MISMATCH, ["-O"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert (
+        "In tool 'signature_mismatch_tool', 'forward' method parameters were {'wrong_param'}, but expected {'input'}."
+        in res.stderr
+    )
+
+
+def test_signature_mismatch_opt_oo():
+    res = run_in_python_subprocess(CODE_SIGNATURE_MISMATCH, ["-OO"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert (
+        "In tool 'signature_mismatch_tool', 'forward' method parameters were {'wrong_param'}, but expected {'input'}."
+        in res.stderr
+    )
+
+
+# Feature 8: Valid tool instantiation (R3)
+def test_valid_tool_normal():
+    tool_inst = RegressionValidTool()
+    assert tool_inst.name == "regression_valid_tool"
+    assert tool_inst("HELLO", flag=False) == "hello"
+    assert tool_inst("WORLD", flag=True) == "WORLD"
+
+
+def test_valid_tool_opt():
+    res = run_in_python_subprocess(CODE_VALID_TOOL, ["-O"])
+    assert res.returncode == 0, f"Failed with stderr: {res.stderr}"
+
+
+def test_valid_tool_opt_oo():
+    res = run_in_python_subprocess(CODE_VALID_TOOL, ["-OO"])
+    assert res.returncode == 0, f"Failed with stderr: {res.stderr}"
+
+
+# Additional Edge Cases & Adversarial Verification
+
+
+class UnauthorizedInputTypeTool(Tool):
+    name = "unauthorized_input_type_tool"
+    description = "Tool with unauthorized input type"
+    inputs = {"input": {"type": "unknown_type", "description": "input with unknown type"}}
+    output_type = "string"
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+def test_unauthorized_input_type_normal():
+    with pytest.raises(ValueError, match="must be one of"):
+        UnauthorizedInputTypeTool()
+
+
+def test_unauthorized_input_type_opt():
+    code = dedent(
+        """
+        from smolagents.tools import Tool
+
+        class UnauthorizedInputTypeTool(Tool):
+            name = "unauthorized_input_type_tool"
+            description = "Tool with unauthorized input type"
+            inputs = {"input": {"type": "unknown_type", "description": "input with unknown type"}}
+            output_type = "string"
+
+            def forward(self, input: str) -> str:
+                return input
+
+        UnauthorizedInputTypeTool()
+        """
+    )
+    res = run_in_python_subprocess(code, ["-O"])
+    assert res.returncode != 0
+    assert "ValueError" in res.stderr
+    assert "must be one of" in res.stderr
+
+
+class NonStringListInputTypeTool(Tool):
+    name = "non_string_list_input_type_tool"
+    description = "Tool with non-string list in type"
+    inputs = {"input": {"type": [123], "description": "input with integer in type list"}}
+    output_type = "string"
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+def test_non_string_list_input_type_normal():
+    with pytest.raises(
+        TypeError,
+        match="when type is a list, all elements must be strings",
+    ):
+        NonStringListInputTypeTool()
+
+
+def test_non_string_list_input_type_opt():
+    code = dedent(
+        """
+        from smolagents.tools import Tool
+
+        class NonStringListInputTypeTool(Tool):
+            name = "non_string_list_input_type_tool"
+            description = "Tool with non-string list in type"
+            inputs = {"input": {"type": [123], "description": "input with integer in type list"}}
+            output_type = "string"
+
+            def forward(self, input: str) -> str:
+                return input
+
+        NonStringListInputTypeTool()
+        """
+    )
+    res = run_in_python_subprocess(code, ["-O"])
+    assert res.returncode != 0
+    assert "TypeError" in res.stderr
+    assert "when type is a list, all elements must be strings" in res.stderr
