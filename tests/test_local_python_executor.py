@@ -995,7 +995,35 @@ counts = [1, 2, 3]
 counts += 1"""
         with pytest.raises(InterpreterError) as e:
             evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
-        assert "Cannot add non-list value 1 to a list." in str(e)
+        assert "Cannot add non-iterable value 1 to a list" in str(e)
+
+    def test_list_iadd_with_iterables(self):
+        code = """
+lst = [1, 2]
+lst += (3, 4)
+lst += [5, 6]
+lst += {7, 8}
+lst += (x for x in [9, 10])
+lst += ()
+lst += "xy"
+"""
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["lst"][:4] == [1, 2, 3, 4]
+        assert state["lst"][4:6] == [5, 6]
+        assert set(state["lst"][6:8]) == {7, 8}
+        assert state["lst"][8:10] == [9, 10]
+        assert state["lst"][10:] == ["x", "y"]
+
+    def test_list_iadd_with_non_iterable_raises(self):
+        for val in ["42", "3.14", "None", "True"]:
+            code = f"""
+lst = [1, 2]
+lst += {val}
+"""
+            with pytest.raises(InterpreterError) as e:
+                evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+            assert f"Cannot add non-iterable value {val} to a list" in str(e)
 
     def test_error_highlights_correct_line_of_code(self):
         code = """a = 1
