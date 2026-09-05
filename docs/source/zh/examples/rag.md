@@ -14,7 +14,7 @@ Retrieval-Augmented-Generation (RAG) 是“使用大语言模型（LLM）来回�
 
 因此，它将比普通 RAG 更智能，因为它可以自己构建查询，而不是直接使用用户查询作为参考。这样，它可以更
 接近目标文档，从而提高检索的准确性， [HyDE](https://huggingface.co/papers/2212.10496)。此 agent 可以
-使用生成的片段，并在需要时重新检索，就像 [Self-Query](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/)。
+使用生成的片段，并在需要时重新检索，就像 [Self-Query](https://developers.llamaindex.ai/python/examples/evaluation/retryquery/)。
 
 我们现在开始构建这个系统. 🛠️
 
@@ -108,7 +108,7 @@ BM25 检索方法是一个经典的检索方法，因为它的设置速度非常
 - 它有一个长 128k 上下文，这对处理长源文档很有用。
 - 它在 HF 的 Inference API 上始终免费提供！
 
-_Note:_ 此 Inference API 托管基于各种标准的模型，部署的模型可能会在没有事先通知的情况下进行更新或替换。了解更多信息，请点击[这里](https://huggingface.co/docs/api-inference/supported-models)。
+_Note:_ 此 Inference API 托管基于各种标准的模型，部署的模型可能会在没有事先通知的情况下进行更新或替换。了解更多信息，请点击[这里](https://huggingface.co/docs/inference-providers/index)。
 
 ```py
 from smolagents import InferenceClientModel, CodeAgent
