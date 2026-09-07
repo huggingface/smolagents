@@ -782,10 +782,10 @@ class Tool(BaseTool):
 
             def forward(self, *args, **kwargs):
                 tool_input = kwargs.copy()
+                input_keys = list(self.inputs)
                 for index, argument in enumerate(args):
-                    if index < len(self.inputs):
-                        input_key = next(iter(self.inputs))
-                        tool_input[input_key] = argument
+                    if index < len(input_keys):
+                        tool_input[input_keys[index]] = argument
                 return self.langchain_tool.run(tool_input)
 
         return LangChainToolWrapper(langchain_tool)
