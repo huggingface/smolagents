@@ -533,6 +533,8 @@ def evaluate_function_def(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Callable:
+    if func_def.decorator_list:
+        raise InterpreterError("Function decorators are not supported.")
     custom_tools[func_def.name] = create_function(func_def, state, static_tools, custom_tools, authorized_imports)
     return custom_tools[func_def.name]
 
@@ -544,6 +546,8 @@ def evaluate_class_def(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> type:
+    if class_def.decorator_list:
+        raise InterpreterError("Class decorators are not supported.")
     class_name = class_def.name
     bases = [evaluate_ast(base, state, static_tools, custom_tools, authorized_imports) for base in class_def.bases]
 
