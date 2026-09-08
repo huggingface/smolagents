@@ -28,10 +28,15 @@ from .tools import PipelineTool, Tool
 
 # --- Security Hardening: SSRF Guard (RFC 1918 & Cloud Metadata) ---
 def is_safe_url(target_url: str) -> bool:
-    """Validates that target_url resolves strictly to public, routable IP addresses."""
+    """Validates that target_url resolves strictly to public, routable IP addresses.
+
+    Note: This performs pre-flight DNS and CIDR inspection against RFC 1918, loopback,
+    and link-local metadata addresses. It mitigates basic SSRF vectors; full TOCTOU / DNS
+    rebinding mitigation requires lower-level socket pinning at the transport adapter layer.
+    """
     try:
-        import socket
         import ipaddress
+        import socket
         from urllib.parse import urlparse
 
         parsed = urlparse(target_url)
@@ -546,10 +551,12 @@ class VisitWebpageTool(Tool):
             raise ImportError(
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
             ) from e
+        # Pre-flight SSRF inspection prior to connection dispatch
+        if not is_safe_url(url):
+            return f"Refusal: URL '{url}' is restricted and cannot be visited (SSRF protection)."
+
         try:
             # Send a GET request to the URL with a 20-second timeout
-            if not is_safe_url(url):
-                raise ValueError(f"SSRF Protection: Blocked restricted IP for {url}")
             response = requests.get(url, timeout=20)
             response.raise_for_status()  # Raise an exception for bad status codes
 

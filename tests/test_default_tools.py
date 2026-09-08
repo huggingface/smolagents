@@ -39,7 +39,22 @@ class DefaultToolTests(unittest.TestCase):
         assert isinstance(result, str)
         assert "Hugging Face – The AI community building the future" in result
 
-    @require_run_all
+    @patch("requests.get")
+    def test_visit_webpage_ssrf_protection_blocks_private_and_metadata(self, mock_get):
+        unsafe_urls = [
+            "http://127.0.0.1:8080/admin",
+            "http://localhost:5000",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://10.0.0.1/internal",
+            "http://192.168.1.1/router",
+        ]
+        tool = VisitWebpageTool()
+        for url in unsafe_urls:
+            result = tool(url)
+            assert "Refusal: URL" in result
+            assert "SSRF protection" in result
+        mock_get.assert_not_called()
+
     def test_ddgs_with_kwargs(self):
         result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
         assert isinstance(result, str)
