@@ -10,7 +10,7 @@ on:
     paths:
       - 'docs/source/**'
       - 'assets/**'
-      - '.github/workflows/doc-build.yml'
+      - '.github/workflows/build_documentation.yml'
       - 'pyproject.toml'
 
 jobs:
