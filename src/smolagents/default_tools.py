@@ -51,6 +51,8 @@ def is_safe_url(target_url: str) -> bool:
         return True
     except Exception:
         return False
+
+
 # ------------------------------------------------------------------
 
 
@@ -556,8 +558,25 @@ class VisitWebpageTool(Tool):
             return f"Refusal: URL '{url}' is restricted and cannot be visited (SSRF protection)."
 
         try:
-            # Send a GET request to the URL with a 20-second timeout
-            response = requests.get(url, timeout=20)
+            # Send a GET request without following redirects blindly
+            response = requests.get(url, timeout=20, allow_redirects=False)
+
+            # Manually inspect redirects against SSRF guard
+            redirect_hops = 0
+            while response.is_redirect and redirect_hops < 5:
+                redirect_url = response.headers.get("Location")
+                if not redirect_url:
+                    break
+                from urllib.parse import urljoin
+
+                redirect_url = urljoin(response.url, redirect_url)
+
+                if not is_safe_url(redirect_url):
+                    return f"Refusal: Redirect target '{redirect_url}' is restricted and cannot be visited (SSRF protection)."
+
+                response = requests.get(redirect_url, timeout=20, allow_redirects=False)
+                redirect_hops += 1
+
             response.raise_for_status()  # Raise an exception for bad status codes
 
             # Convert the HTML content to Markdown

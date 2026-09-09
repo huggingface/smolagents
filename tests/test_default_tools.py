@@ -29,7 +29,6 @@ from smolagents.default_tools import (
 from smolagents.local_python_executor import ExecutionTimeoutError
 
 from .test_tools import ToolTesterMixin
-from .utils.markers import require_run_all
 
 
 class DefaultToolTests(unittest.TestCase):
@@ -54,6 +53,23 @@ class DefaultToolTests(unittest.TestCase):
             assert "Refusal: URL" in result
             assert "SSRF protection" in result
         mock_get.assert_not_called()
+
+    @patch("requests.get")
+    def test_visit_webpage_ssrf_blocks_redirect_to_restricted_ip(self, mock_get):
+        from unittest.mock import MagicMock
+
+        mock_redirect = MagicMock()
+        mock_redirect.is_redirect = True
+        mock_redirect.url = "http://example.com"
+        mock_redirect.headers = {"Location": "http://169.254.169.254/latest/meta-data/"}
+        mock_get.return_value = mock_redirect
+
+        tool = VisitWebpageTool()
+        result = tool("http://example.com")
+
+        assert "Refusal: Redirect target" in result
+        assert "SSRF protection" in result
+        assert mock_get.call_count == 1
 
     def test_ddgs_with_kwargs(self):
         result = DuckDuckGoSearchTool(timeout=20)("DeepSeek parent company")
