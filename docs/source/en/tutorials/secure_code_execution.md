@@ -98,7 +98,7 @@ run_capture_exception(harmful_command)
 # >>> ERROR: Code execution failed at line 'while True: pass' due to: InterpreterError: Maximum number of 1000000 iterations in While loop exceeded
 ```
 
-These safeguards make out interpreter is safer.
+These safeguards make our interpreter safer.
 We have used it on a diversity of use cases, without ever observing any damage to the environment.
 
 > [!WARNING]
