@@ -371,6 +371,32 @@ for result in search_results:
         assert result == 2
         self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
 
+    def test_evaluate_for_else(self):
+        # `else` runs when the loop completes without `break`
+        code = "x = 0\nfor i in range(3):\n    x += i\nelse:\n    x += 100\nx"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == 103
+        # `else` is skipped when the loop is broken out of
+        code = "x = 0\nfor i in range(5):\n    if i == 2:\n        break\n    x += i\nelse:\n    x += 100\nx"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == 1
+        # `continue` does not skip the `else`
+        code = "x = 0\nfor i in range(4):\n    if i == 1:\n        continue\n    x += i\nelse:\n    x += 100\nx"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == 105
+
+    def test_evaluate_while_else(self):
+        # `else` runs when the loop condition becomes false without `break`
+        code = "x = 0\ni = 0\nwhile i < 3:\n    x += i\n    i += 1\nelse:\n    x += 100\nx"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 103
+        # `else` is skipped when the loop is broken out of
+        code = (
+            "x = 0\ni = 0\nwhile i < 5:\n    if i == 2:\n        break\n    x += i\n    i += 1\nelse:\n    x += 100\nx"
+        )
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 1
+
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
