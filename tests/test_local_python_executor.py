@@ -225,6 +225,21 @@ test_func(**None)
         assert result == 42
         assert state["instance"].__doc__ == "A class with a value."
 
+    @pytest.mark.parametrize(
+        ("code", "message"),
+        [
+            ("@undefined_decorator\ndef function():\n    return 1", "Decorated functions are not supported"),
+            ("@undefined_decorator\nclass Example:\n    pass", "Decorated classes are not supported"),
+            (
+                "class Example:\n    @property\n    def value(self):\n        return 1",
+                "Decorated functions are not supported",
+            ),
+        ],
+    )
+    def test_decorated_definitions_are_rejected(self, code, message):
+        with pytest.raises(InterpreterError, match=message):
+            evaluate_python_code(code, {}, state={})
+
     def test_evaluate_class_def_with_assign_attribute_target(self):
         """
         Test evaluate_class_def function when stmt is an instance of ast.Assign with ast.Attribute target.
