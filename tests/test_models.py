@@ -243,6 +243,37 @@ class TestModel:
         assert isinstance(message2.role, MessageRole)
         assert message2.role == MessageRole.ASSISTANT
 
+    def test_mlx_generate_stops_at_earliest_sequence_regardless_of_order(self):
+        from types import SimpleNamespace
+
+        class FakeTokenizer:
+            def apply_chat_template(self, messages, tools=None, **kwargs):
+                return [101]
+
+        def fake_stream_generate(model, tokenizer, prompt, **kwargs):
+            yield SimpleNamespace(text="before<EARLY>middle<LATE>after")
+
+        model = object.__new__(MLXModel)
+        Model.__init__(
+            model,
+            model_id="local-mlx",
+            flatten_messages_as_text=True,
+        )
+        model.model = object()
+        model.tokenizer = FakeTokenizer()
+        model.stream_generate = fake_stream_generate
+        model.apply_chat_template_kwargs = {}
+
+        messages = [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "test"}],
+            }
+        ]
+        for stops in (["<LATE>", "<EARLY>"], ["<EARLY>", "<LATE>"]):
+            result = model.generate(messages, stop_sequences=stops)
+            assert result.content == "before"
+
     @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
