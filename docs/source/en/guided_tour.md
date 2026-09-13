@@ -573,7 +573,7 @@ It empirically yields better performance on most benchmarks. The reason for this
 
 You can easily build hierarchical multi-agent systems with `smolagents`.
 
-To do so, just ensure your agent has `name` and`description` attributes, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
+To do so, just ensure your agent has `name` and `description` attributes, which will then be embedded in the manager agent's system prompt to let it know how to call this managed agent, as we also do for tools.
 Then you can pass this managed agent in the parameter managed_agents upon initialization of the manager agent.
 
 Here's an example of making an agent that managed a specific web search agent using our native [`WebSearchTool`]:
