@@ -717,11 +717,16 @@ class Tool(BaseTool):
 
                 output = self.client.predict(*args, api_name=self.api_name, **kwargs)
                 if isinstance(output, tuple) or isinstance(output, list):
-                    if isinstance(output[1], str):
-                        raise ValueError("The space returned this message: " + output[1])
-                    output = output[
-                        0
-                    ]  # Sometime the space also returns the generation seed, in which case the result is at index 0
+                    # Handle case where output is a list/tuple with 2+ elements: (result, seed) or (result, error_message)
+                    if len(output) >= 2:
+                        if isinstance(output[1], str):
+                            raise ValueError("The space returned this message: " + output[1])
+                        output = output[
+                            0
+                        ]  # Sometime the space also returns the generation seed, in which case the result is at index 0
+                    # If single-element or empty list/tuple, just return the output as-is (will be unwrapped below if single element)
+                    elif len(output) == 1:
+                        output = output[0]
                 IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
                 AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
                 if isinstance(output, str) and any([output.endswith(ext) for ext in IMAGE_EXTENSIONS]):
