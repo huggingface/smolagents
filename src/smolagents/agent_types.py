@@ -120,6 +120,10 @@ class AgentImage(AgentType, PIL.Image.Image):
     def _to_pil_image(array):
         import numpy as np
 
+        # Floating-point arrays are interpreted as normalized 0..1 values only
+        # when their maximum is within that range. Any value above 1 selects the
+        # 0..255 interpretation and is clipped, rather than rescaling an image
+        # that may use the larger range.
         if np.issubdtype(array.dtype, np.floating):
             if array.size > 0 and array.max() <= 1.0:
                 array = array * 255
