@@ -128,6 +128,16 @@ class TestAgentImage:
         assert np.array_equal(np.asarray(agent_type.to_raw()), expected)
         assert np.array_equal(np.asarray(PIL.Image.open(agent_type.to_string())), expected)
 
+    def test_from_float_tensor_allows_small_overshoot_above_one(self):
+        import torch
+
+        tensor = torch.tensor([[[0.0, 0.5, 1.0001]]], dtype=torch.float32)
+        agent_type = AgentImage(tensor)
+        expected = np.array([[[0, 127, 255]]], dtype=np.uint8)
+
+        assert np.array_equal(np.asarray(agent_type.to_raw()), expected)
+        assert np.array_equal(np.asarray(PIL.Image.open(agent_type.to_string())), expected)
+
     def test_from_uint8_tensor_preserves_values(self):
         import torch
 
