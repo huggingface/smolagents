@@ -609,4 +609,4 @@ agent.from_hub("m-ric/my_agent", trust_remote_code=True)
 더 자세한 활용법을 원한다면 다음 튜토리얼들을 참고하세요:
 - [코드 에이전트가 작동하는 방법에 대한 설명](./tutorials/secure_code_execution)
 - [좋은 에이전트를 구축하는 방법에 대한 가이드](./tutorials/building_good_agents).
-- [도구 사용에 대한 상세 가이드](./tutorials/building_good_agents).
+- [도구 사용에 대한 상세 가이드](../en/tutorials/tools).

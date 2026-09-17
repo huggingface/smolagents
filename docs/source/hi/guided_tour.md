@@ -352,4 +352,4 @@ GradioUI(agent).launch()
 अधिक गहन उपयोग के लिए, आप हमारे ट्यूटोरियल्स देख सकते हैं:  
 - [हमारे कोड एजेंट्स कैसे काम करते हैं इसका विवरण](./tutorials/secure_code_execution)  
 - [अच्छे एजेंट्स बनाने के लिए यह गाइड](./tutorials/building_good_agents)  
-- [टूल उपयोग के लिए इन-डेप्थ गाइड ](./tutorials/building_good_agents)।  
+- [टूल उपयोग के लिए इन-डेप्थ गाइड ](./tutorials/tools)।

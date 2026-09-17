@@ -648,4 +648,4 @@ agent.from_hub("m-ric/my_agent", trust_remote_code=True)
 For more in-depth usage, you will then want to check out our tutorials:
 - [the explanation of how our code agents work](./tutorials/secure_code_execution)
 - [this guide on how to build good agents](./tutorials/building_good_agents).
-- [the in-depth guide for tool usage](./tutorials/building_good_agents).
+- [the in-depth guide for tool usage](./tutorials/tools).
