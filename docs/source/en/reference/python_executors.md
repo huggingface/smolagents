@@ -10,11 +10,11 @@ available executor implementations.
 
 ## Custom executors
 
-Import `PythonExecutor`, `CodeOutput`, and `RemotePythonExecutor` directly from `smolagents` to implement an executor
+Import [`PythonExecutor`], [`CodeOutput`], and [`RemotePythonExecutor`] directly from `smolagents` to implement an executor
 outside the core package. These classes and the extension points documented here form the public executor API;
 underscore-prefixed helpers are internal implementation details.
 
-A `PythonExecutor` implements three methods:
+A [`PythonExecutor`] implements three methods:
 
 - `send_tools(tools)`: make the agent's tools available to executed code, including `final_answer`.
 - `send_variables(variables)`: add or update variables in the execution environment.
@@ -84,15 +84,14 @@ but does not bundle the plugin package; install that package before deserializin
 
 ### Implement a remote executor
 
-Subclass `RemotePythonExecutor` to reuse tool transfer, variable serialization, and final-answer handling. Implement
+Subclass [`RemotePythonExecutor`] to reuse tool transfer, variable serialization, and final-answer handling. Implement
 `run_code_raise_errors(code) -> CodeOutput` for your backend, including detecting `FINAL_ANSWER_EXCEPTION` and decoding
 its value with `RemotePythonExecutor.deserialize_final_answer(encoded_value, allow_pickle=False)`. Keep pickle disabled
 unless you trust the payload's source, since decoding pickle can execute code.
 
 The default `install_packages(additional_imports)` executes an IPython `!pip install` command. Override it for runtimes
 without IPython support, returning the list of installed packages and raising an exception if installation fails.
-The old `_deserialize_final_answer` name remains a
-compatibility alias; new integrations should use the public method.
+The old `_deserialize_final_answer` name remains a compatibility alias; new integrations should use the public method.
 
 ## Python executor
 
