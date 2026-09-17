@@ -1669,20 +1669,27 @@ def evaluate_python_code(
 
 @dataclass
 class CodeOutput:
+    """Result of code execution: output value, captured logs, and whether `final_answer` was called."""
+
     output: Any
     logs: str
     is_final_answer: bool
 
 
 class PythonExecutor(ABC):
-    @abstractmethod
-    def send_tools(self, tools: dict[str, Tool]) -> None: ...
+    """Public interface for stateful code executors used by [`CodeAgent`]."""
 
     @abstractmethod
-    def send_variables(self, variables: dict[str, Any]) -> None: ...
+    def send_tools(self, tools: dict[str, Tool]) -> None:
+        """Make the supplied tools (including `final_answer`) available to subsequent code executions."""
 
     @abstractmethod
-    def __call__(self, code_action: str) -> CodeOutput: ...
+    def send_variables(self, variables: dict[str, Any]) -> None:
+        """Update the variables available to subsequent code executions."""
+
+    @abstractmethod
+    def __call__(self, code_action: str) -> CodeOutput:
+        """Execute code, preserving state between calls. Return [`CodeOutput`] or raise an execution error."""
 
 
 class LocalPythonExecutor(PythonExecutor):
@@ -1765,4 +1772,4 @@ class LocalPythonExecutor(PythonExecutor):
         self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy(), **self.additional_functions}
 
 
-__all__ = ["evaluate_python_code", "LocalPythonExecutor"]
+__all__ = ["evaluate_python_code", "CodeOutput", "PythonExecutor", "LocalPythonExecutor"]

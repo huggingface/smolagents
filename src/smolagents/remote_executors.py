@@ -39,7 +39,7 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
-__all__ = ["BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor"]
+__all__ = ["RemotePythonExecutor", "BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor"]
 
 
 try:
@@ -304,7 +304,7 @@ locals().update(vars_dict)
         final_answer_tool.__class__ = _FinalAnswerTool
 
     @staticmethod
-    def _deserialize_final_answer(encoded_value: str, allow_pickle: bool = False) -> Any:
+    def deserialize_final_answer(encoded_value: str, allow_pickle: bool = False) -> Any:
         """Deserialize final answer with format detection.
 
         Accepts explicit prefix-based formats only:
@@ -330,6 +330,8 @@ locals().update(vars_dict)
             return pickle.loads(base64.b64decode(encoded_value[7:]))
         else:
             raise SerializationError("Unknown final answer format: expected 'safe:' or 'pickle:' prefix")
+
+    _deserialize_final_answer = deserialize_final_answer
 
 
 class E2BExecutor(RemotePythonExecutor):
