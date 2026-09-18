@@ -35,6 +35,38 @@ class MethodChecker(ast.NodeVisitor):
         if node.vararg:
             self.arg_names.add(node.vararg.arg)
 
+    def _visit_function_scope(self, node):
+        """Walk a nested function or lambda as its own scope: the enclosing
+        scope's parameters stay visible inside (lexical scoping), the inner
+        scope's arguments do not leak out, and a nested def's name becomes
+        usable in the enclosing scope. Default expressions are evaluated in
+        the enclosing scope."""
+        if hasattr(node, "name"):
+            self.assigned_names.add(node.name)
+        for default in node.args.defaults:
+            self.visit(default)
+        for default in node.args.kw_defaults:
+            if default is not None:
+                self.visit(default)
+        enclosing_arg_names = self.arg_names
+        self.visit_arguments(node.args)
+        self.arg_names |= enclosing_arg_names
+        if isinstance(node.body, list):
+            for stmt in node.body:
+                self.visit(stmt)
+        else:  # Lambda body is a single expression
+            self.visit(node.body)
+        self.arg_names = enclosing_arg_names
+
+    def visit_FunctionDef(self, node):
+        self._visit_function_scope(node)
+
+    def visit_AsyncFunctionDef(self, node):
+        self._visit_function_scope(node)
+
+    def visit_Lambda(self, node):
+        self._visit_function_scope(node)
+
     def visit_Import(self, node):
         for name in node.names:
             actual_name = name.asname or name.name
