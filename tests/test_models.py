@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -753,6 +754,28 @@ def test_remove_content_after_stop_sequences_handles_none():
     # Test with None content
     removed_content = remove_content_after_stop_sequences(None, ["<code>"])
     assert removed_content is None
+
+
+def test_mlx_model_stops_at_earliest_matching_sequence():
+    class FakeTokenizer:
+        def apply_chat_template(self, messages, tools=None, **kwargs):
+            return [101]
+
+    def fake_stream_generate(model, tokenizer, prompt, **kwargs):
+        yield SimpleNamespace(text="before<EARLY>middle<LATE>after")
+
+    model = object.__new__(MLXModel)
+    Model.__init__(model, model_id="local-mlx", flatten_messages_as_text=True)
+    model.model = object()
+    model.tokenizer = FakeTokenizer()
+    model.stream_generate = fake_stream_generate
+    model.apply_chat_template_kwargs = {}
+
+    messages = [{"role": "user", "content": [{"type": "text", "text": "test"}]}]
+
+    result = model.generate(messages, stop_sequences=["<LATE>", "<EARLY>"])
+
+    assert result.content == "before"
 
 
 @pytest.mark.parametrize(

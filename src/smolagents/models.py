@@ -841,8 +841,9 @@ class MLXModel(Model):
         for response in self.stream_generate(self.model, self.tokenizer, prompt=prompt_ids, **completion_kwargs):
             output_tokens += 1
             text += response.text
-            if any((stop_index := text.rfind(stop)) != -1 for stop in stops):
-                text = text[:stop_index]
+            stop_indices = [text.find(stop) for stop in stops if stop in text]
+            if stop_indices:
+                text = text[: min(stop_indices)]
                 break
         if stop_sequences is not None and not self.supports_stop_parameter:
             text = remove_content_after_stop_sequences(text, stop_sequences)
