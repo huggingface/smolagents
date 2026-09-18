@@ -112,7 +112,6 @@ from smolagents import (
     CodeAgent,
     ToolCallingAgent,
     InferenceClientModel,
-    ManagedAgent,
     WebSearchTool,
 )
 
