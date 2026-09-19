@@ -602,7 +602,7 @@ class Model:
             "model_id": self.model_id,
         }
         for attribute in [
-            "custom_role_conversion",
+            "custom_role_conversions",
             "temperature",
             "max_tokens",
             "provider",
@@ -616,6 +616,17 @@ class Model:
         ]:
             if hasattr(self, attribute):
                 model_dictionary[attribute] = getattr(self, attribute)
+
+        # Models like OpenAIModel, AzureOpenAIModel and VLLMModel keep their connection settings in
+        # `client_kwargs` instead of attributes, so the loop above never sees them. Export the non-secret
+        # ones under their constructor parameter names so `from_dict` rebuilds the model against the same
+        # endpoint. `api_key` and any other client settings are intentionally not exported.
+        client_kwargs = getattr(self, "client_kwargs", None)
+        if isinstance(client_kwargs, dict):
+            for key in ("base_url", "organization", "project", "api_version", "azure_endpoint"):
+                value = client_kwargs.get(key)
+                if value is not None:
+                    model_dictionary["api_base" if key == "base_url" else key] = value
 
         dangerous_attributes = ["token", "api_key"]
         for attribute_name in dangerous_attributes:

@@ -541,6 +541,29 @@ class TestOpenAIModel:
         )
         assert model.client == MockOpenAI.return_value
 
+    def test_to_dict_preserves_connection_settings_and_role_conversions(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+        model = OpenAIModel(
+            model_id="Qwen2.5-7B",
+            api_base="http://localhost:8000/v1",
+            api_key="dummy",
+            organization="org1",
+            project="proj1",
+            custom_role_conversions={MessageRole.TOOL_CALL: MessageRole.USER},
+        )
+        data = model.to_dict()
+        assert data["api_base"] == "http://localhost:8000/v1"
+        assert data["organization"] == "org1"
+        assert data["project"] == "proj1"
+        assert data["custom_role_conversions"] == {MessageRole.TOOL_CALL: MessageRole.USER}
+        assert "api_key" not in data
+
+        rebuilt = OpenAIModel.from_dict(data)
+        assert rebuilt.client_kwargs["base_url"] == "http://localhost:8000/v1"
+        assert rebuilt.client_kwargs["organization"] == "org1"
+        assert rebuilt.client_kwargs["project"] == "proj1"
+        assert rebuilt.custom_role_conversions == {MessageRole.TOOL_CALL: MessageRole.USER}
+
     @require_run_all
     def test_streaming_tool_calls(self):
         model = OpenAIModel(model_id="gpt-4o-mini")
@@ -634,6 +657,25 @@ class TestAzureOpenAIModel:
             max_retries=5,
         )
         assert model.client == MockAzureOpenAI.return_value
+
+    def test_to_dict_preserves_azure_connection_settings_and_role_conversions(self):
+        model = AzureOpenAIModel(
+            model_id="gpt-4o",
+            api_key="dummy",
+            api_version="2023-12-01-preview",
+            azure_endpoint="https://example-resource.azure.openai.com/",
+            custom_role_conversions={MessageRole.TOOL_CALL: MessageRole.USER},
+        )
+        data = model.to_dict()
+        assert data["azure_endpoint"] == "https://example-resource.azure.openai.com/"
+        assert data["api_version"] == "2023-12-01-preview"
+        assert data["custom_role_conversions"] == {MessageRole.TOOL_CALL: MessageRole.USER}
+        assert "api_key" not in data
+
+        rebuilt = AzureOpenAIModel.from_dict(data)
+        assert rebuilt.client_kwargs["azure_endpoint"] == "https://example-resource.azure.openai.com/"
+        assert rebuilt.client_kwargs["api_version"] == "2023-12-01-preview"
+        assert rebuilt.custom_role_conversions == {MessageRole.TOOL_CALL: MessageRole.USER}
 
 
 class TestTransformersModel:
