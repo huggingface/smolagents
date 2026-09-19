@@ -234,3 +234,54 @@ def test_inner_scope_args_do_not_leak():
     method_checker.visit(ast.parse(source_code))
     assert any("Name 'y' is undefined." in error for error in method_checker.errors)
     assert not any("Name 'inner' is undefined." in error for error in method_checker.errors)
+
+
+def test_undefined_names_in_decorators_and_return_annotations_still_reported():
+    # Regression guard for the scope-stack handlers: generic_visit used to
+    # walk decorator_list and returns; the nested-scope handlers must keep
+    # checking them (both evaluate in the enclosing scope).
+    source_code = dedent(
+        """
+        import functools
+
+
+        @not_a_real_decorator
+        def forward(self, items: list) -> MissingReturn:
+            return items
+        """
+    )
+    method_checker = MethodChecker(set())
+    method_checker.visit(ast.parse(source_code))
+    assert any("Name 'not_a_real_decorator' is undefined." in error for error in method_checker.errors)
+    assert any("Name 'MissingReturn' is undefined." in error for error in method_checker.errors)
+
+
+def test_undefined_names_in_nested_def_decorators_and_annotations_reported():
+    source_code = dedent(
+        """
+        def forward(self, x):
+            @missing_dec
+            def inner(y: MissingAnn) -> MissingRet:
+                return y
+            return inner(x)
+        """
+    )
+    method_checker = MethodChecker(set())
+    method_checker.visit(ast.parse(source_code))
+    assert any("Name 'missing_dec' is undefined." in error for error in method_checker.errors)
+    assert any("Name 'MissingAnn' is undefined." in error for error in method_checker.errors)
+    assert any("Name 'MissingRet' is undefined." in error for error in method_checker.errors)
+
+
+def test_undefined_name_in_default_expression_reported():
+    # New capability vs main: visit_arguments never recursed, so a default
+    # expression referencing an undefined name was never checked.
+    source_code = dedent(
+        """
+        def forward(self, x=missing_default):
+            return x
+        """
+    )
+    method_checker = MethodChecker(set())
+    method_checker.visit(ast.parse(source_code))
+    assert any("Name 'missing_default' is undefined." in error for error in method_checker.errors)

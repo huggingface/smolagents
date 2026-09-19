@@ -39,10 +39,28 @@ class MethodChecker(ast.NodeVisitor):
         """Walk a nested function or lambda as its own scope: the enclosing
         scope's parameters stay visible inside (lexical scoping), the inner
         scope's arguments do not leak out, and a nested def's name becomes
-        usable in the enclosing scope. Default expressions are evaluated in
-        the enclosing scope."""
+        usable in the enclosing scope. Decorators, return annotations and
+        default expressions are all evaluated in the enclosing scope."""
         if hasattr(node, "name"):
             self.assigned_names.add(node.name)
+        # Decorators, return annotations and parameter annotations belong to
+        # the enclosing scope — generic_visit used to reach them before this
+        # handler existed, and skipping them would drop those checks.
+        # ast.Lambda has no decorator_list/returns; it has no named args'
+        # annotations either, but the arguments walk below covers its simples.
+        for decorator in getattr(node, "decorator_list", None) or []:
+            self.visit(decorator)
+        return_annotation = getattr(node, "returns", None)
+        if return_annotation is not None:
+            self.visit(return_annotation)
+        all_args = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
+        if node.args.vararg:
+            all_args.append(node.args.vararg)
+        if node.args.kwarg:
+            all_args.append(node.args.kwarg)
+        for argument in all_args:
+            if argument.annotation is not None:
+                self.visit(argument.annotation)
         for default in node.args.defaults:
             self.visit(default)
         for default in node.args.kw_defaults:
