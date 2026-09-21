@@ -39,6 +39,7 @@ from smolagents.models import (
     get_tool_json_schema,
     parse_json_if_needed,
     remove_content_after_stop_sequences,
+    strip_url_credentials,
     supports_stop_parameter,
 )
 from smolagents.tools import tool
@@ -564,6 +565,47 @@ class TestOpenAIModel:
         assert rebuilt.client_kwargs["project"] == "proj1"
         assert rebuilt.custom_role_conversions == {MessageRole.TOOL_CALL: MessageRole.USER}
 
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://user:s3cr3t@gateway.internal/v1",
+            "https://gateway.internal/v1?api-key=abc123",
+            "https://gateway.internal/v1?token=abc123",
+            "https://gateway.internal/v1?API_KEY=abc123",
+        ],
+    )
+    def test_to_dict_redacts_credentials_embedded_in_api_base(self, url):
+        model = OpenAIModel(model_id="gpt-4o", api_base=url, api_key="dummy")
+        data = model.to_dict()
+
+        exported = data["api_base"]
+        assert "s3cr3t" not in exported
+        assert "abc123" not in exported
+        # The endpoint itself survives: only the credential is dropped.
+        assert exported.startswith("https://gateway.internal/v1")
+
+    def test_to_dict_leaves_a_credential_free_api_base_untouched(self):
+        model = OpenAIModel(
+            model_id="gpt-4o",
+            api_base="https://gateway.internal/v1?model=gpt-4o",
+            api_key="dummy",
+        )
+        assert model.to_dict()["api_base"] == "https://gateway.internal/v1?model=gpt-4o"
+
+    def test_to_dict_keeps_non_credential_connection_settings_alongside_redaction(self):
+        model = OpenAIModel(
+            model_id="gpt-4o",
+            api_base="https://user:s3cr3t@gateway.internal/v1",
+            api_key="dummy",
+            organization="org1",
+            project="proj1",
+        )
+        data = model.to_dict()
+        assert data["api_base"] == "https://gateway.internal/v1"
+        assert data["organization"] == "org1"
+        assert data["project"] == "proj1"
+        assert "api_key" not in data
+
     @require_run_all
     def test_streaming_tool_calls(self):
         model = OpenAIModel(model_id="gpt-4o-mini")
@@ -659,23 +701,26 @@ class TestAzureOpenAIModel:
         assert model.client == MockAzureOpenAI.return_value
 
     def test_to_dict_preserves_azure_connection_settings_and_role_conversions(self):
-        model = AzureOpenAIModel(
-            model_id="gpt-4o",
-            api_key="dummy",
-            api_version="2023-12-01-preview",
-            azure_endpoint="https://example-resource.azure.openai.com/",
-            custom_role_conversions={MessageRole.TOOL_CALL: MessageRole.USER},
-        )
-        data = model.to_dict()
-        assert data["azure_endpoint"] == "https://example-resource.azure.openai.com/"
-        assert data["api_version"] == "2023-12-01-preview"
-        assert data["custom_role_conversions"] == {MessageRole.TOOL_CALL: MessageRole.USER}
-        assert "api_key" not in data
+        # `from_dict` builds a real Azure client, which refuses to construct without credentials —
+        # patch the client class the way `test_client_kwargs_passed_correctly` does.
+        with patch("openai.AzureOpenAI"):
+            model = AzureOpenAIModel(
+                model_id="gpt-4o",
+                api_key="dummy",
+                api_version="2023-12-01-preview",
+                azure_endpoint="https://example-resource.azure.openai.com/",
+                custom_role_conversions={MessageRole.TOOL_CALL: MessageRole.USER},
+            )
+            data = model.to_dict()
+            assert data["azure_endpoint"] == "https://example-resource.azure.openai.com/"
+            assert data["api_version"] == "2023-12-01-preview"
+            assert data["custom_role_conversions"] == {MessageRole.TOOL_CALL: MessageRole.USER}
+            assert "api_key" not in data
 
-        rebuilt = AzureOpenAIModel.from_dict(data)
-        assert rebuilt.client_kwargs["azure_endpoint"] == "https://example-resource.azure.openai.com/"
-        assert rebuilt.client_kwargs["api_version"] == "2023-12-01-preview"
-        assert rebuilt.custom_role_conversions == {MessageRole.TOOL_CALL: MessageRole.USER}
+            rebuilt = AzureOpenAIModel.from_dict(data)
+            assert rebuilt.client_kwargs["azure_endpoint"] == "https://example-resource.azure.openai.com/"
+            assert rebuilt.client_kwargs["api_version"] == "2023-12-01-preview"
+            assert rebuilt.custom_role_conversions == {MessageRole.TOOL_CALL: MessageRole.USER}
 
 
 class TestTransformersModel:
@@ -784,6 +829,42 @@ def test_remove_content_after_stop_sequences():
     stop_sequences = ["<code>"]
     removed_content = remove_content_after_stop_sequences(content, stop_sequences)
     assert removed_content == "Hello"
+
+
+class TestStripUrlCredentials:
+    """`Model.to_dict()` feeds `Agent.save()`, so anything it exports can reach `agent.json`."""
+
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            ("https://user:pass@host/v1", "https://host/v1"),
+            ("https://user@host/v1", "https://host/v1"),
+            ("https://host/v1?api-key=abc", "https://host/v1"),
+            ("https://host/v1?api_key=abc", "https://host/v1"),
+            # A password containing "@" must not truncate the host.
+            ("https://user:p@ss@host/v1", "https://host/v1"),
+        ],
+    )
+    def test_redacts_userinfo_and_credential_query(self, url, expected):
+        assert strip_url_credentials(url) == expected
+
+    def test_drops_only_the_credential_query_parameter(self):
+        assert strip_url_credentials("https://host/v1?token=abc&model=gpt-4o") == "https://host/v1?model=gpt-4o"
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://host/v1",
+            "http://localhost:8000/v1",
+            "https://host/v1?model=gpt-4o",
+            # A parameter that merely starts with a credential name is not one.
+            "https://host/v1?key_format=json",
+            # No scheme: `urlsplit` reads "localhost" as a scheme and there is nothing to re-serialize.
+            "localhost:8000/v1",
+        ],
+    )
+    def test_returns_none_when_there_is_nothing_to_redact(self, url):
+        assert strip_url_credentials(url) is None
 
 
 def test_remove_content_after_stop_sequences_handles_none():
