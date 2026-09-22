@@ -23,7 +23,7 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from threading import Thread
 from typing import TYPE_CHECKING, Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from .monitoring import TokenUsage
 from .tools import Tool
@@ -449,53 +449,46 @@ class _ParameterRemove:
 # Singleton instance for removing parameters
 REMOVE_PARAMETER = _ParameterRemove()
 
-# Query parameters that name a credential rather than configure the endpoint. Matched case-insensitively
-# as whole names, so `api-key`, `api_key`, `apikey`, `access_token` and `token` are caught while a
-# parameter like `key_format` is not.
-_CREDENTIAL_QUERY_KEYS = frozenset(
-    {"api_key", "apikey", "api-key", "access_token", "token", "auth", "authorization", "password"}
-)
 
-
-def strip_url_credentials(url: str) -> str | None:
+def strip_url_credentials(url: str) -> tuple[bool, str]:
     """
-    Remove credentials embedded in a URL, keeping the endpoint itself intact.
+    Decide whether a base URL can be exported, and in what form.
 
-    A base URL is not automatically non-secret: both `https://user:token@host/v1` (userinfo) and
-    `https://host/v1?api-key=...` (credential-bearing query) carry a secret that a caller can pass as
-    `api_base`, and `Model.to_dict()` output is serialized into `agent.json` / `app.py` by `Agent.save()`.
+    A base URL is not automatically non-secret. `https://user:token@host/v1` carries userinfo, and
+    `https://host/v1?sig=...` carries a credential in the query: signed URLs use parameter names like
+    `sig`, `signature`, `X-Amz-Signature` and `X-Goog-Signature`, and provider-specific variants are
+    endless. An arbitrary query parameter cannot be classified as non-secret from its name, so a URL
+    carrying a query is not exported at all rather than exported with guessed-at parameters removed.
+    Userinfo has a defined structure, so it is dropped and the endpoint kept.
 
     Args:
-        url (`str`): The URL to sanitize.
+        url (`str`): The URL to inspect.
 
     Returns:
-        `str | None`: The URL with userinfo dropped and credential-named query parameters removed, or
-            `None` when there is nothing to redact.
+        `tuple[bool, str]`: Whether to export the URL, and the value to export when the first element
+            is `True`.
     """
     try:
         parts = urlsplit(url)
     except ValueError:
-        # Not a parseable URL (no scheme, or contains characters `urlsplit` rejects). There is no
-        # structured way to tell credentials from host text here, so leave it untouched rather than
-        # mangle a string we do not understand.
-        return None
+        # Not a parseable URL (no scheme, or characters `urlsplit` rejects). Nothing here can be
+        # classified as safe, so refuse to export rather than persist a string we cannot read.
+        return False, ""
 
-    # A bare path like "localhost:8000/v1" parses as scheme="localhost" with no netloc, i.e. it is not
-    # carrying userinfo or a query we can act on. `urlsplit` also exposes no way to re-serialize it
-    # byte-identically, so only rewrite when there is actually something to remove.
-    has_userinfo = parts.username is not None or parts.password is not None
-    query_pairs = parse_qsl(parts.query, keep_blank_values=True)
-    kept_pairs = [(key, value) for key, value in query_pairs if key.lower() not in _CREDENTIAL_QUERY_KEYS]
-    if not has_userinfo and len(kept_pairs) == len(query_pairs):
-        return None
+    # A query cannot be proven free of credentials from parameter names alone: the signed-URL
+    # parameter set is open-ended, so any denylist would lag behind it. Fail closed.
+    if parts.query:
+        return False, ""
 
-    netloc = parts.netloc
-    if has_userinfo:
-        # Rebuild host:port, dropping the "user:password@" prefix. Split on the last "@" so a password
-        # containing "@" does not truncate the host.
-        netloc = parts.netloc.rsplit("@", 1)[1]
+    if parts.username is None and parts.password is None:
+        # No userinfo and no query: nothing to remove, so export the URL unchanged.
+        return True, url
 
-    return urlunsplit((parts.scheme, netloc, parts.path, urlencode(kept_pairs), parts.fragment))
+    # Rebuild host:port, dropping the "user:password@" prefix. Split on the last "@" so a password
+    # containing "@" does not truncate the host.
+    netloc = parts.netloc.rsplit("@", 1)[1]
+
+    return True, urlunsplit((parts.scheme, netloc, parts.path, "", parts.fragment))
 
 
 class Model:
@@ -677,18 +670,24 @@ class Model:
                 if value is not None:
                     model_dictionary["api_base" if key == "base_url" else key] = value
 
-        # A base URL is not automatically non-secret: `https://user:token@host/v1` and
-        # `https://host/v1?api-key=...` both carry credentials in the URL itself, and `to_dict()` output
-        # is written to `agent.json` / `app.py` by `Agent.save()` and rendered into shared artifacts.
-        # Redact the credential part instead of exporting it, keeping the endpoint usable.
+        # A base URL is not automatically non-secret: `https://user:token@host/v1` carries userinfo and
+        # `https://host/v1?sig=...` carries a credential in the query. `to_dict()` output is written to
+        # `agent.json` / `app.py` by `Agent.save()` and rendered into shared artifacts, so a URL that
+        # cannot be proven credential-free is withheld rather than persisted.
         for key in ("api_base", "azure_endpoint"):
             url = model_dictionary.get(key)
             if isinstance(url, str):
-                redacted = strip_url_credentials(url)
-                if redacted is not None:
-                    model_dictionary[key] = redacted
+                export, value = strip_url_credentials(url)
+                if export:
+                    if value != url:
+                        model_dictionary[key] = value
+                        print(
+                            f"For security reasons, we redacted the credentials embedded in the `{key}` URL of your model. Please export them manually."
+                        )
+                else:
+                    del model_dictionary[key]
                     print(
-                        f"For security reasons, we redacted the credentials embedded in the `{key}` URL of your model. Please export them manually."
+                        f"For security reasons, we do not export the `{key}` URL of your model because it carries a query string that cannot be verified as credential-free. Please export it manually."
                     )
 
         dangerous_attributes = ["token", "api_key"]

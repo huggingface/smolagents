@@ -569,28 +569,63 @@ class TestOpenAIModel:
         "url",
         [
             "https://user:s3cr3t@gateway.internal/v1",
-            "https://gateway.internal/v1?api-key=abc123",
-            "https://gateway.internal/v1?token=abc123",
-            "https://gateway.internal/v1?API_KEY=abc123",
+            "https://user:s3cr3t@gateway.internal/v1/",
         ],
     )
-    def test_to_dict_redacts_credentials_embedded_in_api_base(self, url):
+    def test_to_dict_redacts_userinfo_from_api_base(self, url):
         model = OpenAIModel(model_id="gpt-4o", api_base=url, api_key="dummy")
         data = model.to_dict()
 
         exported = data["api_base"]
         assert "s3cr3t" not in exported
-        assert "abc123" not in exported
         # The endpoint itself survives: only the credential is dropped.
         assert exported.startswith("https://gateway.internal/v1")
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://gateway.internal/v1?api-key=abc123",
+            "https://gateway.internal/v1?token=abc123",
+            "https://gateway.internal/v1?API_KEY=abc123",
+            "https://gateway.internal/v1?sig=abc123",
+            "https://gateway.internal/v1?X-Amz-Signature=abc123",
+            "https://gateway.internal/v1?X-Goog-Signature=abc123",
+            "https://gateway.internal/v1?model=gpt-4o",
+            "https://user:s3cr3t@gateway.internal/v1?X-Amz-Signature=abc123",
+        ],
+    )
+    def test_to_dict_withholds_any_api_base_carrying_a_query(self, url):
+        """A query parameter cannot be classified as non-secret from its name, so a URL that has one is
+        not exported: the signed-URL parameter set (`sig`, `X-Amz-Signature`, provider variants) is
+        open-ended and a denylist would always lag behind it."""
+        model = OpenAIModel(model_id="gpt-4o", api_base=url, api_key="dummy")
+        data = model.to_dict()
+
+        assert "api_base" not in data
+        assert "abc123" not in str(data)
+        assert "s3cr3t" not in str(data)
 
     def test_to_dict_leaves_a_credential_free_api_base_untouched(self):
         model = OpenAIModel(
             model_id="gpt-4o",
-            api_base="https://gateway.internal/v1?model=gpt-4o",
+            api_base="https://gateway.internal/v1",
             api_key="dummy",
         )
-        assert model.to_dict()["api_base"] == "https://gateway.internal/v1?model=gpt-4o"
+        assert model.to_dict()["api_base"] == "https://gateway.internal/v1"
+
+    def test_to_dict_withholds_only_the_url_leaving_the_rest_exported(self):
+        model = OpenAIModel(
+            model_id="gpt-4o",
+            api_base="https://gateway.internal/v1?token=abc123",
+            api_key="dummy",
+            organization="org1",
+            project="proj1",
+        )
+        data = model.to_dict()
+        assert "api_base" not in data
+        assert data["organization"] == "org1"
+        assert data["project"] == "proj1"
+        assert "api_key" not in data
 
     def test_to_dict_keeps_non_credential_connection_settings_alongside_redaction(self):
         model = OpenAIModel(
@@ -837,34 +872,55 @@ class TestStripUrlCredentials:
     @pytest.mark.parametrize(
         ("url", "expected"),
         [
+            ("https://host/v1", "https://host/v1"),
+            ("http://localhost:8000/v1", "http://localhost:8000/v1"),
             ("https://user:pass@host/v1", "https://host/v1"),
             ("https://user@host/v1", "https://host/v1"),
-            ("https://host/v1?api-key=abc", "https://host/v1"),
-            ("https://host/v1?api_key=abc", "https://host/v1"),
+            ("https://host/v1#frag", "https://host/v1#frag"),
             # A password containing "@" must not truncate the host.
             ("https://user:p@ss@host/v1", "https://host/v1"),
         ],
     )
-    def test_redacts_userinfo_and_credential_query(self, url, expected):
-        assert strip_url_credentials(url) == expected
+    def test_exports_the_url_with_userinfo_dropped(self, url, expected):
+        export, value = strip_url_credentials(url)
 
-    def test_drops_only_the_credential_query_parameter(self):
-        assert strip_url_credentials("https://host/v1?token=abc&model=gpt-4o") == "https://host/v1?model=gpt-4o"
+        assert export is True
+        assert value == expected
 
     @pytest.mark.parametrize(
         "url",
         [
-            "https://host/v1",
-            "http://localhost:8000/v1",
-            "https://host/v1?model=gpt-4o",
-            # A parameter that merely starts with a credential name is not one.
+            # Credential-named parameters, including the signed-URL family that a denylist cannot
+            # enumerate: `sig`, `signature`, `X-Amz-Signature`, `X-Goog-Signature` and the rest.
+            "https://host/v1?api-key=abc",
+            "https://host/v1?api_key=abc",
+            "https://host/v1?token=abc",
+            "https://host/v1?sig=abc",
+            "https://host/v1?signature=abc",
+            "https://host/v1?X-Amz-Signature=abc",
+            "https://host/v1?X-Goog-Signature=abc",
+            # A parameter that merely starts with a credential name is not one, but it still cannot be
+            # proven safe from its name, so the URL is withheld either way.
             "https://host/v1?key_format=json",
-            # No scheme: `urlsplit` reads "localhost" as a scheme and there is nothing to re-serialize.
-            "localhost:8000/v1",
+            # An ordinary parameter with no credential meaning at all: still not exportable.
+            "https://host/v1?model=gpt-4o",
+            # A query alongside userinfo: the redaction of one does not license exporting the other.
+            "https://user:pass@host/v1?sig=abc",
         ],
     )
-    def test_returns_none_when_there_is_nothing_to_redact(self, url):
-        assert strip_url_credentials(url) is None
+    def test_withholds_any_url_carrying_a_query(self, url):
+        export, value = strip_url_credentials(url)
+
+        assert export is False
+        assert value == ""
+
+    def test_does_not_mangle_a_query_it_cannot_export(self):
+        """The withheld value carries no fragment of the original query."""
+        export, value = strip_url_credentials("https://host/v1?sig=secret-value&other=1")
+
+        assert export is False
+        assert "secret-value" not in value
+        assert value == ""
 
 
 def test_remove_content_after_stop_sequences_handles_none():
