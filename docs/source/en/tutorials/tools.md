@@ -118,6 +118,42 @@ with MCPClient({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-htt
     agent.run("Please find a remedy for hangover.")
 ```
 
+#### Build a research agent from a multi-tool MCP server
+
+An MCP server can expose several complementary tools through a single connection. Assuming you have already
+configured a model as `model`, the example below uses the
+[AnySearch MCP server](https://github.com/anysearch-ai/anysearch-mcp-server) to provide general and vertical search,
+parallel batch search, and webpage extraction. The agent can combine these tools without a provider-specific
+`Tool` implementation:
+
+```python
+import os
+
+from smolagents import CodeAgent, MCPClient
+
+
+headers = {"X-Anysearch-Client": "mcp/1.0.0"}
+if api_key := os.getenv("ANYSEARCH_API_KEY"):
+    headers["Authorization"] = f"Bearer {api_key}"
+
+server_parameters = {
+    "url": "https://api.anysearch.com/mcp",
+    "transport": "streamable-http",
+    "headers": headers,
+}
+
+with MCPClient(server_parameters, structured_output=False) as tools:
+    agent = CodeAgent(tools=tools, model=model)
+    agent.run(
+        "Research the current state of open-source AI agent frameworks. "
+        "Start with parallel searches for adoption, capabilities, and limitations. "
+        "Extract the most relevant sources, compare their evidence, and cite the source URLs."
+    )
+```
+
+`ANYSEARCH_API_KEY` is optional; without it, the server uses anonymous access with lower rate limits. The same
+pattern works with any Streamable HTTP MCP server that groups multiple tools into a workflow.
+
 You can also manually manage the connection lifecycle with the try...finally pattern:
 
 ```python
