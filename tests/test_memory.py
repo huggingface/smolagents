@@ -217,6 +217,15 @@ def test_task_step_to_messages():
             assert "image" in image_content
 
 
+def test_task_step_dict_converts_images_to_bytes():
+    image = Image.new("RGB", (2, 2), "red")
+
+    assert TaskStep(task="Describe the image", task_images=[image]).dict() == {
+        "task": "Describe the image",
+        "task_images": [image.tobytes()],
+    }
+
+
 def test_system_prompt_step_to_messages():
     system_prompt_step = SystemPromptStep(system_prompt="This is a system prompt.")
     messages = system_prompt_step.to_messages(summary_mode=False)
