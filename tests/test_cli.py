@@ -23,6 +23,16 @@ def test_load_model_openai_model(set_env_vars):
     assert MockOpenAI.call_args.kwargs["api_key"] == "test_fireworks_api_key"
 
 
+def test_load_model_openai_server_model_alias(set_env_vars):
+    with patch("openai.OpenAI") as MockOpenAI:
+        model = load_model("OpenAIServerModel", "test_model_id")
+    assert isinstance(model, OpenAIModel)
+    assert model.model_id == "test_model_id"
+    assert MockOpenAI.call_count == 1
+    assert MockOpenAI.call_args.kwargs["base_url"] == "https://api.fireworks.ai/inference/v1"
+    assert MockOpenAI.call_args.kwargs["api_key"] == "test_fireworks_api_key"
+
+
 def test_load_model_litellm_model():
     model = load_model("LiteLLMModel", "test_model_id", api_key="test_api_key", api_base="https://api.test.com")
     assert isinstance(model, LiteLLMModel)
