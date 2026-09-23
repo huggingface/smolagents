@@ -1066,3 +1066,47 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class TestToolFromSpace:
+    @pytest.fixture
+    def space_tool(self):
+        with patch("gradio_client.Client") as MockClient:
+            instance = MockClient.return_value
+            instance.view_api.return_value = {
+                "named_endpoints": {
+                    "/predict": {
+                        "parameters": [
+                            {
+                                "type": {"type": "string"},
+                                "label": "text",
+                                "parameter_name": "text",
+                                "parameter_has_default": False,
+                                "python_type": {"description": "Text input"},
+                            }
+                        ],
+                        "returns": [{"component": "Text"}],
+                    }
+                }
+            }
+            tool = Tool.from_space("dummy/dummy", "dummy_tool", api_name="/predict")
+            yield tool
+
+    @pytest.mark.parametrize(
+        "output,expected",
+        [
+            (["hello"], "hello"),
+            (("hello",), "hello"),
+            ([], []),
+            (("result", 42), "result"),
+            ("hello", "hello"),
+        ],
+    )
+    def test_forward_handles_sequence_outputs(self, space_tool, output, expected):
+        space_tool.client.predict.return_value = output
+        assert space_tool.forward("x") == expected
+
+    def test_forward_raises_on_string_error_message(self, space_tool):
+        space_tool.client.predict.return_value = ("result", "something went wrong")
+        with pytest.raises(ValueError, match="something went wrong"):
+            space_tool.forward("x")
