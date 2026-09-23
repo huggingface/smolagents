@@ -1040,7 +1040,11 @@ You have been provided with these additional arguments, that you can access dire
                     f"Unknown agent class '{managed_agent_dict['class']}'. "
                     f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
                 )
-            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            # kwargs are overrides meant for the agent currently being deserialized
+            # only, so don't forward them to managed agents. Doing so would let the
+            # parent's configuration (e.g. additional_authorized_imports) clobber
+            # each child's own settings. See GH-1849.
+            managed_agent = agent_class.from_dict(managed_agent_dict)
             managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {

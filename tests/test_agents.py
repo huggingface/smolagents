@@ -1594,6 +1594,40 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_from_dict_does_not_leak_kwargs_into_managed_agents(self):
+        """from_dict kwargs target the deserialized agent only and must not cascade into
+        managed agents, otherwise the parent's additional_authorized_imports overrides
+        each child's own imports (issue #1849)."""
+        managed_agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            name="child_agent",
+            description="A managed agent",
+            max_steps=3,
+            additional_authorized_imports=["rich"],
+        )
+        main_agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            managed_agents=[managed_agent],
+            name="main_agent",
+            description="Main agent",
+            max_steps=2,
+            additional_authorized_imports=["requests"],
+        )
+        agent_dict = main_agent.to_dict()
+
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated_agent = CodeAgent.from_dict(agent_dict)
+
+        recreated_managed_agent = list(recreated_agent.managed_agents.values())[0]
+        assert recreated_managed_agent.authorized_imports == managed_agent.authorized_imports
+        assert "rich" in recreated_managed_agent.authorized_imports
+        assert "requests" not in recreated_managed_agent.authorized_imports
+
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
         agent_dict = {
