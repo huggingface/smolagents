@@ -1,5 +1,6 @@
 import json
 from textwrap import dedent
+from unittest.mock import MagicMock, patch
 
 import pytest
 from mcp import StdioServerParameters
@@ -113,6 +114,48 @@ def test_mcp_client_try_finally_syntax(echo_server_script: str):
         assert tools[0].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
     finally:
         mcp_client.disconnect()
+
+
+def test_disconnect_clears_session_tools():
+    with patch("mcpadapt.core.MCPAdapt") as mock_mcp_adapt:
+        mock_mcp_adapt.return_value.__enter__.return_value = [MagicMock()]
+        client = MCPClient(StdioServerParameters(command="python"), structured_output=False)
+
+    client.disconnect()
+
+    client._adapter.__exit__.assert_called_once_with(None, None, None)
+    with pytest.raises(ValueError, match="connect"):
+        client.get_tools()
+
+
+def test_disconnect_clears_session_tools_when_adapter_exit_fails():
+    with patch("mcpadapt.core.MCPAdapt") as mock_mcp_adapt:
+        mock_mcp_adapt.return_value.__enter__.return_value = [MagicMock()]
+        client = MCPClient(StdioServerParameters(command="python"), structured_output=False)
+
+    client._adapter.__exit__.side_effect = RuntimeError("disconnect failed")
+
+    with pytest.raises(RuntimeError, match="disconnect failed"):
+        client.disconnect()
+
+    with pytest.raises(ValueError, match="connect"):
+        client.get_tools()
+
+
+def test_client_can_reconnect_after_disconnect():
+    first_tools = [MagicMock()]
+    reconnected_tools = [MagicMock()]
+    with patch("mcpadapt.core.MCPAdapt") as mock_mcp_adapt:
+        mock_mcp_adapt.return_value.__enter__.side_effect = [first_tools, reconnected_tools]
+        client = MCPClient(StdioServerParameters(command="python"), structured_output=False)
+
+    assert client.get_tools() is first_tools
+
+    client.disconnect()
+    client.connect()
+
+    assert client.get_tools() is reconnected_tools
+    assert client._adapter.__enter__.call_count == 2
 
 
 # Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior

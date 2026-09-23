@@ -132,7 +132,10 @@ class MCPClient:
         exc_traceback: TracebackType | None = None,
     ):
         """Disconnect from the MCP server"""
-        self._adapter.__exit__(exc_type, exc_value, exc_traceback)
+        try:
+            self._adapter.__exit__(exc_type, exc_value, exc_traceback)
+        finally:
+            self._tools = None
 
     def get_tools(self) -> list[Tool]:
         """The SmolAgents tools available from the MCP server.
