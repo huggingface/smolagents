@@ -194,7 +194,7 @@ class AgentLogger:
                 characters="━",
                 style=YELLOW_HEX,
             ),
-            level=LogLevel.INFO,
+            level=level,
         )
 
     def log_task(self, content: str, subtitle: str, title: str | None = None, level: LogLevel = LogLevel.INFO) -> None:
