@@ -59,6 +59,14 @@ MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
 MAX_EXECUTION_TIME_SECONDS = 30
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
+# These methods can be invoked by the host runtime without going through evaluate_ast.
+FORBIDDEN_CLASS_DUNDER_METHODS = {
+    "__del__",
+    "__getattribute__",
+    "__getattr__",
+    "__setattr__",
+    "__delattr__",
+}
 
 
 def custom_print(*args):
@@ -564,8 +572,12 @@ def evaluate_class_def(
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
+            if stmt.name in FORBIDDEN_CLASS_DUNDER_METHODS:
+                raise InterpreterError(f"Forbidden dunder method definition: {stmt.name}")
             class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.AnnAssign):
+            if isinstance(stmt.target, ast.Name) and stmt.target.id in FORBIDDEN_CLASS_DUNDER_METHODS:
+                raise InterpreterError(f"Forbidden dunder method definition: {stmt.target.id}")
             if stmt.value:
                 value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
             target = stmt.target
@@ -593,6 +605,9 @@ def evaluate_class_def(
             else:
                 raise InterpreterError(f"Unsupported AnnAssign target in class body: {type(target).__name__}")
         elif isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name) and target.id in FORBIDDEN_CLASS_DUNDER_METHODS:
+                    raise InterpreterError(f"Forbidden dunder method definition: {target.id}")
             value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
             for target in stmt.targets:
                 if isinstance(target, ast.Name):
