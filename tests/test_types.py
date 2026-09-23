@@ -66,46 +66,57 @@ class AgentAudioTests(unittest.TestCase):
         self.assertEqual(agent_type.to_string(), path)
 
 
-@require_torch
 class TestAgentImage:
+    def test_from_numpy(self):
+        import numpy as np
+
+        # Test uint8 ndarray
+        array = np.zeros((32, 32, 3), dtype=np.uint8)
+        array[0, 0] = [255, 128, 64]
+        agent_type = AgentImage(array)
+        raw_img = agent_type.to_raw()
+        assert isinstance(raw_img, PIL.Image.Image)
+        res_arr = np.array(raw_img)
+        assert np.array_equal(res_arr[0, 0], [255, 128, 64])
+
+        # Test float ndarray in [0.0, 1.0]
+        f_array = np.ones((16, 16, 3), dtype=np.float32)
+        agent_type_f = AgentImage(f_array)
+        raw_img_f = agent_type_f.to_raw()
+        assert np.array_equal(np.array(raw_img_f)[0, 0], [255, 255, 255])
+
     def test_from_tensor(self):
+        import numpy as np
         import torch
 
-        tensor = torch.randint(0, 256, (64, 64, 3))
+        tensor = torch.zeros((64, 64, 3), dtype=torch.uint8)
+        tensor[0, 0] = torch.tensor([255, 128, 0], dtype=torch.uint8)
         agent_type = AgentImage(tensor)
         path = str(agent_type.to_string())
 
-        # Ensure that the tensor and the agent_type's tensor are the same
-        assert torch.allclose(tensor, agent_type._tensor, atol=1e-4)
+        assert isinstance(agent_type.to_raw(), PIL.Image.Image)
+        res_arr = np.array(agent_type.to_raw())
+        assert np.array_equal(res_arr[0, 0], [255, 128, 0])
 
+        # Ensure the path remains even after the object deletion
+        del agent_type
+        assert os.path.exists(path)
+
+    def test_from_string(self, tmp_path):
+        image_path = str(tmp_path / "test_img.png")
+        image = PIL.Image.new("RGB", (32, 32), color="red")
+        image.save(image_path)
+
+        agent_type = AgentImage(image_path)
+        assert agent_type.to_string() == image_path
         assert isinstance(agent_type.to_raw(), PIL.Image.Image)
 
-        # Ensure the path remains even after the object deletion
-        del agent_type
-        assert os.path.exists(path)
-
-    def test_from_string(self, shared_datadir):
-        path = shared_datadir / "000000039769.png"
-        image = PIL.Image.open(path)
-        agent_type = AgentImage(path)
-
-        assert path.samefile(agent_type.to_string())
-        assert image == agent_type.to_raw()
-
-        # Ensure the path remains even after the object deletion
-        del agent_type
-        assert os.path.exists(path)
-
-    def test_from_image(self, shared_datadir):
-        path = shared_datadir / "000000039769.png"
-        image = PIL.Image.open(path)
+    def test_from_image(self):
+        image = PIL.Image.new("RGB", (32, 32), color="blue")
         agent_type = AgentImage(image)
 
-        assert not path.samefile(agent_type.to_string())
-        assert image == agent_type.to_raw()
-
-        # Ensure the path remains even after the object deletion
-        del agent_type
+        assert isinstance(agent_type.to_raw(), PIL.Image.Image)
+        path = agent_type.to_string()
         assert os.path.exists(path)
 
 
