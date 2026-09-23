@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import gc
 import io
 import json
 import os
@@ -1447,6 +1448,67 @@ class TestMultiStepAgent:
         with pytest.raises(AgentError) as e:
             agent.run("Test task")
         assert "Agent interrupted" in str(e)
+
+    @pytest.mark.parametrize("consumed_events", [1, 2, 3])
+    def test_close_stream_generator(self, consumed_events):
+        """Closing a streaming run early must let GeneratorExit propagate instead of yielding again."""
+        agent = CodeAgent(tools=[], model=FakeCodeModel(), max_steps=2)
+        generator = agent.run("Test task", stream=True)
+        events = [next(generator) for _ in range(consumed_events)]
+        # The first event comes from inside the step loop, so the step is still in progress.
+        assert isinstance(events[0], ToolCall)
+
+        generator.close()
+
+        # The interrupted step is still finalized and recorded, and the step counter does not advance.
+        action_steps = [step for step in agent.memory.steps if isinstance(step, ActionStep)]
+        assert len(action_steps) == 1
+        assert action_steps[0].timing.end_time is not None
+        assert agent.step_number == 1
+
+    def test_break_out_of_stream_generator(self):
+        """Abandoning a streaming run in a for loop must not report an unraisable exception."""
+        agent = CodeAgent(tools=[], model=FakeCodeModel(), max_steps=2)
+        unraisable = []
+        with patch("sys.unraisablehook", unraisable.append):
+            for _event in agent.run("Test task", stream=True):
+                break
+            gc.collect()
+        assert unraisable == []
+
+    def test_throw_generator_exit_into_stream_generator(self):
+        """Throwing GeneratorExit into a streaming run must propagate it, not swallow it."""
+        agent = CodeAgent(tools=[], model=FakeCodeModel(), max_steps=2)
+        generator = agent.run("Test task", stream=True)
+        next(generator)
+        with pytest.raises(GeneratorExit):
+            generator.throw(GeneratorExit)
+
+    def test_fatal_error_stream_matches_memory(self):
+        """A fatal model error must not drop the failing step from the stream.
+
+        On AgentGenerationError the failing ActionStep is yielded before the
+        exception propagates, so every ActionStep recorded in memory is also
+        emitted to the streaming consumer.
+        """
+
+        class FailsOnSecondCallModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                if "special_marker" not in str(messages):
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="Thought: first step. special_marker\n<code>\nresult = 1 + 1\n</code>",
+                    )
+                raise ValueError("model backend failure")
+
+        agent = CodeAgent(tools=[], model=FailsOnSecondCallModel(), max_steps=3)
+        streamed = []
+        with pytest.raises(AgentGenerationError):
+            for event in agent.run("Test task", stream=True):
+                if isinstance(event, ActionStep):
+                    streamed.append(event.step_number)
+        recorded = [step.step_number for step in agent.memory.steps if isinstance(step, ActionStep)]
+        assert streamed == recorded == [1, 2]
 
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
