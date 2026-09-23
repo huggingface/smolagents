@@ -39,6 +39,7 @@ from smolagents.models import (
     get_tool_json_schema,
     parse_json_if_needed,
     remove_content_after_stop_sequences,
+    strip_url_credentials,
     supports_stop_parameter,
 )
 from smolagents.tools import tool
@@ -541,6 +542,105 @@ class TestOpenAIModel:
         )
         assert model.client == MockOpenAI.return_value
 
+    def test_to_dict_preserves_connection_settings_and_role_conversions(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+        model = OpenAIModel(
+            model_id="Qwen2.5-7B",
+            api_base="http://localhost:8000/v1",
+            api_key="dummy",
+            organization="org1",
+            project="proj1",
+            custom_role_conversions={MessageRole.TOOL_CALL: MessageRole.USER},
+        )
+        data = model.to_dict()
+        assert data["api_base"] == "http://localhost:8000/v1"
+        assert data["organization"] == "org1"
+        assert data["project"] == "proj1"
+        assert data["custom_role_conversions"] == {MessageRole.TOOL_CALL: MessageRole.USER}
+        assert "api_key" not in data
+
+        rebuilt = OpenAIModel.from_dict(data)
+        assert rebuilt.client_kwargs["base_url"] == "http://localhost:8000/v1"
+        assert rebuilt.client_kwargs["organization"] == "org1"
+        assert rebuilt.client_kwargs["project"] == "proj1"
+        assert rebuilt.custom_role_conversions == {MessageRole.TOOL_CALL: MessageRole.USER}
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://user:s3cr3t@gateway.internal/v1",
+            "https://user:s3cr3t@gateway.internal/v1/",
+        ],
+    )
+    def test_to_dict_redacts_userinfo_from_api_base(self, url):
+        model = OpenAIModel(model_id="gpt-4o", api_base=url, api_key="dummy")
+        data = model.to_dict()
+
+        exported = data["api_base"]
+        assert "s3cr3t" not in exported
+        # The endpoint itself survives: only the credential is dropped.
+        assert exported.startswith("https://gateway.internal/v1")
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://gateway.internal/v1?api-key=abc123",
+            "https://gateway.internal/v1?token=abc123",
+            "https://gateway.internal/v1?API_KEY=abc123",
+            "https://gateway.internal/v1?sig=abc123",
+            "https://gateway.internal/v1?X-Amz-Signature=abc123",
+            "https://gateway.internal/v1?X-Goog-Signature=abc123",
+            "https://gateway.internal/v1?model=gpt-4o",
+            "https://user:s3cr3t@gateway.internal/v1?X-Amz-Signature=abc123",
+        ],
+    )
+    def test_to_dict_withholds_any_api_base_carrying_a_query(self, url):
+        """A query parameter cannot be classified as non-secret from its name, so a URL that has one is
+        not exported: the signed-URL parameter set (`sig`, `X-Amz-Signature`, provider variants) is
+        open-ended and a denylist would always lag behind it."""
+        model = OpenAIModel(model_id="gpt-4o", api_base=url, api_key="dummy")
+        data = model.to_dict()
+
+        assert "api_base" not in data
+        assert "abc123" not in str(data)
+        assert "s3cr3t" not in str(data)
+
+    def test_to_dict_leaves_a_credential_free_api_base_untouched(self):
+        model = OpenAIModel(
+            model_id="gpt-4o",
+            api_base="https://gateway.internal/v1",
+            api_key="dummy",
+        )
+        assert model.to_dict()["api_base"] == "https://gateway.internal/v1"
+
+    def test_to_dict_withholds_only_the_url_leaving_the_rest_exported(self):
+        model = OpenAIModel(
+            model_id="gpt-4o",
+            api_base="https://gateway.internal/v1?token=abc123",
+            api_key="dummy",
+            organization="org1",
+            project="proj1",
+        )
+        data = model.to_dict()
+        assert "api_base" not in data
+        assert data["organization"] == "org1"
+        assert data["project"] == "proj1"
+        assert "api_key" not in data
+
+    def test_to_dict_keeps_non_credential_connection_settings_alongside_redaction(self):
+        model = OpenAIModel(
+            model_id="gpt-4o",
+            api_base="https://user:s3cr3t@gateway.internal/v1",
+            api_key="dummy",
+            organization="org1",
+            project="proj1",
+        )
+        data = model.to_dict()
+        assert data["api_base"] == "https://gateway.internal/v1"
+        assert data["organization"] == "org1"
+        assert data["project"] == "proj1"
+        assert "api_key" not in data
+
     @require_run_all
     def test_streaming_tool_calls(self):
         model = OpenAIModel(model_id="gpt-4o-mini")
@@ -634,6 +734,28 @@ class TestAzureOpenAIModel:
             max_retries=5,
         )
         assert model.client == MockAzureOpenAI.return_value
+
+    def test_to_dict_preserves_azure_connection_settings_and_role_conversions(self):
+        # `from_dict` builds a real Azure client, which refuses to construct without credentials —
+        # patch the client class the way `test_client_kwargs_passed_correctly` does.
+        with patch("openai.AzureOpenAI"):
+            model = AzureOpenAIModel(
+                model_id="gpt-4o",
+                api_key="dummy",
+                api_version="2023-12-01-preview",
+                azure_endpoint="https://example-resource.azure.openai.com/",
+                custom_role_conversions={MessageRole.TOOL_CALL: MessageRole.USER},
+            )
+            data = model.to_dict()
+            assert data["azure_endpoint"] == "https://example-resource.azure.openai.com/"
+            assert data["api_version"] == "2023-12-01-preview"
+            assert data["custom_role_conversions"] == {MessageRole.TOOL_CALL: MessageRole.USER}
+            assert "api_key" not in data
+
+            rebuilt = AzureOpenAIModel.from_dict(data)
+            assert rebuilt.client_kwargs["azure_endpoint"] == "https://example-resource.azure.openai.com/"
+            assert rebuilt.client_kwargs["api_version"] == "2023-12-01-preview"
+            assert rebuilt.custom_role_conversions == {MessageRole.TOOL_CALL: MessageRole.USER}
 
 
 class TestTransformersModel:
@@ -742,6 +864,63 @@ def test_remove_content_after_stop_sequences():
     stop_sequences = ["<code>"]
     removed_content = remove_content_after_stop_sequences(content, stop_sequences)
     assert removed_content == "Hello"
+
+
+class TestStripUrlCredentials:
+    """`Model.to_dict()` feeds `Agent.save()`, so anything it exports can reach `agent.json`."""
+
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            ("https://host/v1", "https://host/v1"),
+            ("http://localhost:8000/v1", "http://localhost:8000/v1"),
+            ("https://user:pass@host/v1", "https://host/v1"),
+            ("https://user@host/v1", "https://host/v1"),
+            ("https://host/v1#frag", "https://host/v1#frag"),
+            # A password containing "@" must not truncate the host.
+            ("https://user:p@ss@host/v1", "https://host/v1"),
+        ],
+    )
+    def test_exports_the_url_with_userinfo_dropped(self, url, expected):
+        export, value = strip_url_credentials(url)
+
+        assert export is True
+        assert value == expected
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            # Credential-named parameters, including the signed-URL family that a denylist cannot
+            # enumerate: `sig`, `signature`, `X-Amz-Signature`, `X-Goog-Signature` and the rest.
+            "https://host/v1?api-key=abc",
+            "https://host/v1?api_key=abc",
+            "https://host/v1?token=abc",
+            "https://host/v1?sig=abc",
+            "https://host/v1?signature=abc",
+            "https://host/v1?X-Amz-Signature=abc",
+            "https://host/v1?X-Goog-Signature=abc",
+            # A parameter that merely starts with a credential name is not one, but it still cannot be
+            # proven safe from its name, so the URL is withheld either way.
+            "https://host/v1?key_format=json",
+            # An ordinary parameter with no credential meaning at all: still not exportable.
+            "https://host/v1?model=gpt-4o",
+            # A query alongside userinfo: the redaction of one does not license exporting the other.
+            "https://user:pass@host/v1?sig=abc",
+        ],
+    )
+    def test_withholds_any_url_carrying_a_query(self, url):
+        export, value = strip_url_credentials(url)
+
+        assert export is False
+        assert value == ""
+
+    def test_does_not_mangle_a_query_it_cannot_export(self):
+        """The withheld value carries no fragment of the original query."""
+        export, value = strip_url_credentials("https://host/v1?sig=secret-value&other=1")
+
+        assert export is False
+        assert "secret-value" not in value
+        assert value == ""
 
 
 def test_remove_content_after_stop_sequences_handles_none():
