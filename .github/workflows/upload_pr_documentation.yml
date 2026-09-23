@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    uses: huggingface/doc-builder/.github/workflows/upload_pr_documentation.yml@0f4784322c564503c4a4d67ccb7fba29e32f111a  # main
+    uses: huggingface/doc-builder/.github/workflows/upload_pr_documentation.yml@0ab9ea03baf111ed8dd83e88233430b663127368  # main
     with:
       package_name: smolagents
     secrets:
