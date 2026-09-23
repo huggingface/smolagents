@@ -142,14 +142,6 @@ def make_json_serializable(obj: Any) -> Any:
     if obj is None:
         return None
     elif isinstance(obj, (str, int, float, bool)):
-        # Try to parse string as JSON if it looks like a JSON object/array
-        if isinstance(obj, str):
-            try:
-                if (obj.startswith("{") and obj.endswith("}")) or (obj.startswith("[") and obj.endswith("]")):
-                    parsed = json.loads(obj)
-                    return make_json_serializable(parsed)
-            except json.JSONDecodeError:
-                pass
         return obj
     elif isinstance(obj, (list, tuple)):
         return [make_json_serializable(item) for item in obj]
