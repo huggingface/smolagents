@@ -80,6 +80,50 @@ class TestEvaluatePythonCode:
             evaluate_python_code(code, {"print": print}, state={})
         assert "Cannot assign to name 'print': doing this would erase the existing tool!" in str(e)
 
+    def test_function_decorator_is_rejected(self):
+        code = dedent(
+            """
+            def double(fn):
+                def wrapper(*a, **k):
+                    return fn(*a, **k) * 2
+                return wrapper
+
+            @double
+            def value():
+                return 21
+
+            value()
+            """
+        )
+        with pytest.raises(InterpreterError, match="Decorators are not supported on function 'value'"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    def test_class_decorator_is_rejected(self):
+        code = dedent(
+            """
+            def mark(cls):
+                return cls
+
+            @mark
+            class A:
+                pass
+            """
+        )
+        with pytest.raises(InterpreterError, match="Decorators are not supported on class 'A'"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    def test_method_decorator_is_rejected(self):
+        code = dedent(
+            """
+            class A:
+                @property
+                def v(self):
+                    return 7
+            """
+        )
+        with pytest.raises(InterpreterError, match="Decorators are not supported on function 'v'"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
     def test_subscript_call(self):
         code = """def foo(x,y):return x*y\n\ndef boo(y):\n\treturn y**3\nfun = [foo, boo]\nresult_foo = fun[0](4,2)\nresult_boo = fun[1](4)"""
         state = {}
