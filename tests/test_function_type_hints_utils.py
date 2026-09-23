@@ -508,6 +508,15 @@ class TestGetCode:
         """,
                 [],
             ),
+            # Inline comments must not hide imports (GH-2211)
+            (
+                """
+        import numpy  # used for arrays
+        import pandas as pd  # type: ignore
+        from torch import nn  # noqa
+        """,
+                ["numpy", "pandas", "torch"],
+            ),
         ],
     )
     def test_get_imports(self, code: str, expected: list[str]):
