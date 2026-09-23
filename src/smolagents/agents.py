@@ -506,6 +506,8 @@ You have been provided with these additional arguments, that you can access dire
         if return_full_result:
             total_input_tokens = 0
             total_output_tokens = 0
+            total_cache_write_tokens = 0
+            total_cache_read_tokens = 0
             correct_token_usage = True
             for step in self.memory.steps:
                 if isinstance(step, (ActionStep, PlanningStep)):
@@ -515,8 +517,15 @@ You have been provided with these additional arguments, that you can access dire
                     else:
                         total_input_tokens += step.token_usage.input_tokens
                         total_output_tokens += step.token_usage.output_tokens
+                        total_cache_write_tokens += step.token_usage.cache_write_tokens
+                        total_cache_read_tokens += step.token_usage.cache_read_tokens
             if correct_token_usage:
-                token_usage = TokenUsage(input_tokens=total_input_tokens, output_tokens=total_output_tokens)
+                token_usage = TokenUsage(
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                    cache_write_tokens=total_cache_write_tokens,
+                    cache_read_tokens=total_cache_read_tokens,
+                )
             else:
                 token_usage = None
 
