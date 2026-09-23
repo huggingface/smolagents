@@ -28,6 +28,7 @@ from smolagents.default_tools import BASE_PYTHON_TOOLS, FinalAnswerTool
 from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_MODULES,
+    MAX_INT_RESULT_BITS,
     ExecutionTimeoutError,
     InterpreterError,
     LocalPythonExecutor,
@@ -377,6 +378,31 @@ for result in search_results:
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == 9
         self.assertDictEqualNoPrint(state, {"x": 3, "y": 6, "_operations_count": {"counter": 4}})
+
+    def test_oversized_int_result_pow_is_rejected(self):
+        with pytest.raises(InterpreterError, match="exceed the maximum allowed bit length"):
+            evaluate_python_code(f"10 ** {MAX_INT_RESULT_BITS // 3}", {}, state={})
+
+    def test_oversized_int_result_left_shift_is_rejected(self):
+        with pytest.raises(InterpreterError, match="exceed the maximum allowed bit length"):
+            evaluate_python_code(f"1 << {MAX_INT_RESULT_BITS}", {}, state={})
+
+    def test_oversized_int_result_mult_is_rejected(self):
+        large_int = 1 << (MAX_INT_RESULT_BITS // 2)
+        with pytest.raises(InterpreterError, match="exceed the maximum allowed bit length"):
+            evaluate_python_code("left * right", {}, state={"left": large_int, "right": large_int})
+
+    @pytest.mark.parametrize(
+        ("code", "expected_result"),
+        [
+            ("2 ** 10", 1024),
+            ("3 << 4", 48),
+            ("6 * 7", 42),
+        ],
+    )
+    def test_normal_int_result_binops(self, code, expected_result):
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == expected_result
 
     def test_recursive_function(self):
         code = """

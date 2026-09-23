@@ -56,6 +56,7 @@ ERRORS = {
 
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
+MAX_INT_RESULT_BITS = 10_000_000
 MAX_WHILE_ITERATIONS = 1000000
 MAX_EXECUTION_TIME_SECONDS = 30
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
@@ -744,12 +745,28 @@ def evaluate_binop(
     elif isinstance(binop.op, ast.Sub):
         return left_val - right_val
     elif isinstance(binop.op, ast.Mult):
+        if isinstance(left_val, int) and isinstance(right_val, int) and left_val and right_val:
+            estimated_bits = left_val.bit_length() + right_val.bit_length()
+            if estimated_bits > MAX_INT_RESULT_BITS:
+                raise InterpreterError(
+                    f"Integer result would exceed the maximum allowed bit length of {MAX_INT_RESULT_BITS} bits."
+                )
         return left_val * right_val
     elif isinstance(binop.op, ast.Div):
         return left_val / right_val
     elif isinstance(binop.op, ast.Mod):
         return left_val % right_val
     elif isinstance(binop.op, ast.Pow):
+        if (
+            isinstance(left_val, int)
+            and isinstance(right_val, int)
+            and abs(left_val) >= 2
+            and right_val >= 2
+            and right_val * left_val.bit_length() > MAX_INT_RESULT_BITS
+        ):
+            raise InterpreterError(
+                f"Integer result would exceed the maximum allowed bit length of {MAX_INT_RESULT_BITS} bits."
+            )
         return left_val**right_val
     elif isinstance(binop.op, ast.FloorDiv):
         return left_val // right_val
@@ -760,6 +777,16 @@ def evaluate_binop(
     elif isinstance(binop.op, ast.BitXor):
         return left_val ^ right_val
     elif isinstance(binop.op, ast.LShift):
+        if (
+            isinstance(left_val, int)
+            and isinstance(right_val, int)
+            and left_val != 0
+            and right_val > 0
+            and left_val.bit_length() + right_val > MAX_INT_RESULT_BITS
+        ):
+            raise InterpreterError(
+                f"Integer result would exceed the maximum allowed bit length of {MAX_INT_RESULT_BITS} bits."
+            )
         return left_val << right_val
     elif isinstance(binop.op, ast.RShift):
         return left_val >> right_val
