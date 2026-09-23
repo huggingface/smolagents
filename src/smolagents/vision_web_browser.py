@@ -2,16 +2,13 @@ import argparse
 from io import BytesIO
 from time import sleep
 
-import helium
 import PIL.Image
 from dotenv import load_dotenv
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 
 from smolagents import CodeAgent, WebSearchTool, tool
 from smolagents.agents import ActionStep
 from smolagents.cli import load_model
+from smolagents.utils import _is_package_available
 
 
 github_request = """
@@ -64,6 +61,8 @@ def parse_arguments():
 
 
 def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
+    import helium
+
     sleep(1.0)  # Let JavaScript animations happen before taking the screenshot
     driver = helium.get_driver()
     current_step = memory_step.step_number
@@ -110,6 +109,8 @@ def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
         text: The text to search for
         nth_result: Which occurrence to jump to (default: 1)
     """
+    from selenium.webdriver.common.by import By
+
     escaped_text = _escape_xpath_string(text)
     elements = driver.find_elements(By.XPATH, f"//*[contains(text(), {escaped_text})]")
     if nth_result > len(elements):
@@ -132,11 +133,17 @@ def close_popups() -> str:
     """
     Closes any visible modal or pop-up on the page. Use this to dismiss pop-up windows! This does not work on cookie consent banners.
     """
+    from selenium import webdriver
+    from selenium.webdriver.common.keys import Keys
+
     webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 
 
 def initialize_driver():
     """Initialize the Selenium WebDriver."""
+    import helium
+    from selenium import webdriver
+
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--force-device-scale-factor=1")
     chrome_options.add_argument("--window-size=1000,1350")
@@ -222,6 +229,11 @@ def run_webagent(
     api_base: str | None = None,
     api_key: str | None = None,
 ) -> None:
+    if not _is_package_available("helium") or not _is_package_available("selenium"):
+        raise ModuleNotFoundError(
+            "Please install 'vision' extra to use the web agent: `pip install 'smolagents[vision]'`"
+        )
+
     # Load environment variables
     load_dotenv()
 
