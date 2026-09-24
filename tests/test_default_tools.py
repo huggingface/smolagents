@@ -20,6 +20,7 @@ import pytest
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
     DuckDuckGoSearchTool,
+    KeenableSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
     VisitWebpageTool,
@@ -252,3 +253,97 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+class TestKeenableSearchTool:
+    """Tests for the keyless-by-default KeenableSearchTool."""
+
+    def test_keyless_uses_public_endpoint(self):
+        mock_response_data = {
+            "results": [
+                {
+                    "title": "Keenable",
+                    "url": "https://keenable.ai",
+                    "description": "",
+                    "snippet": "Search for AI agents.",
+                },
+                {
+                    "title": "Hugging Face",
+                    "url": "https://huggingface.co",
+                    "description": "",
+                    "snippet": "The AI community.",
+                },
+            ]
+        }
+        tool = KeenableSearchTool(max_results=2)
+        with patch.dict("os.environ", {}, clear=True):
+            tool.api_key = None
+            with patch("requests.post") as mock_post:
+                mock_post.return_value.json.return_value = mock_response_data
+                mock_post.return_value.raise_for_status = lambda: None
+                result = tool("test query")
+
+        assert "## Search Results" in result
+        assert "[Keenable](https://keenable.ai)" in result
+        assert "[Hugging Face](https://huggingface.co)" in result
+        # Keyless -> public endpoint, no API-key header
+        call = mock_post.call_args
+        assert call.args[0] == "https://api.keenable.ai/v1/search/public"
+        assert "X-API-Key" not in call.kwargs["headers"]
+        assert call.kwargs["json"]["query"] == "test query"
+
+    def test_api_key_uses_keyed_endpoint(self):
+        tool = KeenableSearchTool(api_key="keen_test")
+        with patch("requests.post") as mock_post:
+            mock_post.return_value.json.return_value = {
+                "results": [{"title": "T", "url": "https://x.test", "description": "d"}]
+            }
+            mock_post.return_value.raise_for_status = lambda: None
+            tool("q")
+        call = mock_post.call_args
+        assert call.args[0] == "https://api.keenable.ai/v1/search"
+        assert call.kwargs["headers"]["X-API-Key"] == "keen_test"
+
+    def test_reads_page_text_from_snippet(self):
+        """`description` is the page's meta description and is empty for most pages."""
+        tool = KeenableSearchTool(max_results=1)
+        tool.api_key = None
+        with patch("requests.post") as mock_post:
+            mock_post.return_value.json.return_value = {
+                "results": [
+                    {
+                        "title": "T",
+                        "url": "https://x.test",
+                        "description": "",
+                        "snippet": "line one\n\nline two",
+                    }
+                ]
+            }
+            mock_post.return_value.raise_for_status = lambda: None
+            result = tool("q")
+        assert "line one line two" in result
+
+    def test_falls_back_to_description_and_caps_page_text(self):
+        tool = KeenableSearchTool(max_results=2)
+        tool.api_key = None
+        with patch("requests.post") as mock_post:
+            mock_post.return_value.json.return_value = {
+                "results": [
+                    {"title": "Long", "url": "https://long.test", "snippet": "word " * 400},
+                    {"title": "Meta", "url": "https://meta.test", "description": "only a meta description"},
+                ]
+            }
+            mock_post.return_value.raise_for_status = lambda: None
+            result = tool("q")
+        assert "only a meta description" in result
+        long_block = result.split("[Long](https://long.test)\n")[1].split("\n\n")[0]
+        assert len(long_block) == 500
+
+    def test_no_results_raises(self):
+        tool = KeenableSearchTool()
+        tool.api_key = None
+        with patch("requests.post") as mock_post:
+            mock_post.return_value.json.return_value = {"results": []}
+            mock_post.return_value.raise_for_status = lambda: None
+            with pytest.raises(Exception, match="No results found"):
+                tool("obscure query")
