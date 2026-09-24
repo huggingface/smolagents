@@ -174,6 +174,9 @@ with MCPClient([server_params1, server_params2]) as tools:
 > - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
 > - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
 
+> [!NOTE]
+> MCP tools cannot be serialized: they wrap a live MCP server session, so `Tool.to_dict`, `save` and `push_to_hub` raise an error for them, as do `to_dict` and `save` on an agent that holds them. Remove MCP tools from your agent before serializing it, and recreate them with [`MCPClient`] or [`ToolCollection.from_mcp`] when loading.
+
 #### Structured Output and Output Schema Support
 
 The latest [MCP specifications (2025-06-18+)](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#structured-content) include support for `outputSchema`, which enables tools to return structured data with defined schemas. `smolagents` takes advantage of these structured output capabilities, allowing agents to work with tools that return complex data structures, JSON objects, and other structured formats. With this feature, the agent's LLMs can "see" the structure of the tool output before calling a tool, enabling more intelligent and context-aware interactions.
