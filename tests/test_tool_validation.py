@@ -187,3 +187,101 @@ class TestMethodChecker:
         method_checker = MethodChecker(set())
         method_checker.visit(ast.parse(source_code))
         assert method_checker.errors == []
+
+
+class NestedDefTool(Tool):
+    name = "nested_def_tool"
+    description = "Tool with a nested helper function."
+    inputs = {"payload": {"type": "string", "description": "text"}}
+    output_type = "string"
+
+    def forward(self, payload: str) -> str:
+        def shout(text: str) -> str:
+            return text.upper()
+
+        return shout(payload)
+
+
+def test_nested_def_keeps_enclosing_scope():
+    assert validate_tool_attributes(NestedDefTool) is None
+
+
+@tool
+def lambda_body_tool(items: list, weight: float) -> float:
+    """Weighted sum of a list.
+
+    Args:
+        items: numbers to weight
+        weight: multiplier
+    """
+    return sum(map(lambda x: x * weight, items))
+
+
+def test_lambda_body_keeps_enclosing_scope():
+    assert lambda_body_tool.to_dict()
+
+
+def test_inner_scope_args_do_not_leak():
+    source_code = dedent(
+        """
+        def forward(self, x):
+            def inner(y):
+                return y
+            return inner(x) + y
+        """
+    )
+    method_checker = MethodChecker(set())
+    method_checker.visit(ast.parse(source_code))
+    assert any("Name 'y' is undefined." in error for error in method_checker.errors)
+    assert not any("Name 'inner' is undefined." in error for error in method_checker.errors)
+
+
+def test_undefined_names_in_decorators_and_return_annotations_still_reported():
+    # Regression guard for the scope-stack handlers: generic_visit used to
+    # walk decorator_list and returns; the nested-scope handlers must keep
+    # checking them (both evaluate in the enclosing scope).
+    source_code = dedent(
+        """
+        import functools
+
+
+        @not_a_real_decorator
+        def forward(self, items: list) -> MissingReturn:
+            return items
+        """
+    )
+    method_checker = MethodChecker(set())
+    method_checker.visit(ast.parse(source_code))
+    assert any("Name 'not_a_real_decorator' is undefined." in error for error in method_checker.errors)
+    assert any("Name 'MissingReturn' is undefined." in error for error in method_checker.errors)
+
+
+def test_undefined_names_in_nested_def_decorators_and_annotations_reported():
+    source_code = dedent(
+        """
+        def forward(self, x):
+            @missing_dec
+            def inner(y: MissingAnn) -> MissingRet:
+                return y
+            return inner(x)
+        """
+    )
+    method_checker = MethodChecker(set())
+    method_checker.visit(ast.parse(source_code))
+    assert any("Name 'missing_dec' is undefined." in error for error in method_checker.errors)
+    assert any("Name 'MissingAnn' is undefined." in error for error in method_checker.errors)
+    assert any("Name 'MissingRet' is undefined." in error for error in method_checker.errors)
+
+
+def test_undefined_name_in_default_expression_reported():
+    # New capability vs main: visit_arguments never recursed, so a default
+    # expression referencing an undefined name was never checked.
+    source_code = dedent(
+        """
+        def forward(self, x=missing_default):
+            return x
+        """
+    )
+    method_checker = MethodChecker(set())
+    method_checker.visit(ast.parse(source_code))
+    assert any("Name 'missing_default' is undefined." in error for error in method_checker.errors)
