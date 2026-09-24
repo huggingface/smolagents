@@ -41,7 +41,7 @@ from smolagents.models import (
     remove_content_after_stop_sequences,
     supports_stop_parameter,
 )
-from smolagents.tools import tool
+from smolagents.tools import Tool, tool
 
 from .utils.markers import require_run_all
 
@@ -221,6 +221,52 @@ class TestModel:
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
         assert "nullable" in get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
+
+    def test_get_json_schema_nullable_anyof_params_are_not_required(self):
+        class ToolWithNullableAnyOf(Tool):
+            name = "tool_with_nullable"
+            description = "A tool with a nullable parameter."
+            output_type = "string"
+            inputs = {
+                "query": {
+                    "description": "The query.",
+                    "type": "string",
+                },
+                "limit": {
+                    "description": "The limit.",
+                    "type": "integer",
+                    "anyOf": [{"type": "integer"}, {"type": "null"}],
+                },
+            }
+
+            def forward(self, query, limit):
+                return query, limit
+
+        parameters = get_tool_json_schema(ToolWithNullableAnyOf())["function"]["parameters"]
+
+        assert parameters["properties"]["limit"]["nullable"] is True
+        assert "limit" not in parameters["required"]
+        assert "query" in parameters["required"]
+
+    def test_get_json_schema_non_nullable_anyof_params_are_required(self):
+        class ToolWithUnion(Tool):
+            name = "tool_with_union"
+            description = "A tool with a union parameter."
+            output_type = "string"
+            inputs = {
+                "value": {
+                    "description": "A value.",
+                    "type": "integer",
+                    "anyOf": [{"type": "string"}, {"type": "integer"}],
+                },
+            }
+
+            def forward(self, value):
+                return value
+
+        parameters = get_tool_json_schema(ToolWithUnion())["function"]["parameters"]
+
+        assert "value" in parameters["required"]
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
