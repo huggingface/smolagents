@@ -1378,7 +1378,7 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
             (e.g., string instead of number, excluding integer to number conversion).
 
     Note:
-        - Supports type coercion from integer to number
+        - Supports type coercion from integer to number, including when "number" is one member of a union type list
         - Handles nullable parameters when explicitly marked in the schema
         - Accepts "any" type as a wildcard that matches all types
     """
@@ -1397,7 +1397,9 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
                 and expected_type != "any"
                 and not (actual_type == "null" and expected_type_is_nullable)
             ):
-                if actual_type == "integer" and expected_type == "number":
+                if actual_type == "integer" and (
+                    expected_type == "number" or (isinstance(expected_type, list) and "number" in expected_type)
+                ):
                     continue
                 raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'")
 
