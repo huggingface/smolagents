@@ -1,6 +1,5 @@
 import ast
 import builtins
-from itertools import zip_longest
 
 from .utils import BASE_BUILTIN_MODULES, get_source, is_valid_name
 
@@ -215,11 +214,21 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
                     )
 
         def _check_init_function_parameters(self, node):
-            # Check defaults in parameters
-            for arg, default in reversed(list(zip_longest(reversed(node.args.args), reversed(node.args.defaults)))):
+            # Check defaults in positional-only and positional-or-keyword parameters.
+            positional_args = node.args.posonlyargs + node.args.args
+            positional_defaults = [None] * (len(positional_args) - len(node.args.defaults)) + list(node.args.defaults)
+            for arg, default in zip(positional_args, positional_defaults):
                 if default is None:
                     if arg.arg != "self":
                         self.non_defaults.add(arg.arg)
+                elif not isinstance(default, (ast.Constant, ast.Dict, ast.List, ast.Set)):
+                    self.non_literal_defaults.add(arg.arg)
+
+            # Keyword-only parameters store their defaults separately. A None
+            # entry means the parameter is required, not that its default is None.
+            for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+                if default is None:
+                    self.non_defaults.add(arg.arg)
                 elif not isinstance(default, (ast.Constant, ast.Dict, ast.List, ast.Set)):
                     self.non_literal_defaults.add(arg.arg)
 
