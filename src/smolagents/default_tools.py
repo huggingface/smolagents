@@ -207,7 +207,7 @@ class GoogleSearchTool(Tool):
         if filter_year is not None:
             params["tbs"] = f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
 
-        response = requests.get(base_url, params=params)
+        response = requests.get(base_url, params=params, timeout=20)
 
         if response.status_code == 200:
             results = response.json()
@@ -314,7 +314,7 @@ class ApiWebSearchTool(Tool):
 
         self._enforce_rate_limit()
         params = {**self.params, "q": query}
-        response = requests.get(self.endpoint, headers=self.headers, params=params)
+        response = requests.get(self.endpoint, headers=self.headers, params=params, timeout=20)
         response.raise_for_status()
         data = response.json()
         results = self.extract_results(data)
