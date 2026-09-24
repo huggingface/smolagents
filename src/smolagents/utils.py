@@ -258,10 +258,15 @@ def truncate_content(content: str, max_length: int = MAX_LENGTH_TRUNCATE_CONTENT
     if len(content) <= max_length:
         return content
     else:
+        # Compute the tail length instead of slicing with ``-max_length // 2``:
+        # for max_length=0 that negates to 0, making ``content[0:]`` return the
+        # whole string, so nothing is actually truncated.
+        prefix_length = max(max_length // 2, 0)
+        suffix_length = max(max_length - prefix_length, 0)
         return (
-            content[: max_length // 2]
+            content[:prefix_length]
             + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
-            + content[-max_length // 2 :]
+            + (content[-suffix_length:] if suffix_length else "")
         )
 
 
