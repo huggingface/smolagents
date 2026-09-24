@@ -17,9 +17,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import warnings
 from types import TracebackType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from smolagents.tools import Tool
 
@@ -28,6 +30,37 @@ __all__ = ["MCPClient"]
 
 if TYPE_CHECKING:
     from mcpadapt.core import StdioServerParameters
+
+
+class _MCPAccessTool(Tool):
+    """Internal lightweight Tool wrapper for MCP access primitives.
+
+    Wraps a synchronous callable into a SmolAgents Tool without any
+    signature validation, used for resources and prompts access tools.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        inputs: dict[str, dict[str, str | type | bool]],
+        output_type: str,
+        func: Callable[..., Any],
+    ):
+        self.name = name
+        self.description = description
+        self.inputs = inputs
+        self.output_type = output_type
+        self._func = func
+        self.is_initialized = True
+        self.skip_forward_signature_validation = True
+
+    def forward(self, *args, **kwargs) -> Any:
+        if args:
+            raise ValueError(
+                f"tool {self.name} does not support positional arguments, please use keyword arguments"
+            )
+        return self._func(**kwargs)
 
 
 class MCPClient:
@@ -160,6 +193,256 @@ class MCPClient:
         is already connected at this point.
         """
         return self._tools
+
+    def get_resource_access_tools(self) -> list[Tool]:
+        """Return SmolAgents tools to access the MCP server's resources.
+
+        MCP servers can expose resources: context-efficient, read-only data
+        (documents, configuration, schemas, ...) addressable by URI. This
+        method returns two tools that let the agent discover and read them
+        like any other tool:
+
+        - ``list_resources``: lists the available resources with their URI,
+          name, MIME type and description. Call it first to discover what
+          data is available.
+        - ``read_resource(uri)``: reads the content of the resource
+          identified by ``uri`` (as returned by ``list_resources``). Text
+          content is returned as-is; binary content is returned base64-encoded.
+
+        Example:
+            ```python
+            mcp_client = MCPClient(server_parameters)
+            resource_tools = mcp_client.get_resource_access_tools()
+            tools = mcp_client.get_tools() + resource_tools
+            ```
+
+        Returns:
+            list[Tool]: A list containing the ``list_resources`` and
+            ``read_resource`` tools.
+
+        Raises:
+            RuntimeError: If the MCP server sessions are not initialized
+                (usually meaning the client is not connected).
+        """
+        if not self._adapter.sessions:
+            raise RuntimeError(
+                "Couldn't retrieve resources from MCP server, run `mcp_client.connect()` first before accessing resources"
+            )
+
+        # mcp is guaranteed to be installed here (MCPClient init requires mcpadapt)
+        from mcp.types import BlobResourceContents, TextResourceContents
+        from pydantic.networks import AnyUrl
+
+        def _sync_list_resources() -> list[dict[str, Any]]:
+            resources: list[dict[str, Any]] = []
+            for session in self._adapter.sessions:
+                result = asyncio.run_coroutine_threadsafe(session.list_resources(), self._adapter.loop).result()
+                for resource in result.resources:
+                    resources.append(
+                        {
+                            "uri": str(resource.uri),
+                            "name": resource.name or "",
+                            "mimeType": resource.mimeType or "",
+                            "description": resource.description or "",
+                        }
+                    )
+            return resources
+
+        def _sync_read_resource(uri: str) -> dict[str, Any]:
+            for session in self._adapter.sessions:
+                try:
+                    result = asyncio.run_coroutine_threadsafe(
+                        session.read_resource(AnyUrl(uri)), self._adapter.loop
+                    ).result()
+                except Exception:
+                    continue  # resource not available on this server, try the next one
+                contents: list[dict[str, Any]] = []
+                for content in result.contents:
+                    entry: dict[str, Any] = {
+                        "uri": str(content.uri),
+                        "mimeType": content.mimeType or "",
+                    }
+                    if isinstance(content, TextResourceContents):
+                        entry["content"] = content.text
+                    elif isinstance(content, BlobResourceContents):
+                        raw = base64.b64decode(content.blob)
+                        try:
+                            entry["content"] = raw.decode("utf-8")
+                        except UnicodeDecodeError:
+                            # binary content: keep the base64 payload
+                            entry["content"] = content.blob
+                            entry["encoding"] = "base64"
+                    contents.append(entry)
+                return {"uri": uri, "contents": contents}
+            return {"uri": uri, "error": f"No resource found with uri '{uri}'"}
+
+        return [
+            _MCPAccessTool(
+                name="list_resources",
+                description=(
+                    "List all resources available from the MCP server(s). "
+                    "Returns a list of resources with their URI, name, MIME type and description. "
+                    "Use this tool first to discover what data is available, "
+                    "then call `read_resource` with the URI of the resource you want to fetch."
+                ),
+                inputs={},
+                output_type="object",
+                func=_sync_list_resources,
+            ),
+            _MCPAccessTool(
+                name="read_resource",
+                description=(
+                    "Read the content of a resource exposed by the MCP server(s). "
+                    "Takes the `uri` of the resource to read, as returned by `list_resources`. "
+                    "Returns the resource content: text content is returned as-is, "
+                    "binary content is returned base64-encoded."
+                ),
+                inputs={
+                    "uri": {
+                        "type": "string",
+                        "description": "The URI of the resource to read, as returned by `list_resources`.",
+                    }
+                },
+                output_type="object",
+                func=_sync_read_resource,
+            ),
+        ]
+
+    def get_prompt_access_tools(self) -> list[Tool]:
+        """Return SmolAgents tools to access the MCP server's prompts.
+
+        MCP servers can expose prompts: reusable prompt templates (with
+        optional arguments) that instruct the agent how to perform a task.
+        This method returns two tools that let the agent discover and fetch
+        them like any other tool:
+
+        - ``list_prompts``: lists the available prompts with their name,
+          description and argument schema. Call it first to discover what
+          templates are available.
+        - ``get_prompt(name, arguments)``: fetches the rendered content of
+          the prompt identified by ``name`` (as returned by
+          ``list_prompts``), filling the template with the provided
+          arguments. Text messages are returned as-is; image/audio content
+          is returned base64-encoded.
+
+        Example:
+            ```python
+            mcp_client = MCPClient(server_parameters)
+            prompt_tools = mcp_client.get_prompt_access_tools()
+            tools = mcp_client.get_tools() + prompt_tools
+            ```
+
+        Returns:
+            list[Tool]: A list containing the ``list_prompts`` and
+            ``get_prompt`` tools.
+
+        Raises:
+            RuntimeError: If the MCP server sessions are not initialized
+                (usually meaning the client is not connected).
+        """
+        if not self._adapter.sessions:
+            raise RuntimeError(
+                "Couldn't retrieve prompts from MCP server, run `mcp_client.connect()` first before accessing prompts"
+            )
+
+        # mcp is guaranteed to be installed here (MCPClient init requires mcpadapt)
+        from mcp.types import AudioContent, EmbeddedResource, ImageContent, TextContent
+
+        def _sync_list_prompts() -> list[dict[str, Any]]:
+            prompts: list[dict[str, Any]] = []
+            for session in self._adapter.sessions:
+                result = asyncio.run_coroutine_threadsafe(session.list_prompts(), self._adapter.loop).result()
+                for prompt in result.prompts:
+                    prompts.append(
+                        {
+                            "name": prompt.name,
+                            "description": prompt.description or "",
+                            "arguments": [
+                                {
+                                    "name": argument.name,
+                                    "description": argument.description or "",
+                                    "required": bool(argument.required),
+                                }
+                                for argument in (prompt.arguments or [])
+                            ],
+                        }
+                    )
+            return prompts
+
+        def _sync_get_prompt(name: str, arguments: dict[str, str] | None = None) -> dict[str, Any]:
+            for session in self._adapter.sessions:
+                try:
+                    result = asyncio.run_coroutine_threadsafe(
+                        session.get_prompt(name, arguments or {}), self._adapter.loop
+                    ).result()
+                except Exception:
+                    continue  # prompt not available on this server, try the next one
+                messages: list[dict[str, Any]] = []
+                for message in result.messages:
+                    entry: dict[str, Any] = {"role": message.role}
+                    content = message.content
+                    if isinstance(content, TextContent):
+                        entry["type"] = "text"
+                        entry["content"] = content.text
+                    elif isinstance(content, ImageContent):
+                        entry["type"] = "image"
+                        entry["mimeType"] = content.mimeType
+                        entry["data"] = content.data
+                    elif isinstance(content, AudioContent):
+                        entry["type"] = "audio"
+                        entry["mimeType"] = content.mimeType
+                        entry["data"] = content.data
+                    elif isinstance(content, EmbeddedResource):
+                        entry["type"] = "embedded_resource"
+                        entry["resource"] = {
+                            "uri": str(content.resource.uri),
+                            "mimeType": content.resource.mimeType or "",
+                            "text": getattr(content.resource, "text", None),
+                        }
+                    else:
+                        entry["type"] = "unknown"
+                        entry["content"] = str(content)
+                    messages.append(entry)
+                return {"name": name, "messages": messages}
+            return {"name": name, "error": f"No prompt found with name '{name}'"}
+
+        return [
+            _MCPAccessTool(
+                name="list_prompts",
+                description=(
+                    "List all prompts available from the MCP server(s). "
+                    "Returns a list of prompts with their name, description and argument schema. "
+                    "Use this tool first to discover what templates are available, "
+                    "then call `get_prompt` with the name of the prompt you want to fetch."
+                ),
+                inputs={},
+                output_type="object",
+                func=_sync_list_prompts,
+            ),
+            _MCPAccessTool(
+                name="get_prompt",
+                description=(
+                    "Fetch the rendered content of a prompt exposed by the MCP server(s). "
+                    "Takes the `name` of the prompt to fetch (as returned by `list_prompts`) "
+                    "and optional `arguments` to fill the prompt template. "
+                    "Returns the prompt messages with their roles and content; "
+                    "text content is returned as-is, image/audio content is returned base64-encoded."
+                ),
+                inputs={
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the prompt to fetch, as returned by `list_prompts`.",
+                    },
+                    "arguments": {
+                        "type": "object",
+                        "description": "Optional key-value arguments to fill the prompt template. Omit if the prompt has no arguments.",
+                        "nullable": True,
+                    },
+                },
+                output_type="object",
+                func=_sync_get_prompt,
+            ),
+        ]
 
     def __exit__(
         self,
