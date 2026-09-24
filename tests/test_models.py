@@ -138,6 +138,41 @@ class TestModel:
         )
         assert agglomerated_stream_delta.token_usage.total_tokens == 1372
 
+    def test_agglomerate_stream_deltas_orders_tool_calls_by_index(self):
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            agglomerate_stream_deltas,
+        )
+
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=1,
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallFunction(arguments="{}", name="second"),
+                    )
+                ]
+            ),
+            ChatMessageStreamDelta(
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id="call_0",
+                        type="function",
+                        function=ChatMessageToolCallFunction(arguments="{}", name="first"),
+                    )
+                ]
+            ),
+        ]
+
+        message = agglomerate_stream_deltas(stream_deltas)
+
+        assert [tool_call.id for tool_call in message.tool_calls] == ["call_0", "call_1"]
+
     @pytest.mark.parametrize(
         "model_id, stop_sequences, should_contain_stop",
         [
