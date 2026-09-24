@@ -8,9 +8,98 @@ To learn more about code execution and its risks, make sure to read the [Secure 
 tutorial. This reference contains the API docs for the underlying classes: the base `PythonExecutor` interface and all 
 available executor implementations.
 
+## Custom executors
+
+Import [`PythonExecutor`], [`CodeOutput`], and [`RemotePythonExecutor`] directly from `smolagents` to implement an executor
+outside the core package. These classes and the extension points documented here form the public executor API;
+underscore-prefixed helpers are internal implementation details.
+
+A [`PythonExecutor`] implements three methods:
+
+- `send_tools(tools)`: make the agent's tools available to executed code, including `final_answer`.
+- `send_variables(variables)`: add or update variables in the execution environment.
+- `__call__(code_action)`: execute Python code and return `CodeOutput(output, logs, is_final_answer)`.
+
+Preserve execution state between calls. Set `is_final_answer=True` when execution calls `final_answer`, return its value
+in `output`, and put captured text output in `logs`. Execution failures should raise an exception. If the executor owns
+resources, it can provide `cleanup()`: `agent.cleanup()` and the `CodeAgent` context manager call it when present.
+
+Pass an instance with `CodeAgent(..., executor=my_executor)` to use it directly. An explicit `executor` takes precedence
+over `executor_type` and bypasses plugin discovery. Each custom executor is responsible for supporting or rejecting
+managed agents passed through `send_tools`; the built-in remote executors do not support managed agents.
+
+### Publish an executor plugin
+
+To let users select your executor by name, register a Python entry point in the `smolagents.executors` group.
+The entry point must resolve to a callable class or factory with this signature:
+`(additional_authorized_imports, logger, **executor_kwargs) -> PythonExecutor`.
+The imports and agent logger are passed positionally, and `CodeAgent.executor_kwargs` supplies the keyword arguments.
+
+For example, put this adapter in your package's `my_executor/__init__.py`:
+
+```python
+from smolagents import LocalPythonExecutor
+
+
+class MyPythonExecutor(LocalPythonExecutor):
+    def __init__(self, additional_authorized_imports, logger, **executor_kwargs):
+        self.logger = logger
+        super().__init__(additional_authorized_imports, **executor_kwargs)
+```
+
+Add this entry to the package's `pyproject.toml`:
+
+```toml
+[project.entry-points."smolagents.executors"]
+my_executor = "my_executor:MyPythonExecutor"
+```
+
+Install the package in the environment running the agent, for example with `pip install -e .` from the package directory.
+Then select the entry point's name as `executor_type`:
+
+```python
+from smolagents import CodeAgent
+
+
+def create_agent(model):
+    return CodeAgent(
+        tools=[],
+        model=model,
+        executor_type="my_executor",
+        additional_authorized_imports=["math"],
+        executor_kwargs={"timeout_seconds": 30},
+    )
+```
+
+Call `create_agent` with your configured model. A factory can replace the class entry point as long as it accepts the
+same arguments and returns a `PythonExecutor` instance.
+
+Discovery uses `importlib.metadata.entry_points`. Built-in names (`local`, `blaxel`, `e2b`, `docker`, and `modal`) take
+precedence and do not scan installed plugins. For any other name, only the matching entry point is loaded. Duplicate
+entries with that name raise `ValueError` before either is loaded; an unknown name also raises `ValueError`.
+
+Loading a plugin imports and runs installed Python code in the agent's local process, even if the executor subsequently
+runs generated code remotely. Install only plugins you trust. Saving an agent records its executor name and options,
+but does not bundle the plugin package; install that package before deserializing the agent.
+
+### Implement a remote executor
+
+Subclass [`RemotePythonExecutor`] to reuse tool transfer, variable serialization, and final-answer handling. Implement
+`run_code_raise_errors(code) -> CodeOutput` for your backend, including detecting `FINAL_ANSWER_EXCEPTION` and decoding
+its value with `RemotePythonExecutor.deserialize_final_answer(encoded_value, allow_pickle=False)`. Keep pickle disabled
+unless you trust the payload's source, since decoding pickle can execute code.
+
+The default `install_packages(additional_imports)` executes an IPython `!pip install` command. Override it for runtimes
+without IPython support, returning the list of installed packages and raising an exception if installation fails.
+The old `_deserialize_final_answer` name remains a compatibility alias; new integrations should use the public method.
+
 ## Python executor
 
-[[autodoc]] smolagents.local_python_executor.PythonExecutor
+[[autodoc]] smolagents.PythonExecutor
+
+## Code output
+
+[[autodoc]] smolagents.CodeOutput
 
 ## Local Python executor
 
@@ -18,7 +107,11 @@ available executor implementations.
 
 ## Remote Python executors
 
-[[autodoc]] smolagents.remote_executors.RemotePythonExecutor
+<a id="smolagents.remote_executors.RemotePythonExecutor"></a>
+<a id="smolagents.remote_executors.RemotePythonExecutor.run_code_raise_errors"></a>
+<a id="smolagents.remote_executors.RemotePythonExecutor.send_variables"></a>
+
+[[autodoc]] smolagents.RemotePythonExecutor
 
 ### BlaxelExecutor
 
