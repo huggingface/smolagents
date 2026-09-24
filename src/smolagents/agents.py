@@ -661,12 +661,12 @@ You have been provided with these additional arguments, that you can access dire
                 input_tokens, output_tokens = 0, 0
                 with Live("", console=self.logger.console, vertical_overflow="visible") as live:
                     for event in output_stream:
+                        if event.token_usage:
+                            input_tokens += event.token_usage.input_tokens
+                            output_tokens += event.token_usage.output_tokens
                         if event.content is not None:
                             plan_message_content += event.content
                             live.update(Markdown(plan_message_content))
-                            if event.token_usage:
-                                input_tokens = event.token_usage.input_tokens
-                                output_tokens += event.token_usage.output_tokens
                         yield event
             else:
                 plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
@@ -719,12 +719,12 @@ You have been provided with these additional arguments, that you can access dire
                         input_messages,
                         stop_sequences=["<end_plan>"],
                     ):  # type: ignore
+                        if event.token_usage:
+                            input_tokens += event.token_usage.input_tokens
+                            output_tokens += event.token_usage.output_tokens
                         if event.content is not None:
                             plan_message_content += event.content
                             live.update(Markdown(plan_message_content))
-                            if event.token_usage:
-                                input_tokens = event.token_usage.input_tokens
-                                output_tokens += event.token_usage.output_tokens
                         yield event
             else:
                 plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
