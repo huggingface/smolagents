@@ -111,6 +111,9 @@ def test_action_step_dict():
     assert action_step_dict["observations"] == "This is a nice observation"
 
     assert "observations_images" in action_step_dict
+    assert isinstance(action_step_dict["observations_images"], list)
+    import json
+    json.dumps(action_step_dict)
 
     assert "action_output" in action_step_dict
     assert action_step_dict["action_output"] == "Output"
