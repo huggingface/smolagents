@@ -420,6 +420,32 @@ class TestModalExecutorIntegration(CommonDockerExecutorIntegration):
 
 
 class TestModalExecutorUnit:
+    @patch("smolagents.remote_executors.time.sleep")
+    @patch("smolagents.remote_executors.requests.get")
+    def test_wait_for_server_retries_non_200_response(self, mock_get, mock_sleep):
+        mock_get.side_effect = [MagicMock(status_code=503), MagicMock(status_code=200)]
+        executor = ModalExecutor.__new__(ModalExecutor)
+        executor.logger = MagicMock()
+
+        executor._wait_for_server("test.modal.host", "test-token")
+
+        assert mock_get.call_count == 2
+        assert mock_sleep.call_count == 1, "non-200 response must be throttled"
+        mock_sleep.assert_called_once_with(1.0)
+
+    @patch("smolagents.remote_executors.time.sleep")
+    @patch("smolagents.remote_executors.requests.get")
+    def test_wait_for_server_limits_non_200_responses(self, mock_get, mock_sleep):
+        mock_get.side_effect = [MagicMock(status_code=503) for _ in range(61)] + [MagicMock(status_code=200)]
+        executor = ModalExecutor.__new__(ModalExecutor)
+        executor.logger = MagicMock()
+
+        with pytest.raises(RuntimeError, match="Unable to connect to sandbox"):
+            executor._wait_for_server("test.modal.host", "test-token")
+
+        assert mock_get.call_count == 61
+        assert mock_sleep.call_count == 60
+
     @patch("smolagents.remote_executors._websocket_run_code_raise_errors")
     @patch("requests.post")
     @patch("requests.get")
