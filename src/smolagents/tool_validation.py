@@ -29,7 +29,7 @@ class MethodChecker(ast.NodeVisitor):
 
     def visit_arguments(self, node):
         """Collect function arguments"""
-        self.arg_names = {arg.arg for arg in node.args}
+        self.arg_names = {arg.arg for arg in node.posonlyargs + node.args + node.kwonlyargs}
         if node.kwarg:
             self.arg_names.add(node.kwarg.arg)
         if node.vararg:
@@ -215,11 +215,19 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
                     )
 
         def _check_init_function_parameters(self, node):
-            # Check defaults in parameters
-            for arg, default in reversed(list(zip_longest(reversed(node.args.args), reversed(node.args.defaults)))):
+            # Check defaults in positional/positional-or-keyword parameters
+            positional_args = node.args.posonlyargs + node.args.args
+            for arg, default in reversed(list(zip_longest(reversed(positional_args), reversed(node.args.defaults)))):
                 if default is None:
                     if arg.arg != "self":
                         self.non_defaults.add(arg.arg)
+                elif not isinstance(default, (ast.Constant, ast.Dict, ast.List, ast.Set)):
+                    self.non_literal_defaults.add(arg.arg)
+
+            # Check defaults in keyword-only parameters
+            for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+                if default is None:
+                    self.non_defaults.add(arg.arg)
                 elif not isinstance(default, (ast.Constant, ast.Dict, ast.List, ast.Set)):
                     self.non_literal_defaults.add(arg.arg)
 
