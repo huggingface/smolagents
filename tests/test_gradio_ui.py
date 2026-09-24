@@ -131,6 +131,57 @@ class GradioUITester(unittest.TestCase):
             self.assertEqual(len(uploads_log), 1)
 
 
+class TestGradioUIClearAgentState:
+    """Tests for GradioUI.clear_agent_state and clear-event wiring."""
+
+    def test_clear_agent_state_resets_memory_and_monitor(self):
+        mock_agent = Mock()
+        mock_agent.memory = Mock()
+        mock_agent.monitor = Mock()
+        mock_agent.name = "test_agent"
+        mock_agent.description = None
+        ui = GradioUI(agent=mock_agent)
+
+        ui.clear_agent_state()
+
+        mock_agent.memory.reset.assert_called_once_with()
+        mock_agent.monitor.reset.assert_called_once_with()
+
+    def test_clear_agent_state_without_monitor(self):
+        mock_agent = Mock(spec=["memory", "name", "description"])
+        mock_agent.memory = Mock()
+        mock_agent.name = "test_agent"
+        mock_agent.description = None
+        # Ensure monitor is absent
+        assert not hasattr(mock_agent, "monitor")
+        ui = GradioUI(agent=mock_agent)
+
+        ui.clear_agent_state()
+
+        mock_agent.memory.reset.assert_called_once_with()
+
+    def test_create_app_wires_chatbot_clear_to_agent_state(self):
+        mock_agent = Mock()
+        mock_agent.memory = Mock()
+        mock_agent.monitor = Mock()
+        mock_agent.name = "test_agent"
+        mock_agent.description = None
+        ui = GradioUI(agent=mock_agent)
+
+        with patch("gradio.Chatbot") as mock_chatbot_cls, patch("gradio.ChatInterface") as mock_chat_iface_cls:
+            mock_chatbot = Mock()
+            mock_chatbot_cls.return_value = mock_chatbot
+            mock_demo = Mock()
+            mock_demo.new_chat_button = Mock()
+            mock_chat_iface_cls.return_value = mock_demo
+
+            demo = ui.create_app()
+
+            mock_chatbot.clear.assert_called_once_with(ui.clear_agent_state)
+            mock_demo.new_chat_button.click.assert_called_once_with(ui.clear_agent_state, queue=False)
+            assert demo is mock_demo
+
+
 class TestStreamToGradio:
     """Tests for the stream_to_gradio function."""
 
