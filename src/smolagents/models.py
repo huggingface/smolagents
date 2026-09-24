@@ -656,10 +656,14 @@ class VLLMModel(Model):
             raise ModuleNotFoundError("Please install 'vllm' extra to use VLLMModel: `pip install 'smolagents[vllm]'`")
 
         from vllm import LLM  # type: ignore
-        from vllm.transformers_utils.tokenizer import get_tokenizer  # type: ignore
+        try:
+            from vllm.transformers_utils.tokenizer import get_tokenizer  # type: ignore
+        except ImportError:
+            from vllm.tokenizers import get_tokenizer  # type: ignore
 
         self.model_kwargs = model_kwargs or {}
         self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
+        self.max_tokens = kwargs.pop("max_tokens", None)
         super().__init__(**kwargs)
         self.model_id = model_id
         self.model = LLM(model=model_id, **self.model_kwargs)
@@ -702,6 +706,7 @@ class VLLMModel(Model):
             tools_to_call_from=tools_to_call_from,
             **kwargs,
         )
+        max_tokens = completion_kwargs.pop("max_tokens", self.max_tokens)
         # Override the OpenAI schema for VLLM compatibility
         structured_outputs = (
             StructuredOutputsParams(json=response_format["json_schema"]["schema"]) if response_format else None
@@ -723,7 +728,7 @@ class VLLMModel(Model):
         sampling_params = SamplingParams(
             n=kwargs.get("n", 1),
             temperature=kwargs.get("temperature", 0.0),
-            max_tokens=kwargs.get("max_tokens", 2048),
+            max_tokens=max_tokens if max_tokens is not None else 2048,
             stop=prepared_stop_sequences,
             structured_outputs=structured_outputs,
         )
