@@ -96,6 +96,62 @@ class InvalidToolRequiredParams(Tool):
         return input
 
 
+class InvalidToolKwOnlyRequiredParams(Tool):
+    name = "invalid_tool"
+    description = "Tool with required keyword-only params"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, *, api_key):  # No default value
+        super().__init__()
+        self.api_key = api_key
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class InvalidToolPosOnlyRequiredParams(Tool):
+    name = "invalid_tool"
+    description = "Tool with required positional-only params"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, endpoint, /):  # No default value
+        super().__init__()
+        self.endpoint = endpoint
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class ValidToolKwOnlyDefaultParams(Tool):
+    name = "valid_tool"
+    description = "Tool with defaulted keyword-only params"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, *, api_key="default"):
+        super().__init__()
+        self.api_key = api_key
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class ValidToolPosOnlyDefaultParams(Tool):
+    name = "valid_tool"
+    description = "Tool with defaulted positional-only params"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, endpoint="default", /):
+        super().__init__()
+        self.endpoint = endpoint
+
+    def forward(self, input: str) -> str:
+        return input
+
+
 class InvalidToolNonLiteralDefaultParam(Tool):
     name = "invalid_tool"
     description = "Tool with non-literal default parameter value"
@@ -130,6 +186,14 @@ class InvalidToolUndefinedNames(Tool):
         (InvalidToolComplexAttrs, "Complex attributes should be defined in __init__, not as class attributes"),
         (InvalidToolRequiredParams, "Parameters in __init__ must have default values, found required parameters"),
         (
+            InvalidToolKwOnlyRequiredParams,
+            "Parameters in __init__ must have default values, found required parameters: api_key",
+        ),
+        (
+            InvalidToolPosOnlyRequiredParams,
+            "Parameters in __init__ must have default values, found required parameters: endpoint",
+        ),
+        (
             InvalidToolNonLiteralDefaultParam,
             "Parameters in __init__ must have literal default values, found non-literal defaults",
         ),
@@ -139,6 +203,14 @@ class InvalidToolUndefinedNames(Tool):
 def test_validate_tool_attributes_exceptions(tool_class, expected_error):
     with pytest.raises(ValueError, match=expected_error):
         validate_tool_attributes(tool_class)
+
+
+@pytest.mark.parametrize(
+    "tool_class",
+    [ValidToolKwOnlyDefaultParams, ValidToolPosOnlyDefaultParams],
+)
+def test_validate_tool_attributes_kwonly_posonly_defaults(tool_class):
+    assert validate_tool_attributes(tool_class) is None
 
 
 class MultipleAssignmentsTool(Tool):
