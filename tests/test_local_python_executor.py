@@ -2438,6 +2438,15 @@ class TestLocalPythonExecutor:
 
 
 class TestLocalPythonExecutorSecurity:
+    def test_ctypes_is_tracked_as_dangerous_module(self):
+        import ctypes  # noqa: F401
+
+        assert "ctypes" in DANGEROUS_MODULES
+
+        executor = LocalPythonExecutor(["sys"])
+        with pytest.raises(InterpreterError, match=".*Forbidden access to module: ctypes"):
+            executor('import sys; sys.modules["ctypes"]')
+
     @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
         [([], InterpreterError("Import of os is not allowed")), (["os"], None)],

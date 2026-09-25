@@ -129,6 +129,7 @@ BASE_PYTHON_TOOLS = {
 # Non-exhaustive list of dangerous modules that should not be imported
 DANGEROUS_MODULES = [
     "builtins",
+    "ctypes",
     "io",
     "multiprocessing",
     "os",
