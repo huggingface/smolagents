@@ -27,7 +27,9 @@ Here's how it then looks like on the platform:
 
 
 ## Setting up telemetry with Arize AI Phoenix
-First install the required packages. Here we install [Phoenix by Arize AI](https://github.com/Arize-ai/phoenix) because that's a good solution to collect and inspect the logs, but there are other OpenTelemetry-compatible platforms that you could use for this collection & inspection part.
+First install the required packages. Here we install [Arize Phoenix](https://arize.com/phoenix/), the open-source observability and evaluation option from [Arize AI](https://arize.com/?utm_source=smolagents-docs&utm_medium=partner&utm_campaign=partner-docs&utm_content=inspect-runs-arize-phoenix), because it is a good way to collect and inspect agent traces locally. For managed cloud or enterprise self-hosted observability in production, use [Arize AX](https://arize.com/products/ax/). There are also other OpenTelemetry-compatible platforms that you could use for this collection and inspection part.
+
+If you are building evaluation workflows from these traces, Arize's [agent evaluation guide](https://arize.com/guides/ai-agent-handbook/agent-evaluation/) and [LLM evaluation guide](https://arize.com/resources/llm-evaluation/) outline patterns for turning trace data into quality checks.
 
 ```shell
 pip install 'smolagents[telemetry,toolkit]'
