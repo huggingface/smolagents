@@ -1,4 +1,5 @@
 import inspect
+import json
 from dataclasses import asdict, dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Callable, Type
@@ -92,9 +93,15 @@ class ActionStep(MemoryStep):
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         messages = []
         if self.model_output is not None and not summary_mode:
-            messages.append(
-                ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.model_output.strip()}])
+            # model_output can be a plain string or a list of structured content blocks
+            # (e.g. when the model returns a multi-part ChatMessage.content). Only strings
+            # are trimmed; structured blocks are passed through as-is.
+            content = (
+                [{"type": "text", "text": self.model_output.strip()}]
+                if isinstance(self.model_output, str)
+                else self.model_output
             )
+            messages.append(ChatMessage(role=MessageRole.ASSISTANT, content=content))
 
         if self.tool_calls is not None:
             messages.append(
@@ -263,7 +270,12 @@ class AgentMemory:
                 if detailed and step.model_input_messages is not None:
                     logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
                 if step.model_output is not None:
-                    logger.log_markdown(title="Agent output:", content=step.model_output, level=LogLevel.ERROR)
+                    output_to_log = (
+                        step.model_output
+                        if isinstance(step.model_output, str)
+                        else json.dumps(step.model_output, indent=2, ensure_ascii=False)
+                    )
+                    logger.log_markdown(title="Agent output:", content=output_to_log, level=LogLevel.ERROR)
             elif isinstance(step, PlanningStep):
                 logger.log_rule("Planning step", level=LogLevel.ERROR)
                 if detailed and step.model_input_messages is not None:
