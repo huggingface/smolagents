@@ -380,6 +380,39 @@ class TestEdgeCases:
         result = SafeSerializer.loads(serialized, allow_pickle=False)
         assert result == obj
 
+    def test_dict_with_colliding_type_tag_key(self):
+        """A plain dict whose own key is literally "__type__" must round-trip unchanged,
+        instead of being misread as one of the internal type-tag envelopes."""
+        obj = {"__type__": "bytes", "data": "hello world this is plain text, not base64 bytes"}
+
+        serialized = SafeSerializer.dumps(obj, allow_pickle=False)
+        result = SafeSerializer.loads(serialized, allow_pickle=False)
+
+        assert result == obj
+
+    def test_dict_with_colliding_dataclass_tag_key(self):
+        """Same collision, but with a "__type__" value that matches the dataclass marker,
+        which previously silently rewrote the dict's shape instead of raising or preserving it."""
+        obj = {"__type__": "dataclass", "class_name": "whatever", "module": "whatever", "data": {"x": 1}}
+
+        serialized = SafeSerializer.dumps(obj, allow_pickle=False)
+        result = SafeSerializer.loads(serialized, allow_pickle=False)
+
+        assert result == obj
+
+    def test_nested_dict_with_colliding_type_tag_key(self):
+        """The collision-escaping must also work when the colliding dict is nested inside
+        another structure, and must not interfere with real type-tagged values alongside it."""
+        obj = {
+            "payload": {"__type__": "not_a_real_marker", "value": b"actual bytes"},
+            "normal": [1, 2, 3],
+        }
+
+        serialized = SafeSerializer.dumps(obj, allow_pickle=False)
+        result = SafeSerializer.loads(serialized, allow_pickle=False)
+
+        assert result == obj
+
     def test_mixed_collection_types(self):
         """Test mixed collection types in one structure."""
         obj = {
