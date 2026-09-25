@@ -1096,6 +1096,28 @@ def _evaluate_comprehensions(
             )
 
 
+def _evaluate_literal_elts(
+    elts: list[ast.expr],
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> list[Any]:
+    """Evaluate the elements of a list/tuple/set display, expanding ``ast.Starred``
+    elements per CPython semantics: ``[1, *[2, 3]]`` evaluates to ``[1, 2, 3]``,
+    not ``[1, [2, 3]]``. Without this, starred displays nest the unpacked value
+    (lists/tuples) or crash with ``TypeError: unhashable type: 'list'`` (sets)."""
+    expanded: list[Any] = []
+    for elt in elts:
+        if isinstance(elt, ast.Starred):
+            expanded.extend(
+                evaluate_ast(elt.value, state, static_tools, custom_tools, authorized_imports)
+            )
+        else:
+            expanded.append(evaluate_ast(elt, state, static_tools, custom_tools, authorized_imports))
+    return expanded
+
+
 def evaluate_listcomp(
     listcomp: ast.ListComp,
     state: dict[str, Any],
@@ -1462,7 +1484,7 @@ def evaluate_ast(
         # Constant -> just return the value
         return expression.value
     elif isinstance(expression, ast.Tuple):
-        return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
+        return tuple(_evaluate_literal_elts(expression.elts, *common_params))
     elif isinstance(expression, ast.GeneratorExp):
         return evaluate_generatorexp(expression, *common_params)
     elif isinstance(expression, ast.ListComp):
@@ -1520,8 +1542,8 @@ def evaluate_ast(
     elif isinstance(expression, ast.JoinedStr):
         return "".join([str(evaluate_ast(v, *common_params)) for v in expression.values])
     elif isinstance(expression, ast.List):
-        # List -> evaluate all elements
-        return [evaluate_ast(elt, *common_params) for elt in expression.elts]
+        # List -> evaluate all elements (starred elements are expanded)
+        return _evaluate_literal_elts(expression.elts, *common_params)
     elif isinstance(expression, ast.Name):
         # Name -> pick up the value in the state
         return evaluate_name(expression, *common_params)
@@ -1557,7 +1579,7 @@ def evaluate_ast(
     elif isinstance(expression, ast.With):
         return evaluate_with(expression, *common_params)
     elif isinstance(expression, ast.Set):
-        return set((evaluate_ast(elt, *common_params) for elt in expression.elts))
+        return set(_evaluate_literal_elts(expression.elts, *common_params))
     elif isinstance(expression, ast.Return):
         raise ReturnException(evaluate_ast(expression.value, *common_params) if expression.value else None)
     elif isinstance(expression, ast.Pass):
