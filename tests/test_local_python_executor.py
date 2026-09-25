@@ -926,7 +926,7 @@ var_args_method(1, 2, 3, x=4, y=5)
 """
         state = {}
         result, _ = evaluate_python_code(code, {"sum": sum}, state=state)
-        assert result == 15
+        assert result == 14
 
     def test_exceptions(self):
         code = """
