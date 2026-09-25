@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import io
 import json
 import os
@@ -44,6 +45,7 @@ from smolagents.agents import (
     MultiStepAgent,
     RunResult,
     ToolCall,
+    ToolCallEvent,
     ToolCallingAgent,
     ToolOutput,
     populate_template,
@@ -230,6 +232,20 @@ final_answer(7.2904)
 </code>
 """,
             )
+
+
+class FakeCodeModelToolCallback(Model):
+    def generate(self, messages, stop_sequences=None):
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="""
+Thought: I should call the audited tool.
+<code>
+value = audited_double(21)
+final_answer(value)
+</code>
+""",
+        )
 
 
 class FakeCodeModelImageGeneration(Model):
@@ -424,6 +440,70 @@ class TestAgent:
         assert "7.2904" in agent.memory.steps[1].observations
         assert agent.memory.steps[2].model_output == "I will return the final answer."
 
+    def test_tool_callbacks_fire_before_and_after_toolcalling_agent_tool_execution(self):
+        events = []
+
+        def tool_callback(event: ToolCallEvent, agent):
+            events.append((event.phase, event.tool_name, event.arguments, event.output, event.error, agent))
+
+        agent = ToolCallingAgent(
+            tools=[PythonInterpreterTool()], model=FakeToolCallModel(), tool_callbacks=[tool_callback]
+        )
+        output = agent.run("What is 2 multiplied by 3.6452?")
+
+        assert "7.2904" in output
+        assert events == [
+            ("before", "python_interpreter", {"code": "2*3.6452"}, None, None, agent),
+            (
+                "after",
+                "python_interpreter",
+                {"code": "2*3.6452"},
+                "Stdout:\n\nOutput: 7.2904",
+                None,
+                agent,
+            ),
+            ("before", "final_answer", {"answer": "7.2904"}, None, None, agent),
+            ("after", "final_answer", {"answer": "7.2904"}, "7.2904", None, agent),
+        ]
+
+    def test_tool_callback_can_block_tool_execution_and_emit_terminal_error_event(self):
+        events = []
+        tool_calls = []
+
+        @tool
+        def risky_tool() -> str:
+            """Runs a risky action."""
+
+            tool_calls.append("called")
+            return "done"
+
+        def tool_callback(event: ToolCallEvent):
+            events.append(event)
+            if event.phase == "before":
+                raise PermissionError("tool call denied")
+
+        agent = ToolCallingAgent(tools=[risky_tool], model=FakeToolCallModel(), tool_callbacks=[tool_callback])
+
+        with pytest.raises(AgentToolExecutionError, match="tool call denied"):
+            agent.execute_tool_call("risky_tool", {})
+
+        assert tool_calls == []
+        assert [
+            (event.phase, event.tool_name, type(event.error).__name__ if event.error else None) for event in events
+        ] == [
+            ("before", "risky_tool", None),
+            ("after", "risky_tool", "PermissionError"),
+        ]
+
+    def test_wrapped_tool_with_callbacks_can_be_deepcopied(self):
+        agent = ToolCallingAgent(
+            tools=[PythonInterpreterTool()], model=FakeToolCallModel(), tool_callbacks=[lambda event: None]
+        )
+
+        copied_tool = copy.deepcopy(agent.tools["python_interpreter"])
+
+        assert copied_tool.name == "python_interpreter"
+
     def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
         import PIL.Image
 
@@ -472,6 +552,42 @@ class TestAgent:
         assert agent.memory.steps[2].tool_calls == [
             ToolCall(name="python_interpreter", arguments="final_answer(7.2904)", id="call_2")
         ]
+
+    def test_tool_callbacks_fire_for_code_agent_tool_calls_inside_python_executor(self):
+        events = []
+
+        @tool
+        def audited_double(value: int) -> int:
+            """Doubles a number.
+
+            Args:
+                value: The value to double.
+            """
+
+            return value * 2
+
+        def tool_callback(event: ToolCallEvent):
+            events.append((event.phase, event.tool_name, event.arguments, event.output, event.error))
+
+        agent = CodeAgent(tools=[audited_double], model=FakeCodeModelToolCallback(), tool_callbacks=[tool_callback])
+        output = agent.run("Double 21.")
+
+        assert output == 42
+        assert events == [
+            ("before", "audited_double", (21,), None, None),
+            ("after", "audited_double", (21,), 42, None),
+            ("before", "final_answer", (42,), None, None),
+            ("after", "final_answer", (42,), 42, None),
+        ]
+
+    def test_code_agent_tool_callbacks_require_local_executor(self):
+        with pytest.raises(ValueError, match="tool_callbacks.*local executor"):
+            CodeAgent(
+                tools=[],
+                model=FakeCodeModel(),
+                tool_callbacks=[lambda event: None],
+                executor_type="e2b",
+            )
 
     def test_additional_args_added_to_task(self):
         agent = CodeAgent(tools=[], model=FakeCodeModel())
