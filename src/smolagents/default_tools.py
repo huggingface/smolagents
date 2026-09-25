@@ -488,6 +488,234 @@ class WebSearchTool(Tool):
         ]
 
 
+class _AgentFolioBaseTool(Tool):
+    def __init__(self, base_url: str = "https://agentfolio.bot/api", timeout: int = 10):
+        super().__init__()
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+
+    def _get_json(self, path: str, params: dict | None = None) -> dict | list:
+        import requests
+
+        if params is None:
+            response = requests.get(f"{self.base_url}{path}", timeout=self.timeout)
+        else:
+            response = requests.get(f"{self.base_url}{path}", params=params, timeout=self.timeout)
+        if response.status_code == 404:
+            return {}
+        response.raise_for_status()
+        return response.json()
+
+    def _parse_json_field(self, value: Any) -> dict:
+        import json
+
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                return {}
+            return parsed if isinstance(parsed, dict) else {}
+        return {}
+
+    def _trust_score(self, profile: dict) -> int | float:
+        verification = self._parse_json_field(profile.get("verification"))
+        for score in [
+            profile.get("trustScore"),
+            profile.get("score"),
+            profile.get("trust_score"),
+            verification.get("score"),
+        ]:
+            if isinstance(score, int | float):
+                return score
+            if isinstance(score, dict):
+                for nested_key in ["score", "trustScore", "reputationScore"]:
+                    nested_score = score.get(nested_key)
+                    if isinstance(nested_score, int | float):
+                        return nested_score
+        return 0
+
+    def _verified_providers(self, profile: dict) -> list[str]:
+        verification_data = (
+            profile.get("verification_data") or profile.get("verificationData") or profile.get("verifications") or {}
+        )
+        return [
+            provider
+            for provider, data in verification_data.items()
+            if isinstance(data, dict) and data.get("verified") is True
+        ]
+
+    def _endorsement_count(self, endorsements_response: dict | list) -> int:
+        if isinstance(endorsements_response, list):
+            return len(endorsements_response)
+        if isinstance(endorsements_response, dict):
+            if isinstance(endorsements_response.get("total"), int):
+                return endorsements_response["total"]
+            endorsements = endorsements_response.get("endorsements") or endorsements_response.get("items") or []
+            return len(endorsements) if isinstance(endorsements, list) else 0
+        return 0
+
+
+class AgentLookupTool(_AgentFolioBaseTool):
+    """Look up AgentFolio agent profiles by agent ID.
+
+    AgentFolio provides public agent identity profiles, trust scores, verification status, skills, and marketplace
+    metadata. This tool performs read-only API calls and does not require AgentFolio credentials.
+    """
+
+    name = "agent_lookup"
+    description = (
+        "Look up an AI agent's profile on AgentFolio by agent ID. "
+        "Returns name, bio, skills, trust score, and verification status."
+    )
+    inputs = {"agent_id": {"type": "string", "description": "The agent ID to look up (e.g. 'agent_braintest')."}}
+    output_type = "string"
+
+    def forward(self, agent_id: str) -> str:
+        import json
+
+        profile = self._get_json(f"/profile/{agent_id}")
+        if not profile:
+            return json.dumps({"error": f"Agent '{agent_id}' not found"})
+        return json.dumps(profile, indent=2)
+
+
+class AgentSearchTool(_AgentFolioBaseTool):
+    """Search AgentFolio agents by keyword or skill."""
+
+    name = "agent_search"
+    description = (
+        "Search the AgentFolio registry for AI agents matching a query. "
+        "Supports filtering by minimum trust score. Returns a list of agent profiles."
+    )
+    inputs = {
+        "query": {"type": "string", "description": "Search query (skill, name, or keyword)."},
+        "min_trust": {
+            "type": "integer",
+            "description": "Optional minimum raw AgentFolio trust score required for returned agents.",
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def forward(self, query: str, min_trust: int | None = None) -> str:
+        import json
+
+        data = self._get_json("/agents", params={"search": query})
+        if isinstance(data, dict):
+            agents = data.get("agents", [])
+        elif isinstance(data, list):
+            agents = data
+        else:
+            agents = []
+        if min_trust is not None:
+            agents = [agent for agent in agents if self._trust_score(agent) >= min_trust]
+        return json.dumps(agents[:10], indent=2)
+
+
+class AgentVerifyTool(_AgentFolioBaseTool):
+    """Return an AgentFolio agent's trust verification summary."""
+
+    name = "agent_verify"
+    description = (
+        "Verify an AI agent's identity on AgentFolio. Returns trust score breakdown, verification tier, "
+        "endorsement count, and verified platforms."
+    )
+    inputs = {"agent_id": {"type": "string", "description": "The AgentFolio agent ID to verify."}}
+    output_type = "string"
+
+    def forward(self, agent_id: str) -> str:
+        import json
+
+        profile = self._get_json(f"/profile/{agent_id}")
+        if not profile:
+            return json.dumps({"error": f"Agent '{agent_id}' not found"})
+
+        endorsements_response = self._get_json(f"/profile/{agent_id}/endorsements")
+        verification = self._parse_json_field(profile.get("verification"))
+        summary = {
+            "agent_id": profile.get("id", agent_id),
+            "name": profile.get("name"),
+            "trust_score": self._trust_score(profile),
+            "tier": verification.get("tier") or profile.get("verificationLevelName") or "unverified",
+            "endorsement_count": self._endorsement_count(endorsements_response),
+            "verified_providers": self._verified_providers(profile),
+        }
+        return json.dumps(summary, indent=2)
+
+
+class TrustGateTool(_AgentFolioBaseTool):
+    """Check whether an AgentFolio agent meets a minimum trust score."""
+
+    name = "trust_gate"
+    description = (
+        "Check whether an AI agent passes a minimum trust score threshold. "
+        "Returns pass/fail, actual score, and the required score."
+    )
+    inputs = {
+        "agent_id": {"type": "string", "description": "The AgentFolio agent ID to check."},
+        "min_trust": {"type": "integer", "description": "Minimum raw AgentFolio trust score required to pass."},
+    }
+    output_type = "string"
+
+    def forward(self, agent_id: str, min_trust: int) -> str:
+        import json
+
+        profile = self._get_json(f"/profile/{agent_id}")
+        if not profile:
+            return json.dumps({"passed": False, "error": f"Agent '{agent_id}' not found"})
+        trust_score = self._trust_score(profile)
+        result = {
+            "agent_id": profile.get("id", agent_id),
+            "passed": trust_score >= min_trust,
+            "trust_score": trust_score,
+            "required": min_trust,
+        }
+        return json.dumps(result, indent=2)
+
+
+class MarketplaceSearchTool(_AgentFolioBaseTool):
+    """Search AgentFolio marketplace jobs."""
+
+    name = "marketplace_search"
+    description = (
+        "Search the AgentFolio agent marketplace for open jobs. "
+        "Returns job listings with title, budget, required skills, and status."
+    )
+    inputs = {
+        "category": {
+            "type": "string",
+            "description": "Optional marketplace job category to filter by.",
+            "nullable": True,
+        }
+    }
+    output_type = "string"
+
+    def forward(self, category: str | None = None) -> str:
+        import json
+
+        data = self._get_json("/marketplace/jobs")
+        jobs = data.get("jobs", data) if isinstance(data, dict) else data
+        if category and isinstance(jobs, list):
+            jobs = [job for job in jobs if str(job.get("category", "")).lower() == category.lower()]
+
+        results = []
+        for job in jobs[:10]:
+            results.append(
+                {
+                    "id": job.get("id"),
+                    "title": job.get("title"),
+                    "category": job.get("category"),
+                    "budget": f"{job.get('budgetAmount', '?')} {job.get('budgetCurrency', '')}",
+                    "skills": job.get("skills", job.get("skills_required", [])),
+                    "status": job.get("status"),
+                    "timeline": job.get("timeline"),
+                }
+            )
+        return json.dumps(results, indent=2)
+
+
 class VisitWebpageTool(Tool):
     name = "visit_webpage"
     description = (
@@ -685,10 +913,15 @@ TOOL_MAPPING = {
 }
 
 __all__ = [
+    "AgentLookupTool",
+    "AgentSearchTool",
+    "AgentVerifyTool",
     "ApiWebSearchTool",
+    "MarketplaceSearchTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
+    "TrustGateTool",
     "WebSearchTool",
     "DuckDuckGoSearchTool",
     "GoogleSearchTool",

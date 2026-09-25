@@ -8,9 +8,14 @@ Each tool handles a particular capability and follows a consistent interface, ma
 
 The built-in tools can be categorized by their primary functions:
 - **Information Retrieval**: Search and retrieve information from the web and specific knowledge sources.
+  - [`AgentLookupTool`]
+  - [`AgentSearchTool`]
+  - [`AgentVerifyTool`]
   - [`ApiWebSearchTool`]
   - [`DuckDuckGoSearchTool`]
+  - [`MarketplaceSearchTool`]
   - [`GoogleSearchTool`]
+  - [`TrustGateTool`]
   - [`WebSearchTool`]
   - [`WikipediaSearchTool`]
 - **Web Interaction**: Fetch and process content from specific web pages.
@@ -23,6 +28,26 @@ The built-in tools can be categorized by their primary functions:
   - [`SpeechToTextTool`]
 - **Workflow Control**: Manage and direct the flow of agent operations.
   - [`FinalAnswerTool`]: Conclude agent workflow with final response.
+
+## AgentLookupTool
+
+[[autodoc]] smolagents.default_tools.AgentLookupTool
+
+## AgentSearchTool
+
+[[autodoc]] smolagents.default_tools.AgentSearchTool
+
+## AgentVerifyTool
+
+[[autodoc]] smolagents.default_tools.AgentVerifyTool
+
+## MarketplaceSearchTool
+
+[[autodoc]] smolagents.default_tools.MarketplaceSearchTool
+
+## TrustGateTool
+
+[[autodoc]] smolagents.default_tools.TrustGateTool
 
 ## ApiWebSearchTool
 
