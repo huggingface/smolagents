@@ -86,10 +86,18 @@ class AgentImage(AgentType, PIL.Image.Image):
 
         if isinstance(value, AgentImage):
             self._raw, self._path, self._tensor = value._raw, value._path, value._tensor
+            if self._raw is not None:
+                self.__dict__.update(self._raw.__dict__)
         elif isinstance(value, PIL.Image.Image):
             self._raw = value
+            # AgentImage subclasses PIL.Image.Image, so callers may treat it as a
+            # plain image (size/mode/getpixel/save). PIL.Image.Image.__init__(self)
+            # above built an empty image; copy the wrapped image's internal state so
+            # this instance behaves like the image it holds, not like an empty one.
+            self.__dict__.update(value.__dict__)
         elif isinstance(value, bytes):
             self._raw = PIL.Image.open(BytesIO(value))
+            self.__dict__.update(self._raw.__dict__)
         elif isinstance(value, (str, pathlib.Path)):
             self._path = value
         else:
