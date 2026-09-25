@@ -152,7 +152,7 @@ class AgentImage(AgentType, PIL.Image.Image):
 
             array = self._tensor.cpu().detach().numpy()
 
-            # There is likely simpler than load into image into save
+            # There is likely a simpler way than loading into image and saving
             img = PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
 
             directory = tempfile.mkdtemp()
