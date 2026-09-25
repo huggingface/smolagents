@@ -61,6 +61,11 @@ BASE_BUILTIN_MODULES = [
 ]
 
 
+# ASCII control characters that must be made visible: 0x00-0x1f and 0x7f, except the
+# common whitespace chars \t (0x09), \n (0x0a) and \r (0x0d) which are passed through.
+_CONTROL_CHAR_RE = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
 def sanitize_for_rich(value) -> str:
     """
     Convert arbitrary values (including bytes / control characters) into a safe string for Rich.
@@ -76,6 +81,15 @@ def sanitize_for_rich(value) -> str:
         s = bytes(value).decode("utf-8", errors="replace")
     else:
         s = str(value)
+
+    # Fast path: the common case is text with no control characters to escape. Skip the
+    # per-character list build + join. str() normalizes str subclasses back to a plain
+    # str -- a no-op returning the same object for an exact str (so the allocation is
+    # still avoided), while matching the slow path's "".join(...), which also always
+    # yields a plain str. This keeps callers like Rich from ever receiving a str subclass
+    # whose overridden methods (e.g. translate) could behave differently.
+    if not _CONTROL_CHAR_RE.search(s):
+        return str(s)
 
     out: list[str] = []
     for ch in s:
