@@ -454,6 +454,43 @@ These key practices apply to Blaxel, E2B, and Docker sandboxes:
 
 ✨ By following these practices and implementing proper cleanup procedures, you can ensure your agent runs safely and efficiently in a sandboxed environment.
 
+## Security callbacks and input/output scanning
+
+Beyond sandboxing, you can implement deterministic security scans using `step_callbacks` and `final_answer_checks`. These allow you to scan the agent's thoughts, tool calls, observations, and final answers for malicious patterns like prompt injection, exfiltration attempts, or sensitive data leaks.
+
+This approach is inspired by the [Agent Threat Rules (ATR)](https://github.com/Agent-Threat-Rule/agent-threat-rules) project, which provides a comprehensive set of regex-based rules for AI agent security.
+
+Here's how to implement a simple security scanner using `smolagents`:
+
+```python
+from smolagents import CodeAgent, HfApiModel, RegexScanner, step_callback_scanner, final_answer_check_scanner
+
+# Define security rules (regex patterns)
+SECURITY_RULES = {
+    "Prompt Injection": r"(?i)(ignore all previous instructions|you are now an administrator)",
+    "Exfiltration": r"(?i)(curl http://malicious.com|post data to)",
+    "Sensitive Data Leak": r"(?i)(password|secret_key|api_key)"
+}
+
+# Initialize the scanner and create callbacks
+scanner = RegexScanner(SECURITY_RULES)
+security_step_callback = step_callback_scanner(scanner)
+security_final_answer_check = final_answer_check_scanner(scanner)
+
+# Initialize the agent with security checks
+agent = CodeAgent(
+    model=HfApiModel(),
+    tools=[],
+    step_callbacks=[security_step_callback],
+    final_answer_checks=[security_final_answer_check]
+)
+
+# Any output matching the rules will now raise a ValueError
+```
+
+By using these callbacks, you can add a lightweight, no-LLM layer of defense that runs at every step of the agent's execution.
+
+
 ## Comparing security approaches
 
 As illustrated in the diagram earlier, both sandboxing approaches have different security implications:
