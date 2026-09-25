@@ -101,6 +101,15 @@ class SafeSerializer:
         # Fast path: dict (common, check string keys)
         if obj_type is dict:
             if all(type(k) is str for k in obj):
+                if "__type__" in obj:
+                    # The dict itself uses the internal type-tag key as one of its own
+                    # keys. Wrap it in an explicit envelope so from_json_safe cannot
+                    # mistake this plain dict for one of the special-cased type markers
+                    # below (e.g. "bytes", "dataclass").
+                    return {
+                        "__type__": "dict_literal",
+                        "data": {k: SafeSerializer.to_json_safe(v) for k, v in obj.items()},
+                    }
                 return {k: SafeSerializer.to_json_safe(v) for k, v in obj.items()}
             return {
                 "__type__": "dict_with_complex_keys",
@@ -204,6 +213,10 @@ class SafeSerializer:
                     return frozenset(SafeSerializer.from_json_safe(item) for item in obj["data"])
                 elif obj_type == "dict_with_complex_keys":
                     return {SafeSerializer.from_json_safe(k): SafeSerializer.from_json_safe(v) for k, v in obj["data"]}
+                elif obj_type == "dict_literal":
+                    # Reverse the dict_literal envelope: decode each value but do not
+                    # re-dispatch on the wrapped dict's own "__type__" key.
+                    return {k: SafeSerializer.from_json_safe(v) for k, v in obj["data"].items()}
                 elif obj_type == "datetime":
                     from datetime import datetime
 
