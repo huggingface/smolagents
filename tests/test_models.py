@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -221,6 +222,150 @@ class TestModel:
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
         assert "nullable" in get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
+
+    def test_get_json_schema_sanitizes_bare_any(self):
+        @tool
+        def t(v: Any) -> str:
+            """
+            A tool with a bare Any parameter.
+
+            Args:
+                v: some value
+            """
+            return ""
+
+        schema = get_tool_json_schema(t)["function"]["parameters"]["properties"]["v"]
+        assert schema["type"] == "string"
+
+    def test_get_json_schema_sanitizes_optional_any(self):
+        @tool
+        def t(v: Any | None = None) -> str:
+            """
+            A tool with an optional Any parameter.
+
+            Args:
+                v: some value
+            """
+            return ""
+
+        schema = get_tool_json_schema(t)["function"]["parameters"]["properties"]["v"]
+        assert schema["type"] == "string"
+        assert schema["nullable"] is True
+
+    def test_get_json_schema_sanitizes_any_in_list(self):
+        @tool
+        def t(v: list[Any]) -> str:
+            """
+            A tool with a List[Any] parameter.
+
+            Args:
+                v: some value
+            """
+            return ""
+
+        schema = get_tool_json_schema(t)["function"]["parameters"]["properties"]["v"]
+        assert schema["type"] == "array"
+        assert schema["items"]["type"] == "string"
+
+    def test_get_json_schema_sanitizes_any_in_dict_values(self):
+        @tool
+        def t(v: dict[str, Any]) -> str:
+            """
+            A tool with a Dict[str, Any] parameter.
+
+            Args:
+                v: some value
+            """
+            return ""
+
+        schema = get_tool_json_schema(t)["function"]["parameters"]["properties"]["v"]
+        assert schema["type"] == "object"
+        assert schema["additionalProperties"]["type"] == "string"
+
+    def test_get_json_schema_sanitizes_any_in_tuple(self):
+        @tool
+        def t(v: tuple[int, Any]) -> str:
+            """
+            A tool with a Tuple[int, Any] parameter.
+
+            Args:
+                v: some value
+            """
+            return ""
+
+        schema = get_tool_json_schema(t)["function"]["parameters"]["properties"]["v"]
+        assert schema["type"] == "array"
+        assert schema["prefixItems"][0]["type"] == "integer"
+        assert schema["prefixItems"][1]["type"] == "string"
+
+    def test_get_json_schema_sanitizes_any_nested_two_levels(self):
+        @tool
+        def list_of_dicts(v: list[dict[str, Any]]) -> str:
+            """
+            A tool with a List[Dict[str, Any]] parameter.
+
+            Args:
+                v: some value
+            """
+            return ""
+
+        @tool
+        def dict_of_lists(v: dict[str, list[Any]]) -> str:
+            """
+            A tool with a Dict[str, List[Any]] parameter.
+
+            Args:
+                v: some value
+            """
+            return ""
+
+        schema1 = get_tool_json_schema(list_of_dicts)["function"]["parameters"]["properties"]["v"]
+        assert schema1["items"]["additionalProperties"]["type"] == "string"
+
+        schema2 = get_tool_json_schema(dict_of_lists)["function"]["parameters"]["properties"]["v"]
+        assert schema2["additionalProperties"]["items"]["type"] == "string"
+
+    def test_get_json_schema_no_leftover_any_anywhere(self):
+        """No literal 'any' type should ever reach the schema sent to providers, at any nesting depth."""
+
+        @tool
+        def t(v: dict[str, list[dict[str, Any]]]) -> str:
+            """
+            A tool with a deeply nested Any parameter.
+
+            Args:
+                v: some value
+            """
+            return ""
+
+        def assert_no_any_type(schema):
+            if isinstance(schema, dict):
+                assert schema.get("type") != "any"
+                for value in schema.values():
+                    assert_no_any_type(value)
+            elif isinstance(schema, list):
+                for item in schema:
+                    assert_no_any_type(item)
+
+        assert_no_any_type(get_tool_json_schema(t)["function"]["parameters"])
+
+    def test_get_json_schema_does_not_affect_non_any_nested_types(self):
+        """Regression guard: sanitization must not touch nested types that are not 'any'."""
+
+        @tool
+        def t(v: list[dict[str, int]]) -> str:
+            """
+            A tool with a List[Dict[str, int]] parameter (no Any anywhere).
+
+            Args:
+                v: some value
+            """
+            return ""
+
+        schema = get_tool_json_schema(t)["function"]["parameters"]["properties"]["v"]
+        assert schema["type"] == "array"
+        assert schema["items"]["type"] == "object"
+        assert schema["items"]["additionalProperties"]["type"] == "integer"
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
