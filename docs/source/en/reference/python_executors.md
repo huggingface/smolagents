@@ -8,6 +8,63 @@ To learn more about code execution and its risks, make sure to read the [Secure 
 tutorial. This reference contains the API docs for the underlying classes: the base `PythonExecutor` interface and all 
 available executor implementations.
 
+## Third-party executors
+
+Third-party executors can be distributed independently of `smolagents` through the
+`smolagents.executors` Python entry-point group. The entry-point name is passed as
+`executor_type` when creating a `CodeAgent`.
+
+For example, a package can register an executor in its `pyproject.toml`:
+
+```toml
+[project.entry-points."smolagents.executors"]
+myprovider = "myprovider:MyProviderExecutor"
+```
+
+The entry point must resolve to a callable that accepts
+`additional_authorized_imports`, `logger`, and any values supplied through
+`executor_kwargs`, and returns a `PythonExecutor` instance. The callable is invoked
+as `factory(additional_authorized_imports, logger, **executor_kwargs)`: the first two
+arguments are positional and every `executor_kwargs` value is passed by keyword. For
+example, `executor_kwargs={"allow_pickle": True}` is forwarded to a
+`RemotePythonExecutor` constructor. A remote executor can subclass
+`RemotePythonExecutor` to reuse the common remote execution behavior.
+
+```python
+from smolagents import CodeAgent
+
+
+def create_agent(model):
+    return CodeAgent(
+        tools=[],
+        model=model,
+        executor_type="myprovider",
+        executor_kwargs={"region": "us-east-1"},
+    )
+```
+
+The built-in executor names remain available and take precedence over entry points
+with the same name. Passing an executor instance directly through `executor` also
+continues to work. An executor is not a security boundary by itself; review the
+implementation and its execution environment before installing or using a third-party
+executor.
+
+`PythonExecutor` is the stable base contract. Implement `send_tools`,
+`send_variables`, and `__call__`; `__call__` returns `CodeOutput`. Its `cleanup()`
+method is called by `CodeAgent.cleanup()` and when a code agent exits a context
+manager. The default is a no-op, while executors that own resources must make cleanup
+idempotent and safe after a partially failed initialization.
+
+`RemotePythonExecutor` provides the shared protocol for remote implementations.
+Implement `run_code_raise_errors`, which must raise `AgentError` when remote execution
+fails. The base `install_packages` runs `sys.executable -m pip install` inside the
+remote interpreter and makes user-site installs importable in the running interpreter.
+It can be overridden when a provider has a native package API; overrides should raise
+`AgentError` when installation fails.
+Use `deserialize_final_answer()` to decode remote final-answer payloads. Providers
+whose runtime only reports `Exception` subclasses can set
+`FINAL_ANSWER_EXCEPTION_BASE = "Exception"`; the default remains `"BaseException"`.
+
 ## Python executor
 
 [[autodoc]] smolagents.local_python_executor.PythonExecutor

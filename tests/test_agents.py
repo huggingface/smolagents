@@ -49,6 +49,7 @@ from smolagents.agents import (
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
+from smolagents.local_python_executor import CodeOutput, PythonExecutor
 from smolagents.memory import (
     ActionStep,
     CallbackRegistry,
@@ -2246,6 +2247,59 @@ print("Ok, calculation done!")""")
         agent = CodeAgent(tools=[], model=model, executor_kwargs={"additional_functions": {"open": open}})
         agent.run("Test run")
         assert "open" in agent.python_executor.static_tools
+
+    def test_code_agent_loads_executor_from_entry_point(self):
+        class DummyExecutor(PythonExecutor):
+            def __init__(self, additional_authorized_imports, logger, **kwargs):
+                self.additional_authorized_imports = additional_authorized_imports
+                self.logger = logger
+                self.kwargs = kwargs
+
+            def send_tools(self, tools):
+                pass
+
+            def send_variables(self, variables):
+                pass
+
+            def __call__(self, code_action):
+                return CodeOutput(output=None, logs="", is_final_answer=False)
+
+        entry_point = MagicMock()
+        entry_point.name = "dummy"
+        entry_point.value = "dummy_package:DummyExecutor"
+        entry_point.load.return_value = DummyExecutor
+
+        with patch("smolagents.agents._metadata.entry_points", return_value=[entry_point]):
+            agent = CodeAgent(tools=[], model=MagicMock(), executor_type="dummy", executor_kwargs={"setting": "value"})
+
+        assert isinstance(agent.python_executor, DummyExecutor)
+        assert agent.python_executor.additional_authorized_imports == []
+        assert agent.python_executor.kwargs == {"setting": "value"}
+        entry_point.load.assert_called_once_with()
+        agent.cleanup()
+
+    def test_code_agent_rejects_managed_agents_from_entry_point_executor(self):
+        entry_point = MagicMock()
+        entry_point.name = "dummy"
+
+        with patch("smolagents.agents._metadata.entry_points", return_value=[entry_point]):
+            managed_agent = CodeAgent(
+                tools=[], model=MagicMock(), name="managed_agent", description="A managed test agent"
+            )
+            with pytest.raises(Exception, match="Managed agents are not yet supported with remote code execution"):
+                CodeAgent(
+                    tools=[],
+                    model=MagicMock(),
+                    managed_agents=[managed_agent],
+                    executor_type="dummy",
+                )
+
+        entry_point.load.assert_not_called()
+
+    def test_code_agent_rejects_unknown_executor_type(self):
+        with patch("smolagents.agents._metadata.entry_points", return_value=[]):
+            with pytest.raises(ValueError, match="Available executor types"):
+                CodeAgent(tools=[], model=MagicMock(), executor_type="unknown")
 
     @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10", "v1.20"])
     def test_from_folder(self, agent_dict_version, get_agent_dict):

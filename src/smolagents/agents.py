@@ -26,6 +26,7 @@ from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextvars import copy_context
 from dataclasses import dataclass
+from importlib import metadata as _metadata
 from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
@@ -97,6 +98,8 @@ from .utils import (
 
 
 logger = getLogger(__name__)
+
+_EXECUTOR_ENTRY_POINT_GROUP = "smolagents.executors"
 
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
@@ -1513,7 +1516,8 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         executor ([`PythonExecutor`], *optional*): Custom Python code executor. If not provided, a default executor will be created based on `executor_type`.
-        executor_type (`Literal["local", "blaxel", "e2b", "modal", "docker"]`, default `"local"`): Type of code executor.
+        executor_type (`str`, default `"local"`): Type of code executor. Built-in executors are always available;
+            additional executors can be provided through the `smolagents.executors` entry-point group.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
@@ -1532,7 +1536,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
         executor: PythonExecutor = None,
-        executor_type: Literal["local", "blaxel", "e2b", "modal", "docker"] = "local",
+        executor_type: str = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
@@ -1596,26 +1600,69 @@ class CodeAgent(MultiStepAgent):
             self.python_executor.cleanup()
 
     def create_python_executor(self) -> PythonExecutor:
-        if self.executor_type not in {"local", "blaxel", "e2b", "modal", "docker"}:
-            raise ValueError(f"Unsupported executor type: {self.executor_type}")
-
         if self.executor_type == "local":
             return LocalPythonExecutor(
                 self.additional_authorized_imports,
                 **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
             )
-        else:
+        remote_executors = {
+            "blaxel": BlaxelExecutor,
+            "e2b": E2BExecutor,
+            "docker": DockerExecutor,
+            "modal": ModalExecutor,
+        }
+        if self.executor_type in remote_executors:
             if self.managed_agents:
                 raise Exception("Managed agents are not yet supported with remote code execution.")
-            remote_executors = {
-                "blaxel": BlaxelExecutor,
-                "e2b": E2BExecutor,
-                "docker": DockerExecutor,
-                "modal": ModalExecutor,
-            }
             return remote_executors[self.executor_type](
                 self.additional_authorized_imports, self.logger, **self.executor_kwargs
             )
+
+        entry_points = list(_metadata.entry_points(group=_EXECUTOR_ENTRY_POINT_GROUP))
+        matching_entry_points = [entry_point for entry_point in entry_points if entry_point.name == self.executor_type]
+        if matching_entry_points:
+            if self.managed_agents:
+                raise Exception("Managed agents are not yet supported with remote code execution.")
+
+            entry_point = matching_entry_points[0]
+            if len(matching_entry_points) > 1:
+                warnings.warn(
+                    f"Multiple executor entry points named {self.executor_type!r} were found; "
+                    f"using {entry_point.value!r}.",
+                    stacklevel=2,
+                )
+
+            try:
+                executor_factory = entry_point.load()
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to load executor type {self.executor_type!r} from entry point {entry_point.value!r}"
+                ) from e
+
+            if not callable(executor_factory):
+                raise TypeError(
+                    f"Executor type {self.executor_type!r} must resolve to a callable, "
+                    f"got {type(executor_factory).__name__}"
+                )
+            executor = executor_factory(
+                self.additional_authorized_imports,
+                self.logger,
+                **self.executor_kwargs,
+            )
+            if not isinstance(executor, PythonExecutor):
+                raise TypeError(
+                    f"Executor type {self.executor_type!r} must create a PythonExecutor, got {type(executor).__name__}"
+                )
+            return executor
+
+        available_executor_types = sorted(
+            {"local", *remote_executors} | {entry_point.name for entry_point in entry_points}
+        )
+        raise ValueError(
+            f"Unsupported executor type: {self.executor_type!r}. "
+            f"Available executor types: {', '.join(available_executor_types)}. "
+            "Install a provider package that registers an executor entry point to use another type."
+        )
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
