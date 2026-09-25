@@ -78,6 +78,59 @@ model = OpenAIModel(
 )
 ```
 
+## Using Reasoning / Thinking Models
+
+Some models expose chain-of-thought reasoning in a separate field alongside their answer. smolagents
+captures this automatically. See the [reasoning models tutorial](../tutorials/reasoning_models) for
+a full explanation of the `preserve_reasoning` flag and provider-specific requirements.
+
+### DeepSeek Reasoner (via LiteLLM)
+
+```python
+import os
+from smolagents import CodeAgent, LiteLLMModel
+
+model = LiteLLMModel(
+    model_id="deepseek/deepseek-reasoner",
+    api_key=os.environ["DEEPSEEK_API_KEY"],
+)
+
+# preserve_reasoning=False is required — DeepSeek returns 400 if reasoning is in history
+agent = CodeAgent(model=model, tools=[], preserve_reasoning=False)
+result = agent.run("What is the 10th Fibonacci number?")
+```
+
+### Kimi K2 Thinking (via LiteLLM)
+
+```python
+import os
+from smolagents import CodeAgent, LiteLLMModel
+
+model = LiteLLMModel(
+    model_id="moonshot/kimi-k2",
+    api_key=os.environ["MOONSHOT_API_KEY"],
+)
+
+# preserve_reasoning=True is required — Kimi returns 400 if reasoning is missing from history
+agent = CodeAgent(model=model, tools=[], preserve_reasoning=True)
+result = agent.run("Solve: if 3x + 7 = 22, what is x?")
+```
+
+### Ollama reasoning models
+
+```python
+from smolagents import CodeAgent, OpenAIModel
+
+model = OpenAIModel(
+    model_id="qwq:32b",  # or "deepseek-r1:8b", etc.
+    api_base="http://localhost:11434/v1",
+    api_key="ollama",
+)
+
+agent = CodeAgent(model=model, tools=[], preserve_reasoning=True)
+result = agent.run("What are the prime factors of 360?")
+```
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].

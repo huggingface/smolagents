@@ -69,7 +69,14 @@ def test_action_step_dict():
     # Check each key individually for better test failure messages
     assert "model_input_messages" in action_step_dict
     assert action_step_dict["model_input_messages"] == [
-        {"role": MessageRole.USER, "content": "Hello", "tool_calls": None, "raw": None, "token_usage": None}
+        {
+            "role": MessageRole.USER,
+            "content": "Hello",
+            "tool_calls": None,
+            "reasoning_content": None,
+            "raw": None,
+            "token_usage": None,
+        }
     ]
 
     assert "tool_calls" in action_step_dict
@@ -100,6 +107,7 @@ def test_action_step_dict():
         "role": "assistant",
         "content": "Hi",
         "tool_calls": None,
+        "reasoning_content": None,
         "raw": None,
         "token_usage": None,
     }
