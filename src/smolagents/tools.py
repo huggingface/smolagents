@@ -335,7 +335,11 @@ class Tool(BaseTool):
 
                 return re.sub(pattern, replacement, source_code)
 
-            forward_source_code = forward_source_code.replace(self.name, "forward")
+            # The forward method was already built as `def forward(...):` (see
+            # the @tool decorator), so the def line needs no rename. Only rewrite
+            # actual recursive calls to the original function name; occurrences
+            # inside strings, URLs, f-strings and docstrings must stay untouched.
+            forward_source_code = re.sub(rf"\b{re.escape(self.name)}\s*\(", "forward(", forward_source_code)
             forward_source_code = add_self_argument(forward_source_code)
             forward_source_code = forward_source_code.replace("@tool", "").strip()
             tool_code += "\n\n" + textwrap.indent(forward_source_code, "    ")
