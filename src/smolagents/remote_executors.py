@@ -1057,7 +1057,7 @@ class BlaxelExecutor(RemotePythonExecutor):
             self._delete_sandbox()
         except Exception as e:
             # Log cleanup errors but don't raise - cleanup should be best-effort
-            self.logger.log(f"Error during cleanup: : {e}", level=LogLevel.INFO)
+            self.logger.log(f"Error during cleanup: {e}", level=LogLevel.INFO)
         finally:
             # Always clean up local references
             if hasattr(self, "sandbox"):
