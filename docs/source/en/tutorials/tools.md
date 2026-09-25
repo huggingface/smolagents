@@ -173,6 +173,7 @@ with MCPClient([server_params1, server_params2]) as tools:
 > - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
 > - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
 > - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
+> - **Verify before you trust:** for a concrete fail-closed verification workflow to run before loading an MCP server's tools, see [Verify MCP server trust before loading tools](../examples/mcp_trust_verification).
 
 #### Structured Output and Output Schema Support
 
@@ -358,6 +359,7 @@ The MCP servers tools can be loaded with [`ToolCollection.from_mcp`].
 > - **Trust is essential:** Only use MCP servers from trusted sources. Malicious servers can execute harmful code on your machine.
 > - **Stdio-based MCP servers** will always execute code on your machine (that's their intended functionality).
 > - **Streamable HTTP-based MCP servers:** While remote MCP servers will not execute code on your machine, still proceed with caution.
+> - **Verify before you trust:** for a concrete fail-closed verification workflow to run before loading an MCP server's tools, see [Verify MCP server trust before loading tools](../examples/mcp_trust_verification).
 
 For stdio-based MCP servers, pass the server parameters as an instance of `mcp.StdioServerParameters`:
 ```py

@@ -40,6 +40,8 @@
     title: "Human-in-the-Loop: Customize agent plan interactively"
   - local: examples/async_agent
     title: Async Applications with Agents
+  - local: examples/mcp_trust_verification
+    title: Verify MCP server trust before loading tools
 - title: Reference
   sections:
   - title: Agent-related objects
