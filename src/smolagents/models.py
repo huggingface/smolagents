@@ -67,6 +67,10 @@ CODEAGENT_RESPONSE_FORMAT = {
 }
 
 
+class EmptyChoicesError(RuntimeError):
+    """Raised when a model provider returns a chat completion with no choices."""
+
+
 def get_dict_from_nested_dataclasses(obj, ignore_key=None):
     def convert(obj):
         if hasattr(obj, "__dataclass_fields__"):
@@ -1176,7 +1180,7 @@ class ApiModel(Model):
             wait_seconds=RETRY_WAIT,
             exponential_base=RETRY_EXPONENTIAL_BASE,
             jitter=RETRY_JITTER,
-            retry_predicate=is_rate_limit_error,
+            retry_predicate=is_retryable_model_error,
             reraise=True,
             before_sleep_logger=(logger, logging.INFO),
             after_logger=(logger, logging.INFO),
@@ -1199,6 +1203,26 @@ def is_rate_limit_error(exception: BaseException) -> bool:
         or "rate limit" in error_str
         or "too many requests" in error_str
         or "rate_limit" in error_str
+    )
+
+
+def is_retryable_model_error(exception: BaseException) -> bool:
+    """Check if a model error is transient enough to retry."""
+    return is_rate_limit_error(exception) or isinstance(exception, EmptyChoicesError)
+
+
+def get_empty_choices_error_message(model_id: str | None, response: Any) -> str:
+    if hasattr(response, "model_dump"):
+        response_details = response.model_dump()
+    elif hasattr(response, "dict") and callable(response.dict):
+        response_details = response.dict()
+    else:
+        response_details = response
+
+    return (
+        f"Unexpected API response: model '{model_id}' returned no choices. "
+        " This may indicate a possible API or upstream issue. "
+        f"Response details: {response_details}"
     )
 
 
@@ -1284,14 +1308,14 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        response = self.retryer(self.client.completion, **completion_kwargs)
 
-        if not response.choices:
-            raise RuntimeError(
-                f"Unexpected API response: model '{self.model_id}' returned no choices. "
-                " This may indicate a possible API or upstream issue. "
-                f"Response details: {response.model_dump()}"
-            )
+        def completion_with_choices(**kwargs):
+            response = self.client.completion(**kwargs)
+            if not response.choices:
+                raise EmptyChoicesError(get_empty_choices_error_message(self.model_id, response))
+            return response
+
+        response = self.retryer(completion_with_choices, **completion_kwargs)
         content = response.choices[0].message.content
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
