@@ -1293,6 +1293,9 @@ class LiteLLMModel(ApiModel):
                 f"Response details: {response.model_dump()}"
             )
         content = response.choices[0].message.content
+        # Remove <think>...</think> blocks (DeepSeek R1 compatibility)
+        if content and "<think>" in content:
+            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
@@ -1575,6 +1578,9 @@ class InferenceClientModel(ApiModel):
         self._apply_rate_limit()
         response = self.retryer(self.client.chat_completion, **completion_kwargs)
         content = response.choices[0].message.content
+        # Remove <think>...</think> blocks (DeepSeek R1 compatibility)
+        if content and "<think>" in content:
+            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
