@@ -142,6 +142,46 @@ class FakeToolCallModel(Model):
             )
 
 
+class FakeSequentialToolCallModel(Model):
+    def generate(
+        self,
+        messages,
+        stop_sequences=None,
+        response_format=None,
+        tools_to_call_from=None,
+        **kwargs,
+    ):
+        if len(messages) < 3:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=None,
+                tool_calls=[
+                    ChatMessageToolCall(
+                        id="call_0",
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="count", arguments={}),
+                    )
+                ],
+            )
+
+        assert "Calling tools:" not in str(messages)
+        previous_tool_messages = [message for message in messages if message.tool_calls]
+        assert previous_tool_messages[0].tool_calls is not None
+        assert previous_tool_messages[0].tool_calls[0].id == "call_0"
+        assert previous_tool_messages[0].tool_calls[0].function.name == "count"
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="I will return the final answer.",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_1",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "1"}),
+                )
+            ],
+        )
+
+
 class FakeToolCallModelImage(Model):
     def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
         if len(messages) < 3:
@@ -423,6 +463,16 @@ class TestAgent:
         assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
         assert "7.2904" in agent.memory.steps[1].observations
         assert agent.memory.steps[2].model_output == "I will return the final answer."
+
+    def test_toolcalling_agent_does_not_replay_native_tool_calls_as_text(self):
+        @tool
+        def count() -> str:
+            """Return the current count."""
+            return "1"
+
+        agent = ToolCallingAgent(tools=[count], model=FakeSequentialToolCallModel())
+
+        assert agent.run("Count once, then answer.") == "1"
 
     def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
         import PIL.Image
