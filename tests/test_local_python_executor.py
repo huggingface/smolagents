@@ -2313,6 +2313,93 @@ result = "completed"
         output = executor(code)
         assert output.output == "completed"
 
+    def test_timeout_propagates_contextvars(self):
+        """Test that the timeout decorator propagates contextvars to the worker thread.
+
+        This is critical for OpenTelemetry span context propagation: without it,
+        tool spans created during CodeAgent execution lose their parent span
+        because ThreadPoolExecutor runs in a new thread where context-local
+        state is absent. See https://github.com/huggingface/smolagents/issues/1961
+        """
+        import contextvars
+
+        test_var = contextvars.ContextVar("test_var", default=None)
+
+        @timeout(5)
+        def read_context_var():
+            return test_var.get()
+
+        # Set a value in the current context
+        token = test_var.set("propagated_value")
+        try:
+            result = read_context_var()
+            assert result == "propagated_value", (
+                f"Expected 'propagated_value' but got {result!r}. "
+                "Context was not propagated to the worker thread."
+            )
+        finally:
+            test_var.reset(token)
+
+    def test_timeout_propagates_contextvars_to_evaluate_python_code(self):
+        """Test that contextvars are propagated through evaluate_python_code with timeout.
+
+        This simulates the real scenario where OpenTelemetry context must survive
+        the timeout-wrapped code execution in CodeAgent.
+        """
+        import contextvars
+
+        test_var = contextvars.ContextVar("test_var_exec", default="not_set")
+
+        def check_context_tool():
+            """A fake tool that reads a contextvar."""
+            return test_var.get()
+
+        token = test_var.set("from_parent_span")
+        try:
+            code = 'result = check_context_tool()'
+            output, is_final = evaluate_python_code(
+                code,
+                static_tools={"check_context_tool": check_context_tool},
+                timeout_seconds=5,
+            )
+            assert output == "from_parent_span", (
+                f"Expected 'from_parent_span' but got {output!r}. "
+                "Contextvars were not propagated through evaluate_python_code."
+            )
+        finally:
+            test_var.reset(token)
+
+    def test_timeout_propagates_contextvars_with_local_executor(self):
+        """Test that LocalPythonExecutor propagates contextvars during tool execution.
+
+        End-to-end test simulating how OpenTelemetry context flows through the
+        LocalPythonExecutor used by CodeAgent.
+        """
+        import contextvars
+
+        from smolagents.tools import tool as tool_decorator
+
+        test_var = contextvars.ContextVar("test_var_local", default="not_set")
+
+        @tool_decorator
+        def context_reading_tool() -> str:
+            """Reads a context variable to verify context propagation."""
+            return test_var.get()
+
+        executor = LocalPythonExecutor(additional_authorized_imports=[], timeout_seconds=5)
+        executor.send_tools({"context_reading_tool": context_reading_tool})
+
+        token = test_var.set("otel_span_context")
+        try:
+            code = 'result = context_reading_tool()'
+            output = executor(code)
+            assert output.output == "otel_span_context", (
+                f"Expected 'otel_span_context' but got {output.output!r}. "
+                "Context was not propagated through LocalPythonExecutor."
+            )
+        finally:
+            test_var.reset(token)
+
 
 @pytest.mark.parametrize(
     "module,authorized_imports,expected",
