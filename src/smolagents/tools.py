@@ -716,12 +716,13 @@ class Tool(BaseTool):
                     kwargs[arg_name] = self.sanitize_argument_for_prediction(arg)
 
                 output = self.client.predict(*args, api_name=self.api_name, **kwargs)
-                if isinstance(output, tuple) or isinstance(output, list):
-                    if isinstance(output[1], str):
+                if isinstance(output, (tuple, list)):
+                    # Some spaces also return the generation seed as a second element, in which
+                    # case the result is at index 0. Guard the length: a space whose single
+                    # output is itself a list/tuple (or an empty one) must not raise IndexError.
+                    if len(output) > 1 and isinstance(output[1], str):
                         raise ValueError("The space returned this message: " + output[1])
-                    output = output[
-                        0
-                    ]  # Sometime the space also returns the generation seed, in which case the result is at index 0
+                    output = output[0] if len(output) else output
                 IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
                 AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
                 if isinstance(output, str) and any([output.endswith(ext) for ext in IMAGE_EXTENSIONS]):
