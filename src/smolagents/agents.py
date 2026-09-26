@@ -873,11 +873,17 @@ You have been provided with these additional arguments, that you can access dire
             self.prompt_templates["managed_agent"]["task"],
             variables=dict(name=self.name, task=task),
         )
-        result = self.run(full_task, **kwargs)
-        if isinstance(result, RunResult):
-            report = result.output
+        try:
+            result = self.run(full_task, **kwargs)
+        except Exception as e:
+            report = f"Sub-agent '{self.name}' failed while running: {e}"
         else:
-            report = result
+            if isinstance(result, RunResult):
+                report = result.output
+            else:
+                report = result
+            if report is None or report == "":
+                report = f"Sub-agent '{self.name}' did not produce a result."
         answer = populate_template(
             self.prompt_templates["managed_agent"]["report"], variables=dict(name=self.name, final_answer=report)
         )
