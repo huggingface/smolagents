@@ -303,6 +303,13 @@ managed_agent:
       Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
       And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
   report: |-
+      {%- if is_max_steps_error -%}
+      ⚠️ Agent '{{name}}' did not reach a final answer within its allotted number of steps. The result below is a best-effort partial answer and may be incomplete or incorrect: verify it independently, or consider retrying with more steps or a clearer task.
+
+      {% elif is_empty_result -%}
+      ⚠️ Agent '{{name}}' returned an empty result, which likely means it could not complete the task as requested.
+
+      {% endif -%}
       Here is the final answer from your managed agent '{{name}}':
       {{final_answer}}
 final_answer:
