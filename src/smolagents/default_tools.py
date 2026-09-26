@@ -643,6 +643,147 @@ class WikipediaSearchTool(Tool):
             return f"Error fetching Wikipedia summary: {str(e)}"
 
 
+class BilibiliHotTool(Tool):
+    """Fetch the top trending videos from Bilibili (a major Chinese video platform).
+
+    The tool wraps Bilibili's public "popular" endpoint, which requires no
+    authentication and returns a curated list of currently trending videos.
+    Results are formatted as markdown and include the title, UP master
+    (creator), and engagement metrics (view / danmaku / like counts).
+
+    Args:
+        rate_limit (`float`, default `1.0`): Maximum queries per second.
+            Set to `None` to disable rate limiting.
+
+    Examples:
+        ```python
+        >>> from smolagents import BilibiliHotTool
+        >>> tool = BilibiliHotTool()
+        >>> print(tool(limit=5))
+        ```
+    """
+
+    name = "bilibili_hot"
+    description = (
+        "Fetches the top trending videos from Bilibili's public 'popular' list. "
+        "Use this when you need to know what Chinese-language videos are popular right now "
+        "on Bilibili (a major Chinese video platform). Returns a markdown list of titles, "
+        "creators (UP masters), and engagement metrics such as view, danmaku, and like counts."
+    )
+    inputs = {
+        "limit": {
+            "type": "integer",
+            "description": (
+                "Number of top videos to return, between 1 and 50. Default 10. "
+                "Values outside this range are clamped to the nearest bound."
+            ),
+            "nullable": True,
+        }
+    }
+    output_type = "string"
+
+    DEFAULT_LIMIT = 10
+    MIN_LIMIT = 1
+    MAX_LIMIT = 50
+    ENDPOINT = "https://api.bilibili.com/x/web-interface/popular"
+    USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+
+    def __init__(self, rate_limit: float | None = 1.0):
+        super().__init__()
+        self.rate_limit = rate_limit
+        self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
+        self._last_request_time = 0.0
+
+    def _enforce_rate_limit(self) -> None:
+        import time
+
+        if not self.rate_limit:
+            return
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.time()
+
+    @staticmethod
+    def _format_count(n) -> str:
+        if not isinstance(n, (int, float)):
+            return "0"
+        n = int(n)
+        if n >= 100_000_000:
+            return f"{n / 100_000_000:.1f}亿"
+        if n >= 10_000:
+            return f"{n / 10_000:.1f}万"
+        return str(n)
+
+    @classmethod
+    def _clamp_limit(cls, limit: int | None) -> int:
+        if limit is None:
+            return cls.DEFAULT_LIMIT
+        return max(cls.MIN_LIMIT, min(int(limit), cls.MAX_LIMIT))
+
+    def forward(self, limit: int | None = None) -> str:
+        try:
+            import requests
+        except ImportError as e:
+            raise ImportError(
+                "You must install `requests` to run this tool: for instance run `pip install requests`."
+            ) from e
+
+        clamped = self._clamp_limit(limit)
+        params = {"ps": clamped, "pn": 1}
+        headers = {"User-Agent": self.USER_AGENT}
+
+        try:
+            self._enforce_rate_limit()
+            response = requests.get(self.ENDPOINT, params=params, headers=headers, timeout=15)
+            response.raise_for_status()
+            payload = response.json()
+        except requests.exceptions.Timeout:
+            return "Error: request to Bilibili timed out. Please try again later."
+        except requests.exceptions.HTTPError:
+            return f"Error: Bilibili returned HTTP {response.status_code}."
+        except requests.exceptions.RequestException as e:
+            return f"Error fetching Bilibili popular videos: {str(e)}"
+        except ValueError:
+            return "Error: Bilibili returned a non-JSON response."
+
+        if not isinstance(payload, dict) or payload.get("code") != 0:
+            message = (payload or {}).get("message") if isinstance(payload, dict) else None
+            code = (payload or {}).get("code") if isinstance(payload, dict) else None
+            return f"Error: Bilibili API returned code={code}: {message or 'unknown error'}."
+
+        data = payload.get("data") or {}
+        items = data.get("list") or []
+        if not items:
+            return "No trending videos found on Bilibili right now."
+
+        lines = [f"## Bilibili 热门视频 Top {len(items)}", ""]
+        for idx, item in enumerate(items, start=1):
+            title = item.get("title") or "(untitled)"
+            bvid = item.get("bvid") or ""
+            url = (
+                item.get("short_link_v2")
+                or (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
+            )
+            owner = item.get("owner") or {}
+            up_name = owner.get("name") or "unknown"
+            tname = item.get("tname") or ""
+            stat = item.get("stat") or {}
+            view = self._format_count(stat.get("view"))
+            danmaku = self._format_count(stat.get("danmaku"))
+            like = self._format_count(stat.get("like"))
+            category = f" [{tname}]" if tname else ""
+            lines.append(
+                f"{idx}. [{title}]({url}){category}\n"
+                f"   UP主: {up_name} | 播放: {view} | 弹幕: {danmaku} | 点赞: {like}"
+            )
+        return "\n\n".join(lines)
+
+
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
@@ -686,6 +827,7 @@ TOOL_MAPPING = {
 
 __all__ = [
     "ApiWebSearchTool",
+    "BilibiliHotTool",
     "PythonInterpreterTool",
     "FinalAnswerTool",
     "UserInputTool",
