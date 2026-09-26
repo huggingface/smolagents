@@ -1076,6 +1076,22 @@ assert cm.exited == True
     """
         evaluate_python_code(code, {}, state={})
 
+    def test_with_threading_lock(self):
+        code = """
+import threading
+lock = threading.Lock()
+with lock:
+    x = 1
+assert x == 1
+assert not lock.locked()
+"""
+        evaluate_python_code(
+            code,
+            {},
+            state={},
+            authorized_imports=["threading"],
+        )
+
     def test_with_context_manager_no_as_clause_exit_called(self):
         """Test that __exit__ is called on context managers used without 'as' clause."""
         code = """
