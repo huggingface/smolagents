@@ -78,6 +78,35 @@ model = OpenAIModel(
 )
 ```
 
+## Using app.nz Models
+
+[app.nz](https://app.nz) is a hosted, OpenAI-compatible LLM gateway that routes requests across many providers.
+You can use the [`OpenAIModel`] to connect to app.nz by setting the appropriate base URL.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then, [get an app.nz API key](https://app.nz/docs) (it looks like `app_live_...`) and set it in your code:
+```python
+APP_NZ_API_KEY = <YOUR-APP-NZ-API-KEY>
+```
+
+Now, you can initialize a model through app.nz using the `OpenAIModel` class:
+```python
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    # `app/auto` auto-routes to a suitable model; task-specific variants like
+    # `app/auto-code` and `app/auto-reasoning` are also available, as is `provider/model`
+    model_id="app/auto",
+    # app.nz OpenAI-compatible API base URL
+    api_base="https://app.nz/v1",
+    api_key=APP_NZ_API_KEY,
+)
+```
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
