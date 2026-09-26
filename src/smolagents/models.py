@@ -449,6 +449,12 @@ class _ParameterRemove:
 REMOVE_PARAMETER = _ParameterRemove()
 
 
+# Keys that older smolagents versions serialized into a model's dict but that are no
+# longer valid constructor arguments. They are stripped on deserialization so they do
+# not leak into ``Model.kwargs`` and get forwarded to the inference client call.
+_DEPRECATED_MODEL_DICT_KEYS = frozenset({"last_input_token_count", "last_output_token_count"})
+
+
 class Model:
     """Base class for all language model implementations.
 
@@ -627,7 +633,17 @@ class Model:
 
     @classmethod
     def from_dict(cls, model_dictionary: dict[str, Any]) -> "Model":
-        return cls(**{k: v for k, v in model_dictionary.items()})
+        # Older smolagents versions serialized deprecated model attributes into the
+        # model dict. These are no longer valid constructor arguments, so they would
+        # otherwise be swept into ``self.kwargs`` and forwarded verbatim to the
+        # underlying inference call, e.g. raising:
+        #   TypeError: InferenceClient.chat_completion() got an unexpected keyword
+        #   argument 'last_input_token_count'
+        # Strip them here to keep backward compatibility with agents saved on the Hub.
+        model_dictionary = {
+            key: value for key, value in model_dictionary.items() if key not in _DEPRECATED_MODEL_DICT_KEYS
+        }
+        return cls(**model_dictionary)
 
 
 class VLLMModel(Model):
