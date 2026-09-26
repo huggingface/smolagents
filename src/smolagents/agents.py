@@ -671,6 +671,10 @@ You have been provided with these additional arguments, that you can access dire
             else:
                 plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
                 plan_message_content = plan_message.content
+                if isinstance(plan_message_content, list):
+                    plan_message_content = "".join(
+                        block["text"] for block in plan_message_content if isinstance(block, dict) and block.get("type") == "text" and "text" in block
+                    )
                 input_tokens, output_tokens = 0, 0
                 if plan_message.token_usage:
                     input_tokens = plan_message.token_usage.input_tokens
@@ -729,6 +733,10 @@ You have been provided with these additional arguments, that you can access dire
             else:
                 plan_message = self.model.generate(input_messages, stop_sequences=["<end_plan>"])
                 plan_message_content = plan_message.content
+                if isinstance(plan_message_content, list):
+                    plan_message_content = "".join(
+                        block["text"] for block in plan_message_content if isinstance(block, dict) and block.get("type") == "text" and "text" in block
+                    )
                 input_tokens, output_tokens = 0, 0
                 if plan_message.token_usage:
                     input_tokens = plan_message.token_usage.input_tokens

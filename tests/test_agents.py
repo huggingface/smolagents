@@ -2626,3 +2626,23 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+def test_structured_plan_response_extracted_to_text():
+    class StructuredPlanModel(Model):
+        def generate(self, messages, **kwargs):
+            if kwargs.get("stop_sequences") == ["<end_plan>"]:
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=[{"type": "text", "text": "Step 1: do the thing."}],
+                )
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content='Thought: done\n<code>\nfinal_answer("ok")\n</code>',
+            )
+
+    agent = CodeAgent(model=StructuredPlanModel(), tools=[], max_steps=1, planning_interval=1, verbosity_level=0)
+    agent.run("test task")
+    plan_step = next(s for s in agent.memory.steps if isinstance(s, PlanningStep))
+    assert "Step 1: do the thing." in plan_step.plan
+    assert "[{'type'" not in plan_step.plan
