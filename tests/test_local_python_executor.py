@@ -2410,6 +2410,50 @@ class TestLocalPythonExecutor:
         with pytest.raises(InterpreterError, match=".*Cannot unpack tuple of wrong size"):
             executor(code)
 
+    def test_starred_assignment_middle(self):
+        result, _ = evaluate_python_code("a, *b, c = [1, 2, 3, 4]\n(a, b, c)", {}, state={})
+        assert result == (1, [2, 3], 4)
+
+    def test_starred_assignment_head(self):
+        result, _ = evaluate_python_code("first, *rest = [10, 20, 30]\n(first, rest)", {}, state={})
+        assert result == (10, [20, 30])
+
+    def test_starred_assignment_tail(self):
+        result, _ = evaluate_python_code("*init, last = [1, 2, 3]\n(init, last)", {}, state={})
+        assert result == ([1, 2], 3)
+
+    def test_starred_assignment_absorbs_empty(self):
+        result, _ = evaluate_python_code("a, *b, c = [1, 2]\n(a, b, c)", {}, state={})
+        assert result == (1, [], 2)
+
+    def test_starred_assignment_from_non_tuple_iterable(self):
+        result, _ = evaluate_python_code("a, *b = range(3)\n(a, b)", {"range": range}, state={})
+        assert result == (0, [1, 2])
+
+    def test_starred_assignment_too_few_values_raises(self):
+        with pytest.raises(InterpreterError, match=".*Cannot unpack tuple of wrong size"):
+            evaluate_python_code("a, *b, c = [1]", {}, state={})
+
+    def test_list_target_assignment(self):
+        result, _ = evaluate_python_code("[x, y] = [1, 2]\n(x, y)", {}, state={})
+        assert result == (1, 2)
+
+    def test_starred_in_for_loop(self):
+        code = dedent(
+            """
+            result = []
+            for x, *ys in [(1, 2, 3), (4, 5, 6)]:
+                result = result + [(x, ys)]
+            result
+            """
+        )
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == [(1, [2, 3]), (4, [5, 6])]
+
+    def test_starred_in_comprehension(self):
+        result, _ = evaluate_python_code("[b for a, *b in [(1, 2, 3), (4, 5)]]", {}, state={})
+        assert result == [[2, 3], [5]]
+
     def test_function_def_recovers_source_code(self):
         executor = LocalPythonExecutor([])
         executor.send_tools({"final_answer": FinalAnswerTool()})

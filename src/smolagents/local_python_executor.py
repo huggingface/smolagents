@@ -803,16 +803,40 @@ def set_value(
         if target.id in static_tools:
             raise InterpreterError(f"Cannot assign to name '{target.id}': doing this would erase the existing tool!")
         state[target.id] = value
-    elif isinstance(target, ast.Tuple):
+    elif isinstance(target, (ast.Tuple, ast.List)):
         if not isinstance(value, tuple):
             if hasattr(value, "__iter__") and not isinstance(value, (str, bytes)):
                 value = tuple(value)
             else:
                 raise InterpreterError("Cannot unpack non-tuple value")
-        if len(target.elts) != len(value):
-            raise InterpreterError("Cannot unpack tuple of wrong size")
-        for i, elem in enumerate(target.elts):
-            set_value(elem, value[i], state, static_tools, custom_tools, authorized_imports)
+        starred_indices = [i for i, elt in enumerate(target.elts) if isinstance(elt, ast.Starred)]
+        if len(starred_indices) > 1:
+            raise InterpreterError("Cannot have multiple starred expressions in assignment")
+        if not starred_indices:
+            if len(target.elts) != len(value):
+                raise InterpreterError("Cannot unpack tuple of wrong size")
+            for elem, item in zip(target.elts, value):
+                set_value(elem, item, state, static_tools, custom_tools, authorized_imports)
+        else:
+            # PEP 3132 extended unpacking: the single starred target absorbs the surplus as a list.
+            star_index = starred_indices[0]
+            n_before = star_index
+            n_after = len(target.elts) - star_index - 1
+            if len(value) < n_before + n_after:
+                raise InterpreterError("Cannot unpack tuple of wrong size")
+            star_stop = len(value) - n_after
+            for elem, item in zip(target.elts[:star_index], value[:n_before]):
+                set_value(elem, item, state, static_tools, custom_tools, authorized_imports)
+            set_value(
+                target.elts[star_index].value,
+                list(value[n_before:star_stop]),
+                state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            for elem, item in zip(target.elts[star_index + 1 :], value[star_stop:]):
+                set_value(elem, item, state, static_tools, custom_tools, authorized_imports)
     elif isinstance(target, ast.Subscript):
         obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
         key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
