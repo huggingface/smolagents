@@ -83,6 +83,112 @@ class ToolTesterMixin:
 
 
 class TestTool:
+    def test_tool_to_code_prompt_with_nested_args(self):
+        """Test that to_code_prompt correctly formats nested argument descriptions."""
+
+        class NestedArgsTool(Tool):
+            name = "nested_args_tool"
+            description = "Tool with nested arguments"
+            inputs = {
+                "config": {
+                    "type": "object",
+                    "description": "Configuration object",
+                    "properties": {
+                        "host": {"type": "string", "description": "Server host"},
+                        "port": {"type": "integer", "description": "Server port"},
+                    },
+                },
+                "simple_arg": {"type": "string", "description": "Simple argument"},
+            }
+            output_type = "string"
+
+            def forward(self, config, simple_arg):
+                return "test"
+
+        tool = NestedArgsTool()
+        code_prompt = tool.to_code_prompt()
+
+        # Check that the nested structure is properly formatted
+        assert "config: Configuration object" in code_prompt
+        assert "    host: Server host" in code_prompt
+        assert "    port: Server port" in code_prompt
+        assert "simple_arg: Simple argument" in code_prompt
+
+    def test_tool_to_code_prompt_with_deeply_nested_args(self):
+        """Test that to_code_prompt handles deeply nested arguments up to max_depth=3."""
+
+        class DeeplyNestedTool(Tool):
+            name = "deeply_nested_tool"
+            description = "Tool with deeply nested arguments"
+            inputs = {
+                "level1": {
+                    "type": "object",
+                    "description": "Level 1",
+                    "properties": {
+                        "level2": {
+                            "type": "object",
+                            "description": "Level 2",
+                            "properties": {
+                                "level3": {
+                                    "type": "object",
+                                    "description": "Level 3",
+                                    "properties": {
+                                        "level4": {"type": "string", "description": "Level 4"},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            }
+            output_type = "string"
+
+            def forward(self, level1):
+                return "test"
+
+        tool = DeeplyNestedTool()
+        code_prompt = tool.to_code_prompt()
+
+        # Check that nested levels are formatted with proper indentation
+        assert "level1: Level 1" in code_prompt
+        assert "    level2: Level 2" in code_prompt
+        assert "        level3: Level 3" in code_prompt
+        # Level 4 should NOT be included as it exceeds max_depth=3
+        assert "level4" not in code_prompt
+
+    def test_tool_to_code_prompt_with_mixed_nested_and_simple_args(self):
+        """Test that to_code_prompt handles a mix of nested and simple arguments."""
+
+        class MixedArgsTool(Tool):
+            name = "mixed_args_tool"
+            description = "Tool with mixed argument types"
+            inputs = {
+                "simple1": {"type": "string", "description": "First simple arg"},
+                "nested": {
+                    "type": "object",
+                    "description": "Nested object",
+                    "properties": {
+                        "field1": {"type": "string", "description": "Nested field 1"},
+                        "field2": {"type": "integer", "description": "Nested field 2"},
+                    },
+                },
+                "simple2": {"type": "integer", "description": "Second simple arg"},
+            }
+            output_type = "string"
+
+            def forward(self, simple1, nested, simple2):
+                return "test"
+
+        tool = MixedArgsTool()
+        code_prompt = tool.to_code_prompt()
+
+        # Check that all arguments are properly formatted
+        assert "simple1: First simple arg" in code_prompt
+        assert "nested: Nested object" in code_prompt
+        assert "    field1: Nested field 1" in code_prompt
+        assert "    field2: Nested field 2" in code_prompt
+        assert "simple2: Second simple arg" in code_prompt
+
     @pytest.mark.parametrize(
         "type_value, should_raise_error, error_contains",
         [
