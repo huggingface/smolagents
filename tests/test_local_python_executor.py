@@ -2987,3 +2987,23 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_timeout_hung_call_raises_and_does_not_freeze():
+    """Regression for #2464: a wrapped call that hangs forever must raise
+    ExecutionTimeoutError and must NOT freeze the process (the old
+    ThreadPoolExecutor context manager blocked forever on shutdown(wait=True)
+    because Python cannot kill the leaked worker thread)."""
+    import time as _time
+
+    @timeout(1)
+    def hangs_forever():
+        _time.sleep(30)
+        return "done"
+
+    start = _time.monotonic()
+    with pytest.raises(ExecutionTimeoutError):
+        hangs_forever()
+    elapsed = _time.monotonic() - start
+    # The timeout is 1s; if the fix regressed, the call would block ~forever.
+    assert elapsed < 10, f"timeout() blocked for {elapsed:.1f}s — process freeze regression"
