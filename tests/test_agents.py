@@ -519,6 +519,17 @@ class TestAgent:
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
 
+    def test_max_steps_stream_no_duplicate_yield(self):
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModelNoReturn(),
+            max_steps=2,
+        )
+        steps = list(agent.run("What is 2 multiplied by 3.6452?", stream=True))
+        action_steps = [s for s in steps if isinstance(s, ActionStep)]
+        # Each action step should appear exactly once in the stream
+        assert len(action_steps) == len(set(id(s) for s in action_steps))
+
     def test_tool_descriptions_get_baked_in_system_prompt(self):
         tool = PythonInterpreterTool()
         tool.name = "fake_tool_name"
