@@ -1371,10 +1371,12 @@ class ToolCallingAgent(MultiStepAgent):
             `ToolCall | ToolOutput`: The tool call or tool output.
         """
         parallel_calls: dict[str, ToolCall] = {}
+        tool_call_ids: set[str] = set()
         assert chat_message.tool_calls is not None
-        for chat_tool_call in chat_message.tool_calls:
+        for index, chat_tool_call in enumerate(chat_message.tool_calls):
+            tool_call_id = self._make_unique_tool_call_id(chat_tool_call.id, index, tool_call_ids)
             tool_call = ToolCall(
-                name=chat_tool_call.function.name, arguments=chat_tool_call.function.arguments, id=chat_tool_call.id
+                name=chat_tool_call.function.name, arguments=chat_tool_call.function.arguments, id=tool_call_id
             )
             yield tool_call
             parallel_calls[tool_call.id] = tool_call
@@ -1440,6 +1442,22 @@ class ToolCallingAgent(MultiStepAgent):
         memory_step.observations = (
             memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
         )
+
+    @staticmethod
+    def _make_unique_tool_call_id(tool_call_id: str, index: int, used_ids: set[str]) -> str:
+        if tool_call_id and tool_call_id not in used_ids:
+            used_ids.add(tool_call_id)
+            return tool_call_id
+
+        fallback_prefix = tool_call_id or "tool_call"
+        unique_tool_call_id = f"{fallback_prefix}_{index}"
+        suffix = 1
+        while unique_tool_call_id in used_ids:
+            unique_tool_call_id = f"{fallback_prefix}_{index}_{suffix}"
+            suffix += 1
+
+        used_ids.add(unique_tool_call_id)
+        return unique_tool_call_id
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
