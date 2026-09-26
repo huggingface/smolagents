@@ -66,6 +66,9 @@ agent = CodeAgent(tools=[WebSearchTool()], model=model, stream_outputs=True)
 agent.run("How many seconds would it take for a leopard at full speed to run through Pont des Arts?")
 ```
 
+If you use `InferenceClientModel`, set `HF_TOKEN` or pass `token` when you need higher rate limits or access to
+gated models. See the [guided tour](https://huggingface.co/docs/smolagents/guided_tour) for token setup details.
+
 https://github.com/user-attachments/assets/84b149b4-246c-40c9-a48d-ba013b08e600
 
 You can even share your agent to the Hub, as a Space repository:
