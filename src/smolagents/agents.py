@@ -465,7 +465,7 @@ class MultiStepAgent(ABC):
         agent.run("What is the result of 2 power 3.7384?")
         ```
         """
-        max_steps = max_steps or self.max_steps
+        max_steps = max_steps if max_steps is not None else self.max_steps
         self.task = task
         self.interrupt_switch = False
         if additional_args:
@@ -542,6 +542,7 @@ You have been provided with these additional arguments, that you can access dire
     ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
         self.step_number = 1
         returned_final_answer = False
+        action_step = None
         while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
@@ -605,7 +606,8 @@ You have been provided with these additional arguments, that you can access dire
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
-            yield action_step
+            if action_step is not None:
+                yield action_step
         final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
         self._finalize_step(final_answer_step)
         yield final_answer_step

@@ -519,6 +519,19 @@ class TestAgent:
         assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
         assert isinstance(answer, str)
 
+    def test_max_steps_zero_is_respected(self):
+        # max_steps=0 should run zero action steps and immediately hit the max-steps fallback,
+        # rather than being treated as falsy and falling back to the agent's default max_steps.
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModelNoReturn(),  # use this callable because it never ends
+            max_steps=5,
+        )
+        answer = agent.run("What is 2 multiplied by 3.6452?", max_steps=0)
+        assert len(agent.memory.steps) == 2  # Task step + Final answer, no action steps
+        assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
+        assert isinstance(answer, str)
+
     def test_tool_descriptions_get_baked_in_system_prompt(self):
         tool = PythonInterpreterTool()
         tool.name = "fake_tool_name"
