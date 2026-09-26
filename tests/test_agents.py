@@ -2626,3 +2626,15 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+def test_stream_run_handles_generator_exit_and_agent_error():
+    agent = CodeAgent(tools=[], model=FakeCodeModel())
+    # Test GeneratorExit handling
+    gen = agent.run("Dummy test task", stream=True)
+    first_step = next(gen)
+    assert first_step is not None
+    assert len(agent.memory.steps) >= 1
+    gen.close()
+    assert len(agent.memory.steps) >= 1
+

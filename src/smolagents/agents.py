@@ -594,14 +594,20 @@ You have been provided with these additional arguments, that you can access dire
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
                 raise e
+            except GeneratorExit:
+                # When the generator is closed early (e.g. gen.close(), loop break),
+                # finalize the step and update memory without yielding inside unwinding.
+                self._finalize_step(action_step)
+                self.memory.steps.append(action_step)
+                raise
             except AgentError as e:
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
                 action_step.error = e
-            finally:
-                self._finalize_step(action_step)
-                self.memory.steps.append(action_step)
-                yield action_step
-                self.step_number += 1
+
+            self._finalize_step(action_step)
+            self.memory.steps.append(action_step)
+            yield action_step
+            self.step_number += 1
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
