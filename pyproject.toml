@@ -12,6 +12,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "defusedxml>=0.7.1",
   "huggingface-hub>=0.31.2",
   "requests>=2.32.3",
   "rich>=13.9.4",
