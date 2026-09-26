@@ -67,7 +67,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def validate_after_init(cls):
+def validate_after_init(cls: type) -> type:
+    """Class decorator that calls ``validate_arguments`` after ``__init__`` completes.
+
+    Args:
+        cls (type): The Tool subclass to decorate.
+
+    Returns:
+        type: The same class with a wrapped ``__init__``.
+    """
     original_init = cls.__init__
 
     @wraps(original_init)
@@ -134,14 +142,24 @@ class Tool(BaseTool):
     output_type: str
     output_schema: dict[str, Any] | None = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialise the tool and mark it as not yet set up."""
         self.is_initialized = False
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Automatically wrap every Tool subclass with ``validate_after_init``."""
         super().__init_subclass__(**kwargs)
         validate_after_init(cls)
 
-    def validate_arguments(self):
+    def validate_arguments(self) -> None:
+        """Validate class attributes and ``forward`` signature against ``self.inputs``.
+
+        Raises:
+            TypeError: If a required attribute is missing or has the wrong type.
+            ValueError: If ``name`` is not a valid identifier or an input type is not
+                in ``AUTHORIZED_TYPES``.
+            Exception: If the ``forward`` signature does not match ``self.inputs`` keys.
+        """
         required_attributes = {
             "description": str,
             "name": str,
@@ -225,10 +243,27 @@ class Tool(BaseTool):
                         f"Nullable argument '{key}' in function signature should have key 'nullable' set to True in inputs."
                     )
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args: Any, **kwargs: Any) -> Any:
+        """Execute the tool logic.  Override this in every concrete subclass.
+
+        Raises:
+            NotImplementedError: Always — subclasses must provide an implementation.
+        """
         raise NotImplementedError("Write this method in your subclass of `Tool`.")
 
-    def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
+    def __call__(self, *args: Any, sanitize_inputs_outputs: bool = False, **kwargs: Any) -> Any:
+        """Run the tool, optionally sanitising agent-typed inputs and outputs.
+
+        Args:
+            *args: Positional arguments forwarded to ``forward``.
+            sanitize_inputs_outputs (bool): When ``True``, agent-specific types such as
+                ``AgentImage`` are converted before calling ``forward`` and the output
+                is converted back afterwards.
+            **kwargs: Keyword arguments forwarded to ``forward``.
+
+        Returns:
+            Any: The return value of ``forward``.
+        """
         if not self.is_initialized:
             self.setup()
 
@@ -387,7 +422,7 @@ class Tool(BaseTool):
 
         return tool
 
-    def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True):
+    def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True) -> None:
         """
         Saves the relevant code files for your tool so it can be pushed to the Hub. This will copy the code of your
         tool in `output_dir` as well as autogenerate:
@@ -519,8 +554,8 @@ class Tool(BaseTool):
         repo_id: str,
         token: str | None = None,
         trust_remote_code: bool = False,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> "Tool":
         """
         Loads a tool defined on the Hub.
 
@@ -569,7 +604,19 @@ class Tool(BaseTool):
         return Tool.from_code(tool_code, **kwargs)
 
     @classmethod
-    def from_code(cls, tool_code: str, **kwargs):
+    def from_code(cls, tool_code: str, **kwargs: Any) -> "Tool":
+        """Instantiate a Tool from raw Python source code.
+
+        Args:
+            tool_code (str): Source code that defines exactly one ``Tool`` subclass.
+            **kwargs: Keyword arguments forwarded to the subclass constructor.
+
+        Returns:
+            Tool: An instantiated tool built from *tool_code*.
+
+        Raises:
+            ValueError: If no ``Tool`` subclass is found in *tool_code*.
+        """
         module = types.ModuleType("dynamic_tool")
 
         exec(tool_code, module.__dict__)
@@ -739,7 +786,7 @@ class Tool(BaseTool):
         )
 
     @staticmethod
-    def from_gradio(gradio_tool):
+    def from_gradio(gradio_tool: Any) -> "Tool":
         """
         Creates a [`Tool`] from a gradio tool.
         """
@@ -760,7 +807,7 @@ class Tool(BaseTool):
         return GradioToolWrapper(gradio_tool)
 
     @staticmethod
-    def from_langchain(langchain_tool):
+    def from_langchain(langchain_tool: Any) -> "Tool":
         """
         Creates a [`Tool`] from a langchain tool.
         """
@@ -791,7 +838,7 @@ class Tool(BaseTool):
         return LangChainToolWrapper(langchain_tool)
 
 
-def launch_gradio_demo(tool: Tool):
+def launch_gradio_demo(tool: Tool) -> None:
     """
     Launches a gradio demo for a tool. The corresponding tool class needs to properly implement the class attributes
     `inputs` and `output_type`.
@@ -838,12 +885,12 @@ def launch_gradio_demo(tool: Tool):
 
 
 def load_tool(
-    repo_id,
+    repo_id: str,
     model_repo_id: str | None = None,
     token: str | None = None,
     trust_remote_code: bool = False,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> "Tool":
     """
     Main function to quickly load a tool from the Hub.
 
@@ -879,12 +926,12 @@ def load_tool(
     )
 
 
-def add_description(description):
+def add_description(description: str) -> Callable:
     """
     A decorator that adds a description to a function.
     """
 
-    def inner(func):
+    def inner(func: Callable) -> Callable:
         func.description = description
         func.name = func.__name__
         return func
@@ -903,7 +950,7 @@ class ToolCollection:
     For example and usage, see: [`ToolCollection.from_hub`] and [`ToolCollection.from_mcp`]
     """
 
-    def __init__(self, tools: list[Tool]):
+    def __init__(self, tools: list[Tool]) -> None:
         self.tools = tools
 
     @classmethod
