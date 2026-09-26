@@ -260,6 +260,37 @@ class TestDockerExecutorUnit:
             mock_container.stop.assert_called_once()
             mock_container.remove.assert_called_once()
 
+    def test_cleanup_is_registered_and_idempotent(self):
+        logger = MagicMock()
+        with (
+            patch("docker.from_env") as mock_docker_client,
+            patch("requests.get") as mock_get,
+            patch("requests.post") as mock_post,
+            patch("websocket.create_connection"),
+            patch("smolagents.remote_executors.atexit.register") as mock_register,
+            patch("smolagents.remote_executors.atexit.unregister") as mock_unregister,
+        ):
+            mock_container = MagicMock()
+            mock_container.status = "running"
+            mock_container.short_id = "test123"
+
+            mock_docker_client.return_value.containers.run.return_value = mock_container
+            mock_docker_client.return_value.images.get.return_value = MagicMock()
+
+            mock_get.return_value.status_code = 200
+            mock_post.return_value.status_code = 201
+            mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
+
+            executor = DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+            mock_register.assert_called_once_with(executor._cleanup_callback)
+
+            executor.cleanup()
+            executor.cleanup()
+
+            mock_container.stop.assert_called_once()
+            mock_container.remove.assert_called_once()
+            mock_unregister.assert_called_once_with(mock_register.call_args.args[0])
+
 
 class CommonDockerExecutorIntegration:
     @pytest.fixture(autouse=True)
