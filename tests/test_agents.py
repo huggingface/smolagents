@@ -1594,6 +1594,36 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_from_dict_does_not_leak_parent_kwargs_to_managed_agents(self):
+        """Regression for #1849: parent **kwargs must not override managed agent configs."""
+        managed_agent = CodeAgent(
+            tools=[], model=MagicMock(), name="child", description="Child agent", max_steps=5
+        )
+
+        parent_agent = ToolCallingAgent(
+            tools=[],
+            managed_agents=[managed_agent],
+            model=MagicMock(),
+            name="parent",
+            description="Parent agent",
+            max_steps=10,
+        )
+
+        agent_dict = parent_agent.to_dict()
+
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
+
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated = ToolCallingAgent.from_dict(agent_dict, max_steps=30)
+
+        assert recreated.max_steps == 30  # parent override applied
+        child = list(recreated.managed_agents.values())[0]
+        assert child.max_steps == 5, (
+            f"expected child max_steps=5 (from serialized config), got {child.max_steps}"
+        )
+
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
         agent_dict = {
