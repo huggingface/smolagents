@@ -385,7 +385,14 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                content = message.content[0]["text"]
+                # Concatenate text blocks only: an empty content list, or a first
+                # block that is not text (e.g. an image/audio block), must not
+                # crash with IndexError/KeyError in flatten mode.
+                content = "".join(
+                    element.get("text", "")
+                    for element in message.content
+                    if isinstance(element, dict) and element.get("type") == "text"
+                )
             else:
                 content = message.content
             output_message_list.append(
