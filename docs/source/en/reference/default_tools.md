@@ -11,6 +11,7 @@ The built-in tools can be categorized by their primary functions:
   - [`ApiWebSearchTool`]
   - [`DuckDuckGoSearchTool`]
   - [`GoogleSearchTool`]
+  - [`ScavioSearchTool`]
   - [`WebSearchTool`]
   - [`WikipediaSearchTool`]
 - **Web Interaction**: Fetch and process content from specific web pages.
@@ -43,6 +44,10 @@ The built-in tools can be categorized by their primary functions:
 ## PythonInterpreterTool
 
 [[autodoc]] smolagents.default_tools.PythonInterpreterTool
+
+## ScavioSearchTool
+
+[[autodoc]] smolagents.default_tools.ScavioSearchTool
 
 ## SpeechToTextTool
 
