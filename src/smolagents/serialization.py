@@ -100,7 +100,7 @@ class SafeSerializer:
 
         # Fast path: dict (common, check string keys)
         if obj_type is dict:
-            if all(type(k) is str for k in obj):
+            if all(type(k) is str for k in obj) and "__type__" not in obj:
                 return {k: SafeSerializer.to_json_safe(v) for k, v in obj.items()}
             return {
                 "__type__": "dict_with_complex_keys",
