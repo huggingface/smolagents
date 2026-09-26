@@ -873,6 +873,8 @@ class TransformersModel(Model):
             The device_map to initialize your model with.
         torch_dtype (`str`, *optional*):
             The torch_dtype to initialize your model with.
+        quantization_config (`Any`, *optional*):
+            A Transformers quantization config to pass to `from_pretrained`, such as `BitsAndBytesConfig`.
         trust_remote_code (bool, default `False`):
             Some models on the Hub require running remote code: for this model, you would have to set this flag to True.
         model_kwargs (`dict[str, Any]`, *optional*):
@@ -908,6 +910,7 @@ class TransformersModel(Model):
         model_id: str | None = None,
         device_map: str | None = None,
         torch_dtype: str | None = None,
+        quantization_config: Any | None = None,
         trust_remote_code: bool = False,
         model_kwargs: dict[str, Any] | None = None,
         max_new_tokens: int = 4096,
@@ -944,7 +947,9 @@ class TransformersModel(Model):
             device_map = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device_map}")
         self._is_vlm = False
-        self.model_kwargs = model_kwargs or {}
+        self.model_kwargs = dict(model_kwargs or {})
+        if quantization_config is not None:
+            self.model_kwargs["quantization_config"] = quantization_config
         self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
         try:
             self.model = AutoModelForImageTextToText.from_pretrained(
