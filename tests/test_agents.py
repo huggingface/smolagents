@@ -2088,6 +2088,208 @@ class TestToolCallingAgent:
                     for tool_call in test_case["tool_calls"]
                 ]
 
+    def test_parallel_managed_agent_calls_have_independent_state(self):
+        """Test that parallel calls to managed agents don't share state (issue #1781).
+
+        When multiple parallel tool calls target the same managed agent, each call should
+        execute independently with its own state, not interfere with other parallel calls.
+        """
+        import threading
+
+        # Track which thread executed each task to verify parallel execution
+        execution_log = []
+        execution_lock = threading.Lock()
+
+        class TaskTrackingModel(Model):
+            """A model that tracks task execution and returns different results based on task content."""
+
+            def __init__(self, task_marker: str):
+                self.task_marker = task_marker
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                # Extract the task from messages
+                task_content = ""
+                for msg in messages:
+                    if msg.role == MessageRole.USER:
+                        for content in msg.content:
+                            if content.get("type") == "text":
+                                task_content += content.get("text", "")
+
+                # Log this execution with thread info
+                with execution_lock:
+                    execution_log.append({
+                        "thread": threading.current_thread().name,
+                        "task_marker": self.task_marker,
+                        "task_content": task_content[:500],  # Capture enough to include the topic
+                    })
+
+                # Return final answer based on task content
+                if "topic_A" in task_content:
+                    answer = "Result for topic A"
+                elif "topic_B" in task_content:
+                    answer = "Result for topic B"
+                elif "topic_C" in task_content:
+                    answer = "Result for topic C"
+                else:
+                    answer = "Unknown topic"
+
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=f"Final answer: {answer}",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id="call_final",
+                            type="function",
+                            function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": answer}),
+                        )
+                    ],
+                )
+
+        class ParallelCallModel(Model):
+            """A model that makes multiple parallel calls to a managed agent."""
+
+            def __init__(self):
+                self.call_count = 0
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                self.call_count += 1
+                if self.call_count == 1:
+                    # First call: make 3 parallel calls to the managed agent
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="I'll research three topics in parallel.",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_0",
+                                type="function",
+                                function=ChatMessageToolCallFunction(
+                                    name="research_agent",
+                                    arguments={"task": "Research topic_A thoroughly"},
+                                ),
+                            ),
+                            ChatMessageToolCall(
+                                id="call_1",
+                                type="function",
+                                function=ChatMessageToolCallFunction(
+                                    name="research_agent",
+                                    arguments={"task": "Research topic_B thoroughly"},
+                                ),
+                            ),
+                            ChatMessageToolCall(
+                                id="call_2",
+                                type="function",
+                                function=ChatMessageToolCallFunction(
+                                    name="research_agent",
+                                    arguments={"task": "Research topic_C thoroughly"},
+                                ),
+                            ),
+                        ],
+                    )
+                else:
+                    # Second call: return final answer
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="Here's the final answer.",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_final",
+                                type="function",
+                                function=ChatMessageToolCallFunction(
+                                    name="final_answer", arguments={"answer": "All research complete"}
+                                ),
+                            )
+                        ],
+                    )
+
+        # Create a managed agent with task-tracking model
+        managed_agent = ToolCallingAgent(
+            tools=[],
+            model=TaskTrackingModel("managed"),
+            name="research_agent",
+            description="A research agent that researches topics",
+            max_steps=1,
+        )
+
+        # Create main agent that will call the managed agent in parallel
+        main_agent = ToolCallingAgent(
+            tools=[],
+            model=ParallelCallModel(),
+            managed_agents=[managed_agent],
+            max_steps=2,
+        )
+
+        # Run the main agent
+        result = main_agent.run("Research three different topics in parallel")
+
+        # Verify that we got 3 separate executions of the managed agent
+        assert len(execution_log) == 3, f"Expected 3 executions, got {len(execution_log)}"
+
+        # Verify that each execution processed a different topic
+        # Note: task_content contains the full prompt including "Task:\nResearch topic_X"
+        topics_found = set()
+        for log_entry in execution_log:
+            task_text = log_entry["task_content"]
+            if "topic_A" in task_text:
+                topics_found.add("A")
+            if "topic_B" in task_text:
+                topics_found.add("B")
+            if "topic_C" in task_text:
+                topics_found.add("C")
+
+        assert topics_found == {"A", "B", "C"}, (
+            f"Expected all 3 topics, got {topics_found}. "
+            f"Execution log: {[log['task_content'][:100] for log in execution_log]}"
+        )
+
+        # Verify the observations contain all three results (in any order)
+        observations = main_agent.memory.steps[1].observations
+        assert "Result for topic A" in observations
+        assert "Result for topic B" in observations
+        assert "Result for topic C" in observations
+
+    def test_clone_for_parallel_execution_creates_independent_state(self):
+        """Test that _clone_for_parallel_execution creates agents with independent state."""
+        # Create an agent
+        original = ToolCallingAgent(
+            tools=[],
+            model=MagicMock(),
+            name="test_agent",
+            description="Test agent",
+        )
+
+        # Modify original state
+        original.memory.steps.append(TaskStep(task="Original task"))
+        original.state["key"] = "original_value"
+        original.step_number = 5
+
+        # Create a clone
+        cloned = original._clone_for_parallel_execution()
+
+        # Verify clone has fresh state
+        assert len(cloned.memory.steps) == 0, "Cloned memory should be empty"
+        assert cloned.state == {}, "Cloned state should be empty"
+        assert cloned.step_number == 0, "Cloned step_number should be 0"
+
+        # Verify original is unchanged
+        assert len(original.memory.steps) == 1
+        assert original.state["key"] == "original_value"
+        assert original.step_number == 5
+
+        # Verify they share non-stateful attributes
+        assert cloned.model is original.model
+        assert cloned.tools is original.tools
+        assert cloned.name == original.name
+        assert cloned.description == original.description
+
+        # Modify clone state and verify original is unaffected
+        cloned.memory.steps.append(TaskStep(task="Clone task"))
+        cloned.state["clone_key"] = "clone_value"
+        cloned.step_number = 10
+
+        assert len(original.memory.steps) == 1
+        assert "clone_key" not in original.state
+        assert original.step_number == 5
+
 
 class TestCodeAgent:
     def test_code_agent_instructions(self):
