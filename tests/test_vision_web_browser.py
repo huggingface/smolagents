@@ -1,10 +1,54 @@
 """Test XPath injection vulnerability fix in vision_web_browser.py"""
 
+import subprocess
+import sys
+import textwrap
 from unittest.mock import Mock, patch
 
 import pytest
 
-from smolagents.vision_web_browser import _escape_xpath_string, search_item_ctrl_f
+from smolagents.vision_web_browser import _escape_xpath_string, run_webagent, search_item_ctrl_f
+
+
+def test_import_without_vision_dependencies():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent("""
+                import importlib.abc
+                import sys
+
+                class BlockVisionImports(importlib.abc.MetaPathFinder):
+                    def find_spec(self, fullname, path=None, target=None):
+                        if fullname.split('.')[0] in {'helium', 'selenium'}:
+                            raise ModuleNotFoundError(f"No module named '{fullname}'", name=fullname)
+
+                sys.meta_path.insert(0, BlockVisionImports())
+                from smolagents.vision_web_browser import main
+
+                sys.argv = ['webagent', '--help']
+                main()
+            """),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--model-type" in result.stdout
+
+
+@pytest.mark.parametrize("missing_package", ["helium", "selenium"])
+def test_run_webagent_without_vision_dependencies(missing_package):
+    with patch(
+        "smolagents.vision_web_browser._is_package_available",
+        side_effect=lambda package: package != missing_package,
+    ):
+        with pytest.raises(ModuleNotFoundError) as exc_info:
+            run_webagent("hello", "InferenceClientModel", "test_model_id")
+    assert str(exc_info.value) == (
+        "Please install 'vision' extra to use the web agent: `pip install 'smolagents[vision]'`"
+    )
 
 
 @pytest.fixture
