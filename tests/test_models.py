@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from typing import Any, Dict, List, Optional, Union
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -41,7 +42,7 @@ from smolagents.models import (
     remove_content_after_stop_sequences,
     supports_stop_parameter,
 )
-from smolagents.tools import tool
+from smolagents.tools import Tool, tool
 
 from .utils.markers import require_run_all
 
@@ -221,6 +222,85 @@ class TestModel:
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
         assert "nullable" in get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
+
+    def test_get_json_schema_sanitizes_nested_any_types(self):
+        @tool
+        def inspect(v: Dict[str, Any]) -> str:
+            """
+            Inspect a mapping whose values are free-form.
+
+            Args:
+                v: a value
+            """
+            return "ok"
+
+        params = get_tool_json_schema(inspect)["function"]["parameters"]
+        # The internal "any" marker must not leak into any nested position.
+        assert '"any"' not in json.dumps(params)
+        # The nested container keeps its structure, only the marker is rewritten.
+        assert params["properties"]["v"]["type"] == "object"
+        assert params["properties"]["v"]["additionalProperties"]["type"] == "string"
+
+    def test_get_json_schema_sanitizes_deeply_nested_any_types(self):
+        @tool
+        def inspect(v: List[List[Any]]) -> str:
+            """
+            Inspect a nested list of free-form values.
+
+            Args:
+                v: a value
+            """
+            return "ok"
+
+        params = get_tool_json_schema(inspect)["function"]["parameters"]
+        assert '"any"' not in json.dumps(params)
+        assert params["properties"]["v"]["type"] == "array"
+        assert params["properties"]["v"]["items"]["type"] == "array"
+        assert params["properties"]["v"]["items"]["items"]["type"] == "string"
+
+    def test_get_json_schema_sanitizes_any_in_union_types(self):
+        @tool
+        def inspect(v: Optional[Union[Any, int]]) -> str:
+            """
+            Inspect a value that is either free-form or an integer.
+
+            Args:
+                v: a value
+            """
+            return "ok"
+
+        params = get_tool_json_schema(inspect)["function"]["parameters"]
+        assert '"any"' not in json.dumps(params)
+        assert params["properties"]["v"]["type"] == ["string", "integer"]
+        assert params["properties"]["v"]["nullable"] is True
+
+    def test_get_json_schema_leaves_user_data_untouched(self):
+        class ManualTool(Tool):
+            name = "manual"
+            description = "A tool whose inputs are written by hand."
+            inputs = {
+                "config": {
+                    "type": "object",
+                    "description": "Configuration.",
+                    # User data that happens to look like a schema fragment:
+                    "default": {"type": "any"},
+                    "enum": [{"type": "any"}],
+                    "properties": {"mode": {"type": "any"}},
+                }
+            }
+            output_type = "string"
+
+            def forward(self, config):
+                return "ok"
+
+        params = get_tool_json_schema(ManualTool())["function"]["parameters"]
+        prop = params["properties"]["config"]
+        # Nested schemas are still sanitized...
+        assert prop["properties"]["mode"]["type"] == "string"
+        assert '"any"' not in json.dumps(prop["properties"])
+        # ...but user data must survive byte for byte.
+        assert prop["default"] == {"type": "any"}
+        assert prop["enum"] == [{"type": "any"}]
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
