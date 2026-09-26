@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import atexit
 import base64
 import inspect
 import json
@@ -591,6 +592,7 @@ class DockerExecutor(RemotePythonExecutor):
         self.host = host
         self.port = port
         self.image_name = image_name
+        self._atexit_cleanup = None
 
         self.dockerfile_content = dockerfile_content or dedent(
             """\
@@ -650,6 +652,7 @@ class DockerExecutor(RemotePythonExecutor):
             container_kwargs["environment"] = env
 
             self.container = self.client.containers.run(self.image_name, **container_kwargs)
+            self._register_cleanup()
 
             retries = 0
             while self.container.status != "running" and retries < 5:
@@ -676,6 +679,11 @@ class DockerExecutor(RemotePythonExecutor):
             self.cleanup()
             raise RuntimeError(f"Failed to initialize Jupyter kernel: {e}") from e
 
+    def _register_cleanup(self):
+        if self._atexit_cleanup is None:
+            self._atexit_cleanup = self.cleanup
+            atexit.register(self._atexit_cleanup)
+
     def run_code_raise_errors(self, code: str) -> CodeOutput:
         """
         Execute Python code in the Docker container and return the result.
@@ -693,6 +701,14 @@ class DockerExecutor(RemotePythonExecutor):
 
     def cleanup(self):
         """Clean up the Docker container and resources."""
+        cleanup_callback = getattr(self, "_atexit_cleanup", None)
+        if cleanup_callback is not None:
+            try:
+                atexit.unregister(cleanup_callback)
+            except Exception:
+                pass
+            self._atexit_cleanup = None
+
         try:
             if hasattr(self, "container"):
                 self.logger.log(f"Stopping and removing container {self.container.short_id}...", level=LogLevel.INFO)

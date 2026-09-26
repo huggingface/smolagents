@@ -237,6 +237,8 @@ class TestDockerExecutorUnit:
             patch("requests.get") as mock_get,
             patch("requests.post") as mock_post,
             patch("websocket.create_connection"),
+            patch("smolagents.remote_executors.atexit.register") as mock_atexit_register,
+            patch("smolagents.remote_executors.atexit.unregister") as mock_atexit_unregister,
         ):
             # Setup mocks
             mock_container = MagicMock()
@@ -252,11 +254,14 @@ class TestDockerExecutorUnit:
 
             # Create executor
             executor = DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+            cleanup_callback = mock_atexit_register.call_args.args[0]
+            assert cleanup_callback == executor.cleanup
 
             # Call cleanup
             executor.cleanup()
 
             # Verify container was stopped and removed
+            mock_atexit_unregister.assert_called_once_with(cleanup_callback)
             mock_container.stop.assert_called_once()
             mock_container.remove.assert_called_once()
 
