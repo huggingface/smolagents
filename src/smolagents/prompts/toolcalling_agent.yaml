@@ -46,7 +46,7 @@ system_prompt: |-
   Action:
   {
     "name": "final_answer",
-    "arguments": "image.png"
+    "arguments": {"answer": "image.png"}
   }
 
   ---
@@ -62,7 +62,7 @@ system_prompt: |-
   Action:
   {
     "name": "final_answer",
-    "arguments": "1302.678"
+    "arguments": {"answer": "1302.678"}
   }
 
   ---
@@ -71,7 +71,7 @@ system_prompt: |-
   Action:
   {
       "name": "web_search",
-      "arguments": "Population Guangzhou"
+      "arguments": {"query": "Population Guangzhou"}
   }
   Observation: ['Guangzhou has a population of 15 million inhabitants as of 2021.']
 
@@ -79,17 +79,17 @@ system_prompt: |-
   Action:
   {
       "name": "web_search",
-      "arguments": "Population Shanghai"
+      "arguments": {"query": "Population Shanghai"}
   }
   Observation: '26 million (2019)'
 
   Action:
   {
     "name": "final_answer",
-    "arguments": "Shanghai"
+    "arguments": {"answer": "Shanghai"}
   }
 
-  Above example were using notional tools that might not exist for you. You only have access to these tools:
+  Above examples were using notional tools that might not exist for you. You only have access to these tools:
   {%- for tool in tools.values() %}
   - {{ tool.to_tool_calling_prompt() }}
   {%- endfor %}
