@@ -150,6 +150,7 @@ DANGEROUS_FUNCTIONS = [
     "os.popen",
     "os.system",
     "posix.system",
+    "nt.system",
 ]
 
 
