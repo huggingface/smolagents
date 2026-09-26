@@ -1641,6 +1641,33 @@ class TestMultiStepAgent:
             assert "Unknown agent class" in error_message
             assert "Supported agents:" in error_message
 
+    def test_push_to_hub_defaults_to_gradio_space_sdk(self):
+        """push_to_hub keeps creating a Gradio Space by default (backward compatible)."""
+        agent = CodeAgent(tools=[], model=MagicMock())
+        with (
+            patch("smolagents.agents.create_repo") as mock_create_repo,
+            patch("smolagents.agents.metadata_update"),
+            patch("smolagents.agents.upload_folder") as mock_upload_folder,
+            patch.object(agent, "save"),
+        ):
+            mock_create_repo.return_value = MagicMock(repo_id="user/my-agent")
+            agent.push_to_hub("user/my-agent")
+        assert mock_create_repo.call_args.kwargs["space_sdk"] == "gradio"
+        mock_upload_folder.assert_called_once()
+
+    def test_push_to_hub_forwards_configurable_space_sdk(self):
+        """push_to_hub forwards a custom space_sdk (e.g. "static") to create_repo (#2513)."""
+        agent = CodeAgent(tools=[], model=MagicMock())
+        with (
+            patch("smolagents.agents.create_repo") as mock_create_repo,
+            patch("smolagents.agents.metadata_update"),
+            patch("smolagents.agents.upload_folder"),
+            patch.object(agent, "save"),
+        ):
+            mock_create_repo.return_value = MagicMock(repo_id="user/my-agent")
+            agent.push_to_hub("user/my-agent", space_sdk="static")
+        assert mock_create_repo.call_args.kwargs["space_sdk"] == "static"
+
 
 class TestToolCallingAgent:
     def test_toolcalling_agent_instructions(self):
