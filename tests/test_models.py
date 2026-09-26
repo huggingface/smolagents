@@ -33,6 +33,7 @@ from smolagents.models import (
     MLXModel,
     Model,
     OpenAIModel,
+    OrcaRouterModel,
     TransformersModel,
     get_clean_message_list,
     get_tool_call_from_text,
@@ -589,6 +590,46 @@ class TestOpenAIModel:
             assert result.content == "This is some text"
             assert "<STOP>" not in result.content
             assert "and this should be removed" not in result.content
+
+
+class TestOrcaRouterModel:
+    def test_defaults_base_url_and_uses_env_api_key(self, monkeypatch):
+        monkeypatch.setenv("ORCAROUTER_API_KEY", "env-key")
+        with patch("openai.OpenAI") as MockOpenAI:
+            model = OrcaRouterModel(model_id="anthropic/claude-haiku-4.5")
+        MockOpenAI.assert_called_once_with(
+            base_url="https://api.orcarouter.ai/v1",
+            api_key="env-key",
+            organization=None,
+            project=None,
+        )
+        assert model.client == MockOpenAI.return_value
+        assert model.model_id == "anthropic/claude-haiku-4.5"
+
+    def test_explicit_api_key_overrides_env(self, monkeypatch):
+        monkeypatch.setenv("ORCAROUTER_API_KEY", "env-key")
+        with patch("openai.OpenAI") as MockOpenAI:
+            OrcaRouterModel(model_id="anthropic/claude-haiku-4.5", api_key="explicit-key")
+        assert MockOpenAI.call_args.kwargs["api_key"] == "explicit-key"
+
+    def test_custom_api_base_overrides_default(self, monkeypatch):
+        monkeypatch.setenv("ORCAROUTER_API_KEY", "env-key")
+        with patch("openai.OpenAI") as MockOpenAI:
+            OrcaRouterModel(
+                model_id="anthropic/claude-haiku-4.5",
+                api_base="https://proxy.example.com/v1",
+            )
+        assert MockOpenAI.call_args.kwargs["base_url"] == "https://proxy.example.com/v1"
+
+    def test_missing_api_key_raises(self, monkeypatch):
+        monkeypatch.delenv("ORCAROUTER_API_KEY", raising=False)
+        with pytest.raises(ValueError, match="ORCAROUTER_API_KEY"):
+            OrcaRouterModel(model_id="anthropic/claude-haiku-4.5")
+
+    def test_registered_in_model_registry(self):
+        from smolagents.models import MODEL_REGISTRY
+
+        assert MODEL_REGISTRY.get("OrcaRouterModel") is OrcaRouterModel
 
 
 class TestAmazonBedrockModel:

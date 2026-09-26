@@ -30,6 +30,7 @@ from smolagents import (
     LiteLLMModel,
     Model,
     OpenAIModel,
+    OrcaRouterModel,
     Tool,
     ToolCallingAgent,
     TransformersModel,
@@ -55,7 +56,7 @@ def parse_arguments():
         "--model-type",
         type=str,
         default="InferenceClientModel",
-        help="The model type to use (e.g., InferenceClientModel, OpenAIModel, LiteLLMModel, TransformersModel)",
+        help="The model type to use (e.g., InferenceClientModel, OpenAIModel, LiteLLMModel, TransformersModel, OrcaRouterModel)",
     )
     parser.add_argument(
         "--action-type",
@@ -155,7 +156,7 @@ def interactive_mode():
     model_type = Prompt.ask(
         "[bold]Model type[/]",
         default="InferenceClientModel",
-        choices=["InferenceClientModel", "OpenAIServerModel", "LiteLLMModel", "TransformersModel"],
+        choices=["InferenceClientModel", "OpenAIServerModel", "LiteLLMModel", "TransformersModel", "OrcaRouterModel"],
     )
 
     model_id = Prompt.ask("[bold white]Model ID[/]", default="Qwen/Qwen2.5-Coder-32B-Instruct")
@@ -168,7 +169,7 @@ def interactive_mode():
     action_type = "code"
 
     if Confirm.ask("\n[bold white]Configure advanced options?[/]", default=False):
-        if model_type in ["InferenceClientModel", "OpenAIServerModel", "LiteLLMModel"]:
+        if model_type in ["InferenceClientModel", "OpenAIServerModel", "LiteLLMModel", "OrcaRouterModel"]:
             provider = Prompt.ask("[bold white]Provider[/]", default="")
             api_base = Prompt.ask("[bold white]API Base URL[/]", default="")
             api_key = Prompt.ask("[bold white]API Key[/]", default="", password=True)
@@ -211,6 +212,12 @@ def load_model(
             model_id=model_id,
             token=api_key or os.getenv("HF_API_KEY"),
             provider=provider,
+        )
+    elif model_type == "OrcaRouterModel":
+        return OrcaRouterModel(
+            model_id=model_id,
+            api_key=api_key or os.getenv("ORCAROUTER_API_KEY"),
+            api_base=api_base,
         )
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
