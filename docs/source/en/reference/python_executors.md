@@ -32,6 +32,10 @@ available executor implementations.
 
 [[autodoc]] smolagents.remote_executors.ModalExecutor
 
+### TenkiExecutor
+
+[[autodoc]] smolagents.remote_executors.TenkiExecutor
+
 ### DockerExecutor
 
 [[autodoc]] smolagents.remote_executors.DockerExecutor
