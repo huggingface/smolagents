@@ -39,7 +39,7 @@ class HFModelDownloadsTool(Tool):
     def forward(self, task: str):
         from huggingface_hub import list_models
 
-        model = next(iter(list_models(filter=task, sort="downloads", direction=-1)))
+        model = next(iter(list_models(filter=task, sort="downloads", limit=1)))
         return model.id
 
 model_downloads_tool = HFModelDownloadsTool()
