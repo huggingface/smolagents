@@ -49,6 +49,7 @@ from ._function_type_hints_utils import (
     get_imports,
     get_json_schema,
 )
+from ._mcp_utils import prepare_mcp_server_parameters
 from .agent_types import AgentAudio, AgentImage, handle_agent_input_types, handle_agent_output_types
 from .tool_validation import MethodChecker, validate_tool_attributes
 from .utils import (
@@ -1040,15 +1041,7 @@ class ToolCollection:
             raise ImportError(
                 """Please install 'mcp' extra to use ToolCollection.from_mcp: `pip install 'smolagents[mcp]'`."""
             )
-        if isinstance(server_parameters, dict):
-            transport = server_parameters.get("transport")
-            if transport is None:
-                transport = "streamable-http"
-                server_parameters["transport"] = transport
-            if transport not in {"sse", "streamable-http"}:
-                raise ValueError(
-                    f"Unsupported transport: {transport}. Supported transports are 'streamable-http' and 'sse'."
-                )
+        server_parameters = prepare_mcp_server_parameters(server_parameters)
         if not trust_remote_code:
             raise ValueError(
                 "Loading tools from MCP requires you to acknowledge you trust the MCP server, "
