@@ -553,7 +553,10 @@ You have been provided with these additional arguments, that you can access dire
                 planning_start_time = time.time()
                 planning_step = None
                 for element in self._generate_planning_step(
-                    task, is_first_step=len(self.memory.steps) == 1, step=self.step_number
+                    task,
+                    is_first_step=len(self.memory.steps) == 1,
+                    step=self.step_number,
+                    max_steps=max_steps,
                 ):  # Don't use the attribute step_number here, because there can be steps from previous runs
                     yield element
                     planning_step = element
@@ -637,9 +640,10 @@ You have been provided with these additional arguments, that you can access dire
         return final_answer.content
 
     def _generate_planning_step(
-        self, task, is_first_step: bool, step: int
+        self, task, is_first_step: bool, step: int, max_steps: int | None = None
     ) -> Generator[ChatMessageStreamDelta | PlanningStep]:
         start_time = time.time()
+        effective_max_steps = self.max_steps if max_steps is None else max_steps
         if is_first_step:
             input_messages = [
                 ChatMessage(
@@ -704,7 +708,7 @@ You have been provided with these additional arguments, that you can access dire
                                 "task": task,
                                 "tools": self.tools,
                                 "managed_agents": self.managed_agents,
-                                "remaining_steps": (self.max_steps - step),
+                                "remaining_steps": (effective_max_steps - step),
                             },
                         ),
                     }
