@@ -7,6 +7,7 @@ from smolagents.agents import ToolCall
 from smolagents.memory import (
     ActionStep,
     AgentMemory,
+    CallbackRegistry,
     ChatMessage,
     MemoryStep,
     MessageRole,
@@ -271,3 +272,49 @@ def test_memory_step_json_serialization():
     # Raw field should be present but serializable
     assert "raw" in json_str
     assert "MockChatCompletion" in json_str
+
+
+def test_callback_registry_single_parameter_callback():
+    registry = CallbackRegistry()
+    received = []
+
+    def single_param_callback(step):
+        received.append(("single", step))
+
+    registry.register(ActionStep, single_param_callback)
+
+    step = ActionStep(step_number=1, timing=Timing(start_time=0.0))
+    registry.callback(step, agent="dummy-agent")
+
+    assert received == [("single", step)]
+
+
+def test_callback_registry_callback_accepting_kwargs():
+    registry = CallbackRegistry()
+    received = []
+
+    def kwargs_callback(step, agent=None):
+        received.append(("kwargs", step, agent))
+
+    registry.register(ActionStep, kwargs_callback)
+
+    step = ActionStep(step_number=1, timing=Timing(start_time=0.0))
+    registry.callback(step, agent="dummy-agent")
+
+    assert received == [("kwargs", step, "dummy-agent")]
+
+
+def test_callback_registry_flexible_signature_callback():
+    """A callback declared as (step, *args) must not receive unexpected kwargs."""
+    registry = CallbackRegistry()
+    received = []
+
+    def flexible_callback(step, *args):
+        received.append(("flexible", step))
+
+    registry.register(ActionStep, flexible_callback)
+
+    step = ActionStep(step_number=1, timing=Timing(start_time=0.0))
+    registry.callback(step, agent="dummy-agent")  # Must not raise TypeError
+
+    assert received == [("flexible", step)]
