@@ -993,12 +993,23 @@ class TransformersModel(Model):
                 self.stop_strings = stop_strings
                 self.tokenizer = tokenizer
                 self.stream = ""
+                self.last_input_len = 0
 
             def reset(self):
                 self.stream = ""
+                self.last_input_len = 0
 
             def __call__(self, input_ids, scores, **kwargs):
-                generated = self.tokenizer.decode(input_ids[0][-1], skip_special_tokens=True)
+                # Decode only the newly generated tokens: decoding a single token
+                # can split a multi-byte UTF-8 character across two tokens, so the
+                # accumulated stream would be mojibake and stop-sequence matching
+                # (e.g. for non-ASCII stop strings) would never succeed.
+                generated = self.tokenizer.decode(
+                    input_ids[0][self.last_input_len:],
+                    skip_special_tokens=True,
+                    errors="ignore",
+                )
+                self.last_input_len = len(input_ids[0])
                 self.stream += generated
                 if any([self.stream.endswith(stop_string) for stop_string in self.stop_strings]):
                     return True
