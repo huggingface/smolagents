@@ -78,6 +78,22 @@ model = OpenAIModel(
 )
 ```
 
+## Using PZERO Models
+
+PZERO provides access to models like DeepSeek via a prepaid OpenAI-compatible API endpoint.
+You can use [`OpenAIModel`] directly by configuring its `api_base`:
+
+```python
+import os
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    model_id="deepseek-v4-flash",
+    api_base="https://api.pzero.studio/v1",
+    api_key=os.environ["PZERO_API_KEY"],
+)
+```
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
