@@ -27,7 +27,7 @@ class ToolCall:
     arguments: Any
     id: str
 
-    def dict(self):
+    def dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "type": "function",
@@ -40,7 +40,7 @@ class ToolCall:
 
 @dataclass
 class MemoryStep:
-    def dict(self):
+    def dict(self) -> Dict[str, Any]:
         return asdict(self)
 
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
@@ -63,7 +63,7 @@ class ActionStep(MemoryStep):
     token_usage: TokenUsage | None = None
     is_final_answer: bool = False
 
-    def dict(self):
+    def dict(self) -> Dict[str, Any]:
         # We overwrite the method to parse the tool_calls and action_output manually
         return {
             "step_number": self.step_number,
@@ -158,7 +158,7 @@ class PlanningStep(MemoryStep):
     timing: Timing
     token_usage: TokenUsage | None = None
 
-    def dict(self):
+    def dict(self) -> Dict[str, Any]:
         return {
             "model_input_messages": [
                 make_json_serializable(get_dict_from_nested_dataclasses(msg)) for msg in self.model_input_messages
@@ -229,7 +229,7 @@ class AgentMemory:
         self.system_prompt: SystemPromptStep = SystemPromptStep(system_prompt=system_prompt)
         self.steps: list[TaskStep | ActionStep | PlanningStep] = []
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the agent's memory, clearing all steps and keeping the system prompt."""
         self.steps = []
 
@@ -245,7 +245,7 @@ class AgentMemory:
             return []
         return [step.dict() for step in self.steps]
 
-    def replay(self, logger: AgentLogger, detailed: bool = False):
+    def replay(self, logger: AgentLogger, detailed: bool = False) -> None:
         """Prints a pretty replay of the agent's steps.
 
         Args:
@@ -286,7 +286,7 @@ class CallbackRegistry:
     def __init__(self):
         self._callbacks: dict[Type[MemoryStep], list[Callable]] = {}
 
-    def register(self, step_cls: Type[MemoryStep], callback: Callable):
+    def register(self, step_cls: Type[MemoryStep], callback: Callable) -> None:
         """Register a callback for a step class.
 
         Args:
@@ -297,7 +297,7 @@ class CallbackRegistry:
             self._callbacks[step_cls] = []
         self._callbacks[step_cls].append(callback)
 
-    def callback(self, memory_step, **kwargs):
+    def callback(self, memory_step: MemoryStep, **kwargs: Any) -> None:
         """Call callbacks registered for a step type.
 
         Args:
