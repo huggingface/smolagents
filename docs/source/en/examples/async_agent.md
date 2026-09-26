@@ -38,14 +38,18 @@ from starlette.routing import Route
 
 from smolagents import CodeAgent, InferenceClientModel
 
-agent = CodeAgent(
-    model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking"),
-    tools=[],
-)
+shared_inference_model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
+def instantiate_agent():
+    return CodeAgent(
+        model=shared_inference_model,
+        tools=[],
+    )
 
 async def run_agent(request: Request):
     data = await request.json()
     task = data.get("task", "")
+    # Create agent instance to avoid sharing agent memory, state, step counter etc in case of concurrent tasks
+    agent = instantiate_agent()
     # Run the agent synchronously in a background thread
     result = await anyio.to_thread.run_sync(agent.run, task)
     return JSONResponse({"result": result})
