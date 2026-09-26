@@ -22,7 +22,9 @@ from huggingface_hub import ChatCompletionOutputMessage
 
 from smolagents.default_tools import FinalAnswerTool
 from smolagents.models import (
+    RETRY_WAIT,
     AmazonBedrockModel,
+    ApiModel,
     AzureOpenAIModel,
     ChatMessage,
     ChatMessageToolCall,
@@ -37,8 +39,11 @@ from smolagents.models import (
     get_clean_message_list,
     get_tool_call_from_text,
     get_tool_json_schema,
+    is_rate_limit_error,
+    is_transient_error,
     parse_json_if_needed,
     remove_content_after_stop_sequences,
+    should_retry_api_call,
     supports_stop_parameter,
 )
 from smolagents.tools import tool
@@ -1078,3 +1083,93 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert len(data["tool_calls"]) > 0
     assert data["tool_calls"][0]["function"]["name"] == "final_answer"
     assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
+
+
+class _FakeApiError(Exception):
+    """Minimal exception mimicking a provider SDK error that carries an HTTP status code."""
+
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class TestApiModelRetry:
+    @pytest.mark.parametrize(
+        "exception, expected",
+        [
+            # Structured status codes
+            (_FakeApiError("503 Service Unavailable", status_code=503), True),
+            (_FakeApiError("500 Internal Server Error", status_code=500), True),
+            (_FakeApiError("408 Request Timeout", status_code=408), True),
+            # Exception type names
+            (TimeoutError("read operation timed out"), True),
+            (ConnectionError("connection reset by peer"), True),
+            # Plain-message fallback
+            (_FakeApiError("Bad Gateway"), True),
+            # Should NOT be treated as transient
+            (_FakeApiError("401 Unauthorized", status_code=401), False),
+            (_FakeApiError("404 Not Found", status_code=404), False),
+            (_FakeApiError("invalid request: missing field"), False),
+            # Rate-limit is handled by is_rate_limit_error, not here
+            (_FakeApiError("429 Too Many Requests", status_code=429), False),
+        ],
+    )
+    def test_is_transient_error(self, exception, expected):
+        assert is_transient_error(exception) is expected
+
+    @pytest.mark.parametrize(
+        "exception, expected",
+        [
+            (_FakeApiError("429 Too Many Requests", status_code=429), True),  # rate limit
+            (_FakeApiError("rate_limit_exceeded"), True),  # rate limit
+            (_FakeApiError("502 Bad Gateway", status_code=502), True),  # transient
+            (TimeoutError("timed out"), True),  # transient
+            (_FakeApiError("401 Unauthorized", status_code=401), False),  # client error
+            (_FakeApiError("404 Not Found", status_code=404), False),  # client error
+        ],
+    )
+    def test_should_retry_api_call(self, exception, expected):
+        assert should_retry_api_call(exception) is expected
+
+    def test_transient_error_reads_status_from_response_attribute(self):
+        # requests/httpx-style errors expose the status code on an attached response object
+        exception = _FakeApiError("server exploded")
+        exception.response = type("Resp", (), {"status_code": 503})()
+        assert is_transient_error(exception) is True
+
+    def test_apimodel_default_retries_transient(self):
+        model = ApiModel(model_id="dummy", client=object())  # retry_on_transient defaults to True
+        assert model.retryer.retry_predicate is should_retry_api_call
+        assert model.retryer.wait_seconds == RETRY_WAIT
+
+    def test_apimodel_rate_limit_only_when_transient_disabled(self):
+        model = ApiModel(model_id="dummy", client=object(), retry_on_transient=False)
+        assert model.retryer.retry_predicate is is_rate_limit_error
+        assert model.retryer.wait_seconds == RETRY_WAIT
+
+    def test_apimodel_retries_transient_then_succeeds(self, monkeypatch):
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda *_: None)
+        calls = {"n": 0}
+
+        def flaky():
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise _FakeApiError("503 Service Unavailable", status_code=503)
+            return "ok"
+
+        model = ApiModel(model_id="dummy", client=object(), retry_on_transient=True)
+        assert model.retryer(flaky) == "ok"
+        assert calls["n"] == 3
+
+    def test_apimodel_does_not_retry_client_error(self, monkeypatch):
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda *_: None)
+        calls = {"n": 0}
+
+        def always_401():
+            calls["n"] += 1
+            raise _FakeApiError("401 Unauthorized", status_code=401)
+
+        model = ApiModel(model_id="dummy", client=object(), retry_on_transient=True)
+        with pytest.raises(_FakeApiError):
+            model.retryer(always_401)
+        assert calls["n"] == 1  # no retry on genuine client error
