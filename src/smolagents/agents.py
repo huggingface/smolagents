@@ -1255,7 +1255,21 @@ class ToolCallingAgent(MultiStepAgent):
                 "`stream_outputs` is set to True, but the model class implements no `generate_stream` method."
             )
         # Tool calling setup
-        self.max_tool_threads = max_tool_threads
+        # Create persistent ThreadPoolExecutor for reuse across agent loops
+        self._max_tool_threads = max_tool_threads
+        self._tool_executor: ThreadPoolExecutor | None = None
+
+    def _get_tool_executor(self) -> ThreadPoolExecutor:
+        """Get or create the persistent ThreadPoolExecutor for parallel tool execution."""
+        if self._tool_executor is None:
+            self._tool_executor = ThreadPoolExecutor(self._max_tool_threads)
+        return self._tool_executor
+
+    def cleanup(self):
+        """Clean up resources used by the agent, such as the persistent ThreadPoolExecutor."""
+        if self._tool_executor is not None:
+            self._tool_executor.shutdown(wait=True)
+            self._tool_executor = None
 
     @property
     def tools_and_managed_agents(self):
@@ -1422,16 +1436,16 @@ class ToolCallingAgent(MultiStepAgent):
             outputs[tool_output.id] = tool_output
             yield tool_output
         else:
-            # If multiple tool calls, process them in parallel
-            with ThreadPoolExecutor(self.max_tool_threads) as executor:
-                futures = []
-                for tool_call in parallel_calls.values():
-                    ctx = copy_context()
-                    futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
-                for future in as_completed(futures):
-                    tool_output = future.result()
-                    outputs[tool_output.id] = tool_output
-                    yield tool_output
+            # If multiple tool calls, process them in parallel using persistent executor
+            executor = self._get_tool_executor()
+            futures = []
+            for tool_call in parallel_calls.values():
+                ctx = copy_context()
+                futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
+            for future in as_completed(futures):
+                tool_output = future.result()
+                outputs[tool_output.id] = tool_output
+                yield tool_output
 
         memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
         memory_step.observations = memory_step.observations or ""
