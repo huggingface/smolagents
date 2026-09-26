@@ -926,11 +926,135 @@ var_args_method(1, 2, 3, x=4, y=5)
 """
         state = {}
         result, _ = evaluate_python_code(code, {"sum": sum}, state=state)
-        assert result == 15
+        # As in CPython: `self` takes 1, so `args` is (2, 3) and `kwargs` is {"x": 4, "y": 5}.
+        assert result == 14
+
+    def test_star_args_only_receives_the_extra_positional_arguments(self):
+        code = """
+def func(a, b, *rest):
+    return (a, b, rest)
+
+func(1, 2, 3, 4)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, 2, (3, 4))
+
+    def test_star_args_is_empty_when_no_extra_positional_arguments(self):
+        code = """
+def func(a, *rest):
+    return (a, rest)
+
+func(1)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, ())
+
+    def test_method_star_args_excludes_self(self):
+        code = """
+class MyClass:
+    def method(self, a, *rest):
+        return (a, rest)
+
+MyClass().method(1, 2, 3)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, (2, 3))
+
+    def test_kwargs_excludes_named_parameters(self):
+        code = """
+def func(a, **kwargs):
+    return (a, kwargs)
+
+func(a=1, z=2)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, {"z": 2})
+
+    def test_kwargs_excludes_keyword_only_parameters(self):
+        code = """
+def func(a, *, d=2, **kwargs):
+    return (a, d, kwargs)
+
+func(1, d=4, z=5)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, 4, {"z": 5})
+
+    def test_positional_only_parameters(self):
+        code = """
+def func(a, /, b, **kwargs):
+    return (a, b, kwargs)
+
+func(1, 2, a=3)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        # `a` is positional-only, so `a=3` lands in **kwargs instead of rebinding it.
+        assert result == (1, 2, {"a": 3})
+
+    def test_keyword_only_parameter_default(self):
+        code = """
+def func(a, *, b=7):
+    return (a, b)
+
+func(1)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, 7)
+
+    def test_full_signature_binding(self):
+        code = """
+def func(p, /, a, b=1, *args, d, e=5, **kwargs):
+    return (p, a, b, args, d, e, kwargs)
+
+func(0, 1, 2, 3, 4, d=9, z=8)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (0, 1, 2, (3, 4), 9, 5, {"z": 8})
+
+    def test_lambda_default_and_keyword_arguments(self):
+        code = """
+func = lambda x, y=10: (x, y)
+(func(1), func(1, 2), func(x=3, y=4))
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == ((1, 10), (1, 2), (3, 4))
+
+    def test_default_values_are_evaluated_once_at_definition(self):
+        code = """
+def func(x, acc=[]):
+    acc.append(x)
+    return list(acc)
+
+func(1)
+func(2)
+"""
+        result, _ = evaluate_python_code(code, {"list": list}, state={})
+        # The default list is created once, at definition time, and shared across calls.
+        assert result == [1, 2]
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            "func(1, 2)",  # too many positional arguments
+            "func()",  # missing a required argument
+            "func(1, a=2)",  # duplicate value for `a`
+            "func(1, z=2)",  # unexpected keyword argument
+        ],
+    )
+    def test_argument_mismatch_raises_type_error(self, call):
+        code = f"""
+def func(a):
+    return a
+
+{call}
+"""
+        with pytest.raises(InterpreterError) as exception_info:
+            evaluate_python_code(code, {}, state={})
+        assert "TypeError" in str(exception_info.value)
 
     def test_exceptions(self):
         code = """
-def method_that_raises(self):
+def method_that_raises():
     raise ValueError("An error occurred")
 
 try:

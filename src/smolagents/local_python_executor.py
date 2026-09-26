@@ -420,12 +420,11 @@ def evaluate_lambda(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Callable:
-    args = [arg.arg for arg in lambda_expression.args.args]
+    signature = build_signature(lambda_expression.args, state, static_tools, custom_tools, authorized_imports)
 
-    def lambda_func(*values: Any) -> Any:
+    def lambda_func(*values: Any, **keyword_values: Any) -> Any:
         new_state = state.copy()
-        for arg, value in zip(args, values):
-            new_state[arg] = value
+        new_state.update(bind_arguments(signature, values, keyword_values))
         return evaluate_ast(
             lambda_expression.body,
             new_state,
@@ -459,6 +458,56 @@ def evaluate_while(
     return None
 
 
+def build_signature(
+    arguments: ast.arguments,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> inspect.Signature:
+    """Build the `inspect.Signature` described by an `ast.arguments` node.
+
+    Default values are evaluated once, when the function is defined, as CPython does.
+    """
+
+    def evaluate_default(node: ast.expr) -> Any:
+        return evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
+
+    positional_args = list(arguments.posonlyargs) + list(arguments.args)
+    # Defaults apply to the last positional parameters, so line them up from the right.
+    defaults = [evaluate_default(default) for default in arguments.defaults]
+    first_default_index = len(positional_args) - len(defaults)
+
+    parameters = []
+    for index, arg in enumerate(positional_args):
+        kind = (
+            inspect.Parameter.POSITIONAL_ONLY
+            if index < len(arguments.posonlyargs)
+            else inspect.Parameter.POSITIONAL_OR_KEYWORD
+        )
+        default = defaults[index - first_default_index] if index >= first_default_index else inspect.Parameter.empty
+        parameters.append(inspect.Parameter(arg.arg, kind, default=default))
+
+    if arguments.vararg:
+        parameters.append(inspect.Parameter(arguments.vararg.arg, inspect.Parameter.VAR_POSITIONAL))
+
+    for arg, default_node in zip(arguments.kwonlyargs, arguments.kw_defaults):
+        default = inspect.Parameter.empty if default_node is None else evaluate_default(default_node)
+        parameters.append(inspect.Parameter(arg.arg, inspect.Parameter.KEYWORD_ONLY, default=default))
+
+    if arguments.kwarg:
+        parameters.append(inspect.Parameter(arguments.kwarg.arg, inspect.Parameter.VAR_KEYWORD))
+
+    return inspect.Signature(parameters)
+
+
+def bind_arguments(signature: inspect.Signature, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Bind call arguments to parameter names, raising `TypeError` on a mismatch as CPython does."""
+    bound_arguments = signature.bind(*args, **kwargs)
+    bound_arguments.apply_defaults()
+    return dict(bound_arguments.arguments)
+
+
 def create_function(
     func_def: ast.FunctionDef,
     state: dict[str, Any],
@@ -467,44 +516,16 @@ def create_function(
     authorized_imports: list[str],
 ) -> Callable:
     source_code = ast.unparse(func_def)
+    signature = build_signature(func_def.args, state, static_tools, custom_tools, authorized_imports)
+    positional_args = list(func_def.args.posonlyargs) + list(func_def.args.args)
 
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
-        arg_names = [arg.arg for arg in func_def.args.args]
-        default_values = [
-            evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
-        ]
+        func_state.update(bind_arguments(signature, args, kwargs))
 
-        # Apply default values
-        defaults = dict(zip(arg_names[-len(default_values) :], default_values))
-
-        # Set positional arguments
-        for name, value in zip(arg_names, args):
-            func_state[name] = value
-
-        # Set keyword arguments
-        for name, value in kwargs.items():
-            func_state[name] = value
-
-        # Handle variable arguments
-        if func_def.args.vararg:
-            vararg_name = func_def.args.vararg.arg
-            func_state[vararg_name] = args
-
-        if func_def.args.kwarg:
-            kwarg_name = func_def.args.kwarg.arg
-            func_state[kwarg_name] = kwargs
-
-        # Set default values for arguments that were not provided
-        for name, value in defaults.items():
-            if name not in func_state:
-                func_state[name] = value
-
-        # Update function state with self and __class__
-        if func_def.args.args and func_def.args.args[0].arg == "self":
-            if args:
-                func_state["self"] = args[0]
-                func_state["__class__"] = args[0].__class__
+        # Update function state with __class__, so that `super()` works inside methods
+        if positional_args and positional_args[0].arg == "self" and args:
+            func_state["__class__"] = args[0].__class__
 
         result = None
         try:
