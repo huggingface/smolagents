@@ -222,6 +222,17 @@ class TestModel:
 
         assert "nullable" in get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
 
+    def test_get_json_schema_no_inputs_omits_parameters(self):
+        @tool
+        def ping() -> str:
+            """A tool that takes no arguments."""
+            return "pong"
+
+        schema = get_tool_json_schema(ping)
+        # Providers such as Gemini reject parameters: {type: object, properties: {}}
+        # so we must omit the parameters field entirely for no-input tools.
+        assert "parameters" not in schema["function"]
+
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
         data = json.loads(message.model_dump_json())
