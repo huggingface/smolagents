@@ -716,12 +716,13 @@ class Tool(BaseTool):
                     kwargs[arg_name] = self.sanitize_argument_for_prediction(arg)
 
                 output = self.client.predict(*args, api_name=self.api_name, **kwargs)
-                if isinstance(output, tuple) or isinstance(output, list):
+                # gradio_client returns a tuple only for a multi-output endpoint (e.g. an image plus a generation
+                # seed); a single output that is itself a list (gr.JSON, gr.Gallery, ...) is returned as that list,
+                # and must not be indexed as if it were a (result, message) pair.
+                if isinstance(output, tuple) and len(output) > 1:
                     if isinstance(output[1], str):
                         raise ValueError("The space returned this message: " + output[1])
-                    output = output[
-                        0
-                    ]  # Sometime the space also returns the generation seed, in which case the result is at index 0
+                    output = output[0]  # the result is at index 0; a trailing element is the generation seed
                 IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
                 AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
                 if isinstance(output, str) and any([output.endswith(ext) for ext in IMAGE_EXTENSIONS]):
