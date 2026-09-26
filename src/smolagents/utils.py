@@ -188,10 +188,37 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
 
 def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
     """Extract code from the LLM's output."""
+    if code_block_tags[0].startswith("```") and code_block_tags[1].strip() == "```":
+        return _extract_markdown_code_blocks(text)
+
     pattern = rf"{code_block_tags[0]}(.*?){code_block_tags[1]}"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)
+    return None
+
+
+def _extract_markdown_code_blocks(text: str, *, allow_empty_language: bool = False) -> str | None:
+    matches: list[str] = []
+    lines = text.splitlines()
+    i = 0
+
+    while i < len(lines):
+        line = lines[i].strip()
+        if line.startswith("```"):
+            language = line[3:].strip()
+            if allow_empty_language or language in {"python", "py"}:
+                block: list[str] = []
+                i += 1
+                while i < len(lines) and lines[i].strip() != "```":
+                    block.append(lines[i])
+                    i += 1
+                if i < len(lines):
+                    matches.append("\n".join(block).strip())
+        i += 1
+
+    if matches:
+        return "\n\n".join(matches)
     return None
 
 
@@ -211,7 +238,11 @@ def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     """
     matches = extract_code_from_text(text, code_block_tags)
     if not matches:  # Fallback to markdown pattern
-        matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
+        code_sections = re.split(r"(?im)^Code:\s*$", text)
+        if len(code_sections) > 1:
+            matches = _extract_markdown_code_blocks(code_sections[-1], allow_empty_language=True)
+        if not matches:
+            matches = _extract_markdown_code_blocks(text)
     if matches:
         return matches
     # Maybe the LLM outputted a code blob directly
