@@ -1126,15 +1126,16 @@ You have been provided with these additional arguments, that you can access dire
         # Load agent.json
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
-        # Handle HfApiModel -> InferenceClientModel rename for old agents
-        if agent_dict.get("model", {}).get("class") == "HfApiModel":
+        # Handle HfApiModel -> InferenceClientModel rename for old agents.
+        # model may be null/absent in legacy agent.json files, so guard with `or {}`.
+        if (agent_dict.get("model") or {}).get("class") == "HfApiModel":
             agent_dict["model"]["class"] = "InferenceClientModel"
             logger.warning(
                 "The agent you're loading uses the deprecated 'HfApiModel' class: it was automatically updated to 'InferenceClientModel'."
             )
         # Load managed agents from their respective folders, recursively
         managed_agents = []
-        for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
+        for managed_agent_name, managed_agent_class_name in agent_dict.get("managed_agents", {}).items():
             agent_cls = AGENT_REGISTRY.get(managed_agent_class_name)
             if agent_cls is None:
                 raise ValueError(
@@ -1146,7 +1147,7 @@ You have been provided with these additional arguments, that you can access dire
 
         # Load tools
         tools = []
-        for tool_name in agent_dict["tools"]:
+        for tool_name in agent_dict.get("tools", []):
             tool_code = (folder / "tools" / f"{tool_name}.py").read_text()
             tools.append({"name": tool_name, "code": tool_code})
         agent_dict["tools"] = tools
