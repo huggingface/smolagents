@@ -14,9 +14,13 @@
 # limitations under the License.
 
 import ast
+import os
+import subprocess
+import sys
 import time
 import types
 from contextlib import nullcontext as does_not_raise
+from pathlib import Path
 from textwrap import dedent
 from unittest.mock import patch
 
@@ -2215,6 +2219,32 @@ result = "should not complete"
         with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
             evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=2)
 
+    def test_evaluate_python_code_returns_promptly_after_timeout(self):
+        """Test timeout behavior in a fresh interpreter to avoid test-order interference from background threads."""
+        repo_root = Path(__file__).resolve().parents[1]
+        script = """
+import time
+from smolagents.local_python_executor import evaluate_python_code, ExecutionTimeoutError
+
+code = "import time\\ntime.sleep(3)\\nresult = 42\\n"
+start = time.monotonic()
+try:
+    evaluate_python_code(code, authorized_imports=["time"], timeout_seconds=1)
+except ExecutionTimeoutError:
+    print(time.monotonic() - start)
+"""
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            check=True,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONPATH": str(repo_root / "src")},
+            cwd=repo_root,
+        )
+        elapsed = float(completed.stdout.strip())
+
+        assert elapsed < 2.5
+
     def test_timeout_works_in_thread(self):
         """Test that timeout mechanism works when called from a non-main thread.
 
@@ -2298,6 +2328,23 @@ time.sleep(2)
 """
         with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
             executor(code)
+
+    def test_local_executor_returns_promptly_after_timeout(self):
+        """Test that LocalPythonExecutor returns near the timeout deadline."""
+        executor = LocalPythonExecutor(additional_authorized_imports=["time"], timeout_seconds=1)
+        executor.send_tools({})
+
+        code = """
+import time
+time.sleep(3)
+"""
+
+        start = time.monotonic()
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time of 1"):
+            executor(code)
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 2.5
 
     def test_local_executor_disabled_timeout(self):
         """Test that LocalPythonExecutor can disable timeout."""
