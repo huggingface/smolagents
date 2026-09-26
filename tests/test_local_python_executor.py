@@ -1216,6 +1216,88 @@ with RaisingExit():
         with pytest.raises(InterpreterError, match="from __exit__"):
             evaluate_python_code(code, {}, state={})
 
+    def test_with_tuple_unpacking(self):
+        """Test that 'with X() as (a, b)' correctly unpacks the tuple."""
+        code = """
+class MultiVal:
+    def __enter__(self):
+        return (10, 20)
+    def __exit__(self, *args):
+        return False
+
+with MultiVal() as (a, b):
+    result = a + b
+result
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 30
+
+    def test_with_nested_tuple_unpacking(self):
+        """Test that 'with X() as (a, (b, c))' correctly unpacks nested tuples."""
+        code = """
+class NestedVal:
+    def __enter__(self):
+        return (1, (2, 3))
+    def __exit__(self, *args):
+        return False
+
+with NestedVal() as (a, (b, c)):
+    result = a + b + c
+result
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 6
+
+    def test_with_multiple_cms_tuple_unpacking(self):
+        """Test multiple context managers each with tuple unpacking."""
+        code = """
+class Pair:
+    def __init__(self, v):
+        self.v = v
+    def __enter__(self):
+        return self.v
+    def __exit__(self, *args):
+        return False
+
+with Pair((1, 2)) as (a, b), Pair((3, 4)) as (c, d):
+    result = a + b + c + d
+result
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 10
+
+    def test_with_tuple_unpacking_exception_suppressed(self):
+        """Test that exception suppression works correctly with tuple unpacking."""
+        code = """
+class SuppressExc:
+    def __enter__(self):
+        return (1, 2)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return True
+
+with SuppressExc() as (a, b):
+    raise ValueError("test")
+result = "suppressed"
+result
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == "suppressed"
+
+    def test_with_tuple_unpacking_exception_propagates(self):
+        """Test that exceptions propagate when __exit__ returns False with tuple unpacking."""
+        code = """
+class NoSuppress:
+    def __enter__(self):
+        return (5, 6)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+with NoSuppress() as (a, b):
+    raise ValueError("boom")
+"""
+        with pytest.raises(InterpreterError, match="boom"):
+            evaluate_python_code(code, {}, state={})
+
     def test_default_arg_in_function(self):
         code = """
 def f(a, b=333, n=1000):

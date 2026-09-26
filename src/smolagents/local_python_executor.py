@@ -1246,7 +1246,7 @@ def evaluate_with(
         enter_result = context_expr.__enter__()
         contexts.append(context_expr)
         if item.optional_vars:
-            state[item.optional_vars.id] = enter_result
+            set_value(item.optional_vars, enter_result, state, static_tools, custom_tools, authorized_imports)
 
     try:
         for stmt in with_node.body:
