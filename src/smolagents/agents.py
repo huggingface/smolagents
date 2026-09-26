@@ -91,6 +91,7 @@ from .utils import (
     extract_code_from_text,
     is_valid_name,
     make_init_file,
+    make_json_serializable,
     parse_code_blobs,
     truncate_content,
 )
@@ -253,6 +254,24 @@ class RunResult:
         }
 
 
+@dataclass
+class RunStateSnapshot:
+    step_number: int
+    completed_action_steps: int
+    pending_task: str | None
+    last_plan: str | None
+    memory_summary: list[dict[str, Any]]
+
+    def dict(self) -> dict[str, Any]:
+        return {
+            "step_number": self.step_number,
+            "completed_action_steps": self.completed_action_steps,
+            "pending_task": self.pending_task,
+            "last_plan": self.last_plan,
+            "memory_summary": self.memory_summary,
+        }
+
+
 StreamEvent: TypeAlias = Union[
     ChatMessageStreamDelta,
     ChatMessageToolCall,
@@ -289,6 +308,8 @@ class MultiStepAgent(ABC):
             - Take the final answer, the agent's memory, and the agent itself as arguments.
             - Return a boolean indicating whether the final answer is valid.
         return_full_result (`bool`, default `False`): Whether to return the full [`RunResult`] object or just the final answer output from the agent run.
+        tool_retry_limit (`int`, default `0`): Number of retries to allow for recoverable step errors.
+        stagnation_window (`int`, default `0`): Trigger an unscheduled planning step after this many repeated non-progress steps.
     """
 
     def __init__(
@@ -308,6 +329,8 @@ class MultiStepAgent(ABC):
         provide_run_summary: bool = False,
         final_answer_checks: list[Callable] | None = None,
         return_full_result: bool = False,
+        tool_retry_limit: int = 0,
+        stagnation_window: int = 0,
         logger: AgentLogger | None = None,
     ):
         self.agent_name = self.__class__.__name__
@@ -334,6 +357,12 @@ class MultiStepAgent(ABC):
         self.provide_run_summary = provide_run_summary
         self.final_answer_checks = final_answer_checks if final_answer_checks is not None else []
         self.return_full_result = return_full_result
+        if tool_retry_limit < 0:
+            raise ValueError(f"tool_retry_limit must be >= 0, got {tool_retry_limit}")
+        if stagnation_window < 0:
+            raise ValueError(f"stagnation_window must be >= 0, got {stagnation_window}")
+        self.tool_retry_limit = tool_retry_limit
+        self.stagnation_window = stagnation_window
         self.instructions = instructions
         self._setup_managed_agents(managed_agents)
         self._setup_tools(tools, add_base_tools)
@@ -350,6 +379,7 @@ class MultiStepAgent(ABC):
         self.monitor = Monitor(self.model, self.logger)
         self._setup_step_callbacks(step_callbacks)
         self.stream_outputs = False
+        self._reset_autonomy_state()
 
     @property
     def system_prompt(self) -> str:
@@ -433,6 +463,55 @@ class MultiStepAgent(ABC):
         # Register monitor update_metrics only for ActionStep for backward compatibility
         self.step_callbacks.register(ActionStep, self.monitor.update_metrics)
 
+    def _reset_autonomy_state(self):
+        self._force_plan_step = False
+        self._stagnant_step_count = 0
+        self._last_progress_signature: str | None = None
+
+    def _is_retryable_error(self, error: AgentError) -> bool:
+        return not isinstance(error, (AgentGenerationError, AgentMaxStepsError))
+
+    def _build_progress_signature(self, action_step: ActionStep) -> str:
+        if action_step.error is not None:
+            return f"error:{type(action_step.error).__name__}:{action_step.error.message}"
+        signature = {
+            "tool_calls": (
+                [
+                    {"name": tool_call.name, "arguments": make_json_serializable(tool_call.arguments)}
+                    for tool_call in action_step.tool_calls
+                ]
+                if action_step.tool_calls
+                else []
+            ),
+            "observations": action_step.observations,
+            "action_output": make_json_serializable(action_step.action_output),
+            "model_output": make_json_serializable(action_step.model_output),
+        }
+        return json.dumps(make_json_serializable(signature), sort_keys=True)
+
+    def _update_stagnation_tracking(self, action_step: ActionStep):
+        if self.stagnation_window <= 0:
+            return
+        if action_step.is_final_answer:
+            self._stagnant_step_count = 0
+            self._last_progress_signature = None
+            return
+
+        signature = self._build_progress_signature(action_step)
+        if self._last_progress_signature == signature:
+            self._stagnant_step_count += 1
+        else:
+            self._stagnant_step_count = 0
+        self._last_progress_signature = signature
+
+        if self._stagnant_step_count >= self.stagnation_window:
+            self._force_plan_step = True
+            self._stagnant_step_count = 0
+            self.logger.log(
+                "Detected repeated non-progress steps. Triggering an unscheduled planning step.",
+                level=LogLevel.INFO,
+            )
+
     def run(
         self,
         task: str,
@@ -468,6 +547,7 @@ class MultiStepAgent(ABC):
         max_steps = max_steps or self.max_steps
         self.task = task
         self.interrupt_switch = False
+        self._reset_autonomy_state()
         if additional_args:
             self.state.update(additional_args)
             self.task += f"""
@@ -542,14 +622,17 @@ You have been provided with these additional arguments, that you can access dire
     ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
         self.step_number = 1
         returned_final_answer = False
+        final_answer = None
         while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
 
             # Run a planning step if scheduled
-            if self.planning_interval is not None and (
-                self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0
-            ):
+            should_plan = self._force_plan_step or (
+                self.planning_interval is not None
+                and (self.step_number == 1 or (self.step_number - 1) % self.planning_interval == 0)
+            )
+            if should_plan:
                 planning_start_time = time.time()
                 planning_step = None
                 for element in self._generate_planning_step(
@@ -565,47 +648,67 @@ You have been provided with these additional arguments, that you can access dire
                 )
                 self._finalize_step(planning_step)
                 self.memory.steps.append(planning_step)
+                self._force_plan_step = False
 
-            # Start action step!
-            action_step_start_time = time.time()
-            action_step = ActionStep(
-                step_number=self.step_number,
-                timing=Timing(start_time=action_step_start_time),
-                observations_images=images,
-            )
-            self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
-            try:
-                for output in self._step_stream(action_step):
-                    # Yield all
-                    yield output
+            retries_left = self.tool_retry_limit
+            while True:
+                action_step_start_time = time.time()
+                action_step = ActionStep(
+                    step_number=self.step_number,
+                    timing=Timing(start_time=action_step_start_time),
+                    observations_images=images,
+                )
+                self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
 
-                    if isinstance(output, ActionOutput) and output.is_final_answer:
-                        final_answer = output.output
+                retry_attempted = False
+                try:
+                    for output in self._step_stream(action_step):
+                        # Yield all
+                        yield output
+
+                        if isinstance(output, ActionOutput) and output.is_final_answer:
+                            final_answer = output.output
+                            self.logger.log(
+                                Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
+                                level=LogLevel.INFO,
+                            )
+
+                            if self.final_answer_checks:
+                                self._validate_final_answer(final_answer)
+                            returned_final_answer = True
+                            action_step.is_final_answer = True
+                except AgentGenerationError as e:
+                    # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
+                    action_step.error = e
+                    self._finalize_step(action_step)
+                    self.memory.steps.append(action_step)
+                    self._update_stagnation_tracking(action_step)
+                    yield action_step
+                    raise e
+                except AgentError as e:
+                    # Other AgentError types are typically recoverable and can be retried when configured.
+                    action_step.error = e
+                    retry_attempted = retries_left > 0 and self._is_retryable_error(e)
+                    if retry_attempted:
+                        retries_left -= 1
                         self.logger.log(
-                            Text(f"Final answer: {final_answer}", style=f"bold {YELLOW_HEX}"),
+                            f"Retrying step {self.step_number} after recoverable error ({retries_left} retries left).",
                             level=LogLevel.INFO,
                         )
 
-                        if self.final_answer_checks:
-                            self._validate_final_answer(final_answer)
-                        returned_final_answer = True
-                        action_step.is_final_answer = True
-
-            except AgentGenerationError as e:
-                # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
-                raise e
-            except AgentError as e:
-                # Other AgentError types are caused by the Model, so we should log them and iterate.
-                action_step.error = e
-            finally:
                 self._finalize_step(action_step)
                 self.memory.steps.append(action_step)
+                self._update_stagnation_tracking(action_step)
                 yield action_step
+
+                if retry_attempted:
+                    continue
+
                 self.step_number += 1
+                break
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
-            yield action_step
         final_answer_step = FinalAnswerStep(handle_agent_output_types(final_answer))
         self._finalize_step(final_answer_step)
         yield final_answer_step
@@ -865,6 +968,32 @@ You have been provided with these additional arguments, that you can access dire
         """
         self.memory.replay(self.logger, detailed=detailed)
 
+    def get_run_state_snapshot(self) -> dict[str, Any]:
+        """Return a compact, serializable snapshot of the current run state."""
+        action_steps = [step for step in self.memory.steps if isinstance(step, ActionStep)]
+        planning_steps = [step for step in self.memory.steps if isinstance(step, PlanningStep)]
+        memory_summary = []
+        for message in self.write_memory_to_messages(summary_mode=True):
+            memory_summary.append(
+                {
+                    "role": str(message.role),
+                    "content": truncate_content(str(make_json_serializable(message.content)), max_length=5000),
+                }
+            )
+
+        snapshot = RunStateSnapshot(
+            step_number=self.step_number,
+            completed_action_steps=len(action_steps),
+            pending_task=self.task,
+            last_plan=planning_steps[-1].plan if planning_steps else None,
+            memory_summary=memory_summary,
+        ).dict()
+        snapshot["stagnation_state"] = {
+            "window": self.stagnation_window,
+            "last_signature": self._last_progress_signature,
+        }
+        return snapshot
+
     def __call__(self, task: str, **kwargs):
         """Adds additional prompting for the managed agent, runs it, and wraps the output.
         This method is called only by a managed agent.
@@ -1001,6 +1130,8 @@ You have been provided with these additional arguments, that you can access dire
             "max_steps": self.max_steps,
             "verbosity_level": int(self.logger.level),
             "planning_interval": self.planning_interval,
+            "tool_retry_limit": self.tool_retry_limit,
+            "stagnation_window": self.stagnation_window,
             "name": self.name,
             "description": self.description,
             "requirements": sorted(requirements),
@@ -1051,6 +1182,8 @@ You have been provided with these additional arguments, that you can access dire
             "max_steps": agent_dict.get("max_steps"),
             "verbosity_level": agent_dict.get("verbosity_level"),
             "planning_interval": agent_dict.get("planning_interval"),
+            "tool_retry_limit": agent_dict.get("tool_retry_limit"),
+            "stagnation_window": agent_dict.get("stagnation_window"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
         }

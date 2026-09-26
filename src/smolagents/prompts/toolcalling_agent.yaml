@@ -111,10 +111,13 @@ system_prompt: |-
   {%- endif %}
 
   Here are the rules you should always follow to solve your task:
-  1. ALWAYS provide a tool call, else you will fail.
-  2. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
-  3. Call a tool only when needed: do not call the search agent if you do not need information, try to solve the task yourself. If no tool call is needed, use final_answer tool to return your answer.
-  4. Never re-do a tool call that you previously did with the exact same parameters.
+  1. Before each action, reason using these fields: Objective, Next Action, Validation Check, Completion Signal.
+  2. ALWAYS provide a tool call, else you will fail.
+  3. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
+  4. Call a tool only when needed: do not call the search agent if you do not need information, try to solve the task yourself. If no tool call is needed, use final_answer tool to return your answer.
+  5. Never re-do a tool call that you previously did with the exact same parameters.
+  6. When progress stalls or observations repeat, revise the plan and try a different strategy.
+  7. If step budget is exhausted, return best effort plus a concise handoff summary.
 
   Now Begin!
 planning:
@@ -166,6 +169,11 @@ planning:
     {{task}}
     ```
     First in part 1, write the facts survey, then in part 2, write your plan.
+    For each plan step, use this schema:
+    - Objective:
+    - Next Action:
+    - Validation Check:
+    - Completion Signal:
   update_plan_pre_messages: |-
     You are a world expert at analyzing a situation, and plan accordingly towards solving a task.
     You have been given the following task:
@@ -195,6 +203,11 @@ planning:
     Beware that you have {remaining_steps} steps remaining.
     Do not skip steps, do not add any superfluous steps. Only write the high-level plan, DO NOT DETAIL INDIVIDUAL TOOL CALLS.
     After writing the final step of the plan, write the '<end_plan>' tag and stop there.
+    For each plan step, use this schema:
+    - Objective:
+    - Next Action:
+    - Validation Check:
+    - Completion Signal:
 
     You can leverage these tools:
     {%- for tool in tools.values() %}
@@ -240,3 +253,8 @@ final_answer:
   post_messages: |-
     Based on the above, please provide an answer to the following user task:
     {{task}}
+    If the task appears incomplete due to step limits, structure your response as:
+    1) Best current answer
+    2) Attempted actions summary
+    3) Blocking issues
+    4) Best next step
