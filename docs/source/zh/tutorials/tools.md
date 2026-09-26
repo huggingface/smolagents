@@ -78,7 +78,7 @@ model_downloads_tool.push_to_hub("{your_username}/hf-model-downloads", token="<Y
 - 根据上述要点，**所有导入应直接在工具的函数中定义**，否则在尝试使用 [`~Tool.save`] 或 [`~Tool.push_to_hub`] 调用你的自定义工具时会出现错误。
 - 如果你继承了 `__init__` 方法，除了 `self` 之外，你不能给它任何其他参数。这是因为在特定工具实例初始化期间设置的参数很难跟踪，这阻碍了将它们正确分享到 Hub。无论如何，创建特定类的想法是你已经可以为任何需要硬编码的内容设置类属性（只需在 `class YourTool(Tool):` 行下直接设置 `your_variable=(...)`）。当然，你仍然可以通过将内容分配给 `self.your_variable` 在代码中的任何地方创建类属性。
 
-一旦你的工具被推送到 Hub，你就可以查看它。[这里](https://huggingface.co/spaces/m-ric/hf-model-downloads) 是我推送的 `model_downloads_tool`。它有一个漂亮的 gradio 界面。
+一旦你的工具被推送到 Hub，你就可以把它作为 Space 仓库来查看。[这里](https://huggingface.co/spaces/m-ric/hf-model-downloads/tree/main) 是我推送的 `model_downloads_tool`。
 
 在深入工具文件时，你可以发现所有工具的逻辑都在 [tool.py](https://huggingface.co/spaces/m-ric/hf-model-downloads/blob/main/tool.py) 下。这是你可以检查其他人分享的工具的地方。
 
