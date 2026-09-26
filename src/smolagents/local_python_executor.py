@@ -45,7 +45,9 @@ class InterpreterError(ValueError):
     operations.
     """
 
-    pass
+    def __init__(self, message, error_type=None):
+        super().__init__(message)
+        self.error_type = error_type
 
 
 ERRORS = {
@@ -326,7 +328,7 @@ def get_iterable(obj):
     elif hasattr(obj, "__iter__"):
         return list(obj)
     else:
-        raise InterpreterError("Object is not iterable")
+        raise InterpreterError("Object is not iterable", error_type="TypeError")
 
 
 def fix_final_answer_code(code: str) -> str:
@@ -808,9 +810,9 @@ def set_value(
             if hasattr(value, "__iter__") and not isinstance(value, (str, bytes)):
                 value = tuple(value)
             else:
-                raise InterpreterError("Cannot unpack non-tuple value")
+                raise InterpreterError("Cannot unpack non-tuple value", error_type="ValueError")
         if len(target.elts) != len(value):
-            raise InterpreterError("Cannot unpack tuple of wrong size")
+            raise InterpreterError("Cannot unpack tuple of wrong size", error_type="ValueError")
         for i, elem in enumerate(target.elts):
             set_value(elem, value[i], state, static_tools, custom_tools, authorized_imports)
     elif isinstance(target, ast.Subscript):
@@ -842,7 +844,7 @@ def evaluate_call(
         obj = evaluate_ast(call.func.value, state, static_tools, custom_tools, authorized_imports)
         func_name = call.func.attr
         if not hasattr(obj, func_name):
-            raise InterpreterError(f"Object {obj} has no attribute {func_name}")
+            raise InterpreterError(f"Object {obj} has no attribute {func_name}", error_type="AttributeError")
         func = getattr(obj, func_name)
     elif isinstance(call.func, ast.Name):
         func_name = call.func.id
@@ -935,7 +937,7 @@ def evaluate_subscript(
             close_matches = difflib.get_close_matches(index, list(value.keys()))
             if len(close_matches) > 0:
                 error_message += f". Maybe you meant one of these indexes instead: {str(close_matches)}"
-        raise InterpreterError(error_message) from e
+        raise InterpreterError(error_message, error_type=type(e).__name__) from e
 
 
 def evaluate_name(
@@ -956,7 +958,7 @@ def evaluate_name(
     close_matches = difflib.get_close_matches(name.id, list(state.keys()))
     if len(close_matches) > 0:
         return state[close_matches[0]]
-    raise InterpreterError(f"The variable `{name.id}` is not defined.")
+    raise InterpreterError(f"The variable `{name.id}` is not defined.", error_type="NameError")
 
 
 def evaluate_condition(
@@ -1408,7 +1410,7 @@ def evaluate_delete(
             try:
                 del obj[index]
             except (TypeError, KeyError, IndexError) as e:
-                raise InterpreterError(f"Cannot delete index/key: {str(e)}")
+                raise InterpreterError(f"Cannot delete index/key: {type(e).__name__}: {str(e)}", error_type=type(e).__name__)
         else:
             raise InterpreterError(f"Deletion of {type(target).__name__} targets is not supported")
 
@@ -1617,7 +1619,8 @@ def evaluate_python_code(
         raise InterpreterError(
             f"Code parsing failed on line {e.lineno} due to: {type(e).__name__}: {str(e)}\n"
             f"{e.text}"
-            f"{' ' * (e.offset or 0)}^"
+            f"{' ' * (e.offset or 0)}^",
+            error_type=type(e).__name__,
         )
 
     if state is None:
@@ -1656,8 +1659,9 @@ def evaluate_python_code(
             state["_print_outputs"].value = truncate_content(
                 str(state["_print_outputs"]), max_length=max_print_outputs_length
             )
+            error_type = getattr(e, "error_type", None) or type(e).__name__
             raise InterpreterError(
-                f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
+                f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {error_type}: {e}"
             )
 
     # Apply timeout if specified
