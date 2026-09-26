@@ -1594,6 +1594,34 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_multiagent_from_dict_preserves_managed_agent_authorized_imports(self):
+        """Test that parent deserialization kwargs do not override managed agent settings."""
+        managed_agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            name="managed_agent",
+            description="A managed agent for testing",
+            additional_authorized_imports=["json"],
+        )
+        main_agent = CodeAgent(
+            tools=[],
+            managed_agents=[managed_agent],
+            model=MagicMock(),
+            additional_authorized_imports=["uuid"],
+        )
+        agent_dict = main_agent.to_dict()
+
+        mock_model_class = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_model_class.from_dict.return_value = mock_model_instance
+
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated_agent = CodeAgent.from_dict(agent_dict)
+
+        recreated_managed_agent = recreated_agent.managed_agents["managed_agent"]
+        assert "json" in recreated_managed_agent.authorized_imports
+        assert "uuid" not in recreated_managed_agent.authorized_imports
+
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
         agent_dict = {
