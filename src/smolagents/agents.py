@@ -883,7 +883,12 @@ You have been provided with these additional arguments, that you can access dire
         )
         if self.provide_run_summary:
             answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
-            for message in self.write_memory_to_messages(summary_mode=True):
+            for message in self.write_memory_to_messages():
+                # Only surface the agent's own reasoning, never the raw tool-call and
+                # tool-response messages. The latter can carry secrets, PII or internal IDs
+                # returned by tools, which must not leak into the manager's context.
+                if message.role != MessageRole.ASSISTANT:
+                    continue
                 content = message.content
                 answer += "\n" + truncate_content(str(content)) + "\n---"
             answer += "\n</summary_of_work>"
