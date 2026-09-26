@@ -208,6 +208,27 @@ agent.run(
 )
 ```
 </hfoption>
+<hfoption id="Text Generation Inference (TGI)">
+
+[Text Generation Inference (TGI)](https://huggingface.co/docs/text-generation-inference) is a toolkit for deploying and serving LLMs. You can connect smolagents to a running TGI endpoint using `LiteLLMModel`.
+
+```python
+# !pip install 'smolagents[litellm]'
+from smolagents import CodeAgent, LiteLLMModel
+
+model = LiteLLMModel(
+    model_id="huggingface/tgi",
+    api_base="http://your-tgi-endpoint.com",  # replace with your TGI endpoint URL
+    api_key="YOUR_API_KEY",  # replace with your API key if required
+)
+
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+</hfoption>
 <hfoption id="Azure OpenAI">
 
 To connect to Azure OpenAI, you can either use `AzureOpenAIModel` directly, or use `LiteLLMModel` and configure it accordingly.
