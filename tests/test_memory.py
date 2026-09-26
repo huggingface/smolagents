@@ -112,6 +112,19 @@ def test_action_step_dict():
 
     assert "observations_images" in action_step_dict
 
+    # The dict must round-trip through JSON: observations_images holds base64 PNG strings,
+    # not raw bytes. Decoding must reproduce an image with the original size and mode.
+    # 该 dict 必须能通过 JSON 往返序列化：observations_images 存的是 base64 PNG 字符串，
+    # 而不是原始 bytes；解码后应还原出与原图一致尺寸和模式的图像。
+    import base64
+    import io
+    import json
+
+    json.dumps(action_step_dict)
+    decoded = Image.open(io.BytesIO(base64.b64decode(action_step_dict["observations_images"][0])))
+    assert decoded.size == (100, 100)
+    assert decoded.mode == "RGB"
+
     assert "action_output" in action_step_dict
     assert action_step_dict["action_output"] == "Output"
 
