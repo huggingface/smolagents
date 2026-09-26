@@ -525,13 +525,21 @@ class RateLimiter:
         self._last_call = time.time()
 
 
+class RetryError(Exception):
+    """Raised when a retry operation exhausts its available attempts."""
+
+    def __init__(self, last_exception: BaseException):
+        self.last_exception = last_exception
+        super().__init__(f"Retrying failed after exhausting attempts: {last_exception}")
+
+
 class Retrying:
     """Simple retrying controller. Inspired from library [tenacity](https://github.com/jd/tenacity/)."""
 
     def __init__(
         self,
         max_attempts: int = 1,
-        wait_seconds: float = 0.0,
+        wait_seconds: float = 1.0,
         exponential_base: float = 2.0,
         jitter: bool = True,
         retry_predicate: Callable[[BaseException], bool] | None = None,
@@ -572,11 +580,15 @@ class Retrying:
                 # Check if we should retry
                 should_retry = self.retry_predicate(e) if self.retry_predicate else False
 
-                # If this is the last attempt or we shouldn't retry, raise
-                if not should_retry or attempt_number >= self.max_attempts:
+                # Do not wrap exceptions that are not eligible for retrying.
+                if not should_retry:
+                    raise
+
+                # Raise the final exception directly only when requested.
+                if attempt_number >= self.max_attempts:
                     if self.reraise:
                         raise
-                    raise
+                    raise RetryError(e) from e
 
                 # Log after failed attempt
                 if self.after_logger:

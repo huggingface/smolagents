@@ -1493,10 +1493,19 @@ def evaluate_ast(
     elif isinstance(expression, ast.FunctionDef):
         return evaluate_function_def(expression, *common_params)
     elif isinstance(expression, ast.Dict):
-        # Dict -> evaluate all keys and values
-        keys = (evaluate_ast(k, *common_params) for k in expression.keys)
-        values = (evaluate_ast(v, *common_params) for v in expression.values)
-        return dict(zip(keys, values))
+        # Dict -> evaluate keys and values, including **mapping unpacking.
+        result = {}
+        for key, value in zip(expression.keys, expression.values):
+            if key is None:
+                mapping = evaluate_ast(value, *common_params)
+                # Dict unpacking accepts objects implementing the mapping protocol,
+                # which requires keys(), rather than only Mapping subclasses.
+                if not hasattr(mapping, "keys"):
+                    raise TypeError(f"'{type(mapping).__name__}' object is not a mapping")
+                result.update(mapping)
+            else:
+                result[evaluate_ast(key, *common_params)] = evaluate_ast(value, *common_params)
+        return result
     elif isinstance(expression, ast.Expr):
         # Expression -> evaluate the content
         return evaluate_ast(expression.value, *common_params)

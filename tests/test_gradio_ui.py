@@ -233,6 +233,33 @@ class TestPullMessagesFromStep:
         ):
             assert expected_content in message.content
 
+    def test_action_step_with_structured_model_output(self):
+        """Test ActionStep with mixed text and image model output."""
+        step = ActionStep(
+            step_number=1,
+            model_output=[
+                {"type": "text", "text": "First thought"},
+                {"type": "image", "image": "image.png"},
+                {"type": "text", "text": "Second thought\n```<end_code>"},
+            ],
+            timing=Timing(start_time=1.0, end_time=2.0),
+        )
+        messages = list(pull_messages_from_step(step))
+
+        assert messages[1].content == "First thought\nSecond thought\n```"
+
+    def test_action_step_with_non_text_model_output(self):
+        """Test ActionStep with model output that has no renderable text."""
+        step = ActionStep(
+            step_number=1,
+            model_output=[{"type": "image", "image": "image.png"}],
+            timing=Timing(start_time=1.0, end_time=2.0),
+        )
+        messages = list(pull_messages_from_step(step))
+
+        assert len(messages) == 3
+        assert all(message.content for message in messages)
+
     def test_action_step_with_tool_calls(self):
         """Test ActionStep with tool calls."""
         step = ActionStep(
