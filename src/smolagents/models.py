@@ -217,16 +217,77 @@ class ChatMessageStreamDelta:
     token_usage: TokenUsage | None = None
 
 
+def _is_complete_json(s: str) -> bool:
+    """Check if a string is a complete, valid JSON object."""
+    if not s:
+        return False
+    s = s.strip()
+    if not s.startswith("{"):
+        return False
+    try:
+        json.loads(s)
+        return True
+    except json.JSONDecodeError:
+        return False
+
+
+def _should_create_new_tool_call(
+    current_calls: list[ChatMessageToolCallStreamDelta],
+    call_delta: ChatMessageToolCallStreamDelta,
+) -> bool:
+    """
+    Determine if a new tool call should be created or if we should extend the existing one.
+
+    Some providers (e.g., Ollama via LiteLLM) return multiple parallel tool calls with
+    the same index. This function detects when a delta represents a new tool call by checking:
+    1. If IDs differ between the current call and the delta
+    2. If function names differ
+    3. If the current arguments form a complete JSON (indicating the previous call is finished)
+    """
+    if len(current_calls) == 0:
+        return True
+
+    current_call = current_calls[-1]
+
+    # If both have IDs and they differ, it's a new tool call
+    if call_delta.id is not None and current_call.id is not None and call_delta.id != current_call.id:
+        return True
+
+    if call_delta.function is not None:
+        cur_name = current_call.function.name if current_call.function else None
+        delta_name = call_delta.function.name
+
+        # If names differ and delta has a non-empty name, it's a new tool call
+        if cur_name and delta_name and delta_name != cur_name:
+            return True
+
+        # If current arguments form a complete JSON and delta has new arguments,
+        # this indicates the start of a new tool call
+        current_arg = current_call.function.arguments if current_call.function else None
+        delta_arg = call_delta.function.arguments
+        if current_arg and delta_arg and _is_complete_json(current_arg):
+            return True
+
+    return False
+
+
 def agglomerate_stream_deltas(
     stream_deltas: list[ChatMessageStreamDelta], role: MessageRole = MessageRole.ASSISTANT
 ) -> ChatMessage:
     """
-    Agglomerate a list of stream deltas into a single stream delta.
+    Agglomerate a list of stream deltas into a single ChatMessage.
+
+    This function handles the case where multiple parallel tool calls may have the same
+    index (which can happen with some providers like Ollama via LiteLLM). It detects
+    when a new tool call should be created vs extending an existing one by checking
+    if the current arguments form a complete JSON or if IDs/names differ.
     """
-    accumulated_tool_calls: dict[int, ChatMessageToolCallStreamDelta] = {}
+    # Map from index to list of tool calls (to handle same-index parallel calls)
+    accumulated_tool_calls: dict[int, list[ChatMessageToolCallStreamDelta]] = {}
     accumulated_content = ""
     total_input_tokens = 0
     total_output_tokens = 0
+
     for stream_delta in stream_deltas:
         if stream_delta.token_usage:
             total_input_tokens += stream_delta.token_usage.input_tokens
@@ -234,44 +295,60 @@ def agglomerate_stream_deltas(
         if stream_delta.content:
             accumulated_content += stream_delta.content
         if stream_delta.tool_calls:
-            for tool_call_delta in stream_delta.tool_calls:  # ?ormally there should be only one call at a time
-                # Extend accumulated_tool_calls list to accommodate the new tool call if needed
-                if tool_call_delta.index is not None:
-                    if tool_call_delta.index not in accumulated_tool_calls:
-                        accumulated_tool_calls[tool_call_delta.index] = ChatMessageToolCallStreamDelta(
+            for tool_call_delta in stream_delta.tool_calls:
+                if tool_call_delta.index is None:
+                    raise ValueError(f"Tool call index is not provided in tool delta: {tool_call_delta}")
+
+                idx = tool_call_delta.index
+
+                # Initialize list for this index if needed
+                if idx not in accumulated_tool_calls:
+                    accumulated_tool_calls[idx] = []
+
+                calls = accumulated_tool_calls[idx]
+
+                # Check if we should create a new tool call or extend the existing one
+                if _should_create_new_tool_call(calls, tool_call_delta):
+                    calls.append(
+                        ChatMessageToolCallStreamDelta(
                             id=tool_call_delta.id,
                             type=tool_call_delta.type,
                             function=ChatMessageToolCallFunction(name="", arguments=""),
                         )
-                    # Update the tool call at the specific index
-                    tool_call = accumulated_tool_calls[tool_call_delta.index]
-                    if tool_call_delta.id:
-                        tool_call.id = tool_call_delta.id
-                    if tool_call_delta.type:
-                        tool_call.type = tool_call_delta.type
-                    if tool_call_delta.function:
-                        if tool_call_delta.function.name and len(tool_call_delta.function.name) > 0:
-                            tool_call.function.name = tool_call_delta.function.name
-                        if tool_call_delta.function.arguments:
-                            tool_call.function.arguments += tool_call_delta.function.arguments
-                else:
-                    raise ValueError(f"Tool call index is not provided in tool delta: {tool_call_delta}")
+                    )
+
+                # Update the last tool call at this index
+                tool_call = calls[-1]
+                if tool_call_delta.id:
+                    tool_call.id = tool_call_delta.id
+                if tool_call_delta.type:
+                    tool_call.type = tool_call_delta.type
+                if tool_call_delta.function:
+                    if tool_call_delta.function.name and len(tool_call_delta.function.name) > 0:
+                        tool_call.function.name = tool_call_delta.function.name
+                    if tool_call_delta.function.arguments:
+                        tool_call.function.arguments += tool_call_delta.function.arguments
+
+    # Flatten all tool calls and assign UUIDs to those without IDs
+    all_tool_calls = []
+    for calls in accumulated_tool_calls.values():
+        for tool_call_stream_delta in calls:
+            if tool_call_stream_delta.function:
+                all_tool_calls.append(
+                    ChatMessageToolCall(
+                        function=ChatMessageToolCallFunction(
+                            name=tool_call_stream_delta.function.name,
+                            arguments=tool_call_stream_delta.function.arguments,
+                        ),
+                        id=tool_call_stream_delta.id or str(uuid.uuid4()),
+                        type="function",
+                    )
+                )
 
     return ChatMessage(
         role=role,
         content=accumulated_content,
-        tool_calls=[
-            ChatMessageToolCall(
-                function=ChatMessageToolCallFunction(
-                    name=tool_call_stream_delta.function.name,
-                    arguments=tool_call_stream_delta.function.arguments,
-                ),
-                id=tool_call_stream_delta.id or "",
-                type="function",
-            )
-            for tool_call_stream_delta in accumulated_tool_calls.values()
-            if tool_call_stream_delta.function
-        ],
+        tool_calls=all_tool_calls,
         token_usage=TokenUsage(
             input_tokens=total_input_tokens,
             output_tokens=total_output_tokens,
