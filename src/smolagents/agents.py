@@ -1125,7 +1125,7 @@ You have been provided with these additional arguments, that you can access dire
         """
         # Load agent.json
         folder = Path(folder)
-        agent_dict = json.loads((folder / "agent.json").read_text())
+        agent_dict = json.loads((folder / "agent.json").read_text(encoding="utf-8"))
         # Handle HfApiModel -> InferenceClientModel rename for old agents
         if agent_dict.get("model", {}).get("class") == "HfApiModel":
             agent_dict["model"]["class"] = "InferenceClientModel"
@@ -1147,7 +1147,7 @@ You have been provided with these additional arguments, that you can access dire
         # Load tools
         tools = []
         for tool_name in agent_dict["tools"]:
-            tool_code = (folder / "tools" / f"{tool_name}.py").read_text()
+            tool_code = (folder / "tools" / f"{tool_name}.py").read_text(encoding="utf-8")
             tools.append({"name": tool_name, "code": tool_code})
         agent_dict["tools"] = tools
 
@@ -1239,7 +1239,9 @@ class ToolCallingAgent(MultiStepAgent):
         **kwargs,
     ):
         prompt_templates = prompt_templates or yaml.safe_load(
-            importlib.resources.files("smolagents.prompts").joinpath("toolcalling_agent.yaml").read_text()
+            importlib.resources.files("smolagents.prompts")
+            .joinpath("toolcalling_agent.yaml")
+            .read_text(encoding="utf-8")
         )
         super().__init__(
             tools=tools,
@@ -1546,11 +1548,13 @@ class CodeAgent(MultiStepAgent):
         self._use_structured_outputs_internally = use_structured_outputs_internally
         if self._use_structured_outputs_internally:
             prompt_templates = prompt_templates or yaml.safe_load(
-                importlib.resources.files("smolagents.prompts").joinpath("structured_code_agent.yaml").read_text()
+                importlib.resources.files("smolagents.prompts")
+                .joinpath("structured_code_agent.yaml")
+                .read_text(encoding="utf-8")
             )
         else:
             prompt_templates = prompt_templates or yaml.safe_load(
-                importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
+                importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text(encoding="utf-8")
             )
 
         if isinstance(code_block_tags, str) and not code_block_tags == "markdown":
