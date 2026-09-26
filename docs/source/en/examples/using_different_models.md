@@ -115,3 +115,40 @@ model_mini = LiteLLMModel(
     max_tokens=1000
 )
 ```
+
+## Using a local Apple Silicon model with Rapid-MLX
+
+[Rapid-MLX](https://github.com/raullenchai/Rapid-MLX) is an OpenAI-compatible
+inference server for Apple Silicon, built on Apple's MLX framework. It runs
+MLX-quantized models with streaming and tool calling, and ships day-0 support
+for recent open models such as Gemma 4 and Qwen3.5.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+pip install rapid-mlx
+```
+
+Start a local Rapid-MLX server:
+```bash
+rapid-mlx serve mlx-community/Qwen3.5-4B-MLX-4bit
+# Server listens on http://localhost:8000/v1
+```
+
+Then connect to it from smolagents using the [`OpenAIModel`] class:
+```python
+from smolagents import CodeAgent, OpenAIModel
+
+model = OpenAIModel(
+    model_id="mlx-community/Qwen3.5-4B-MLX-4bit",
+    api_base="http://localhost:8000/v1",
+    api_key="not-needed",
+)
+
+agent = CodeAgent(tools=[], model=model)
+agent.run("What is the 12th Fibonacci number?")
+```
+
+Rapid-MLX includes 18 built-in tool-call parsers (hermes, llama3, qwen,
+glm47, minimax, gemma4, ...), so smolagents' tool/function calling works
+with the supported open-weight models.
