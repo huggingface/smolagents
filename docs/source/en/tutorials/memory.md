@@ -94,6 +94,47 @@ CodeAgent(
 
 Head to our [vision web browser code](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py) to see the full working example.
 
+### Use step callbacks to monitor memory drift
+
+The same callback surface can be used for observability, not just mutation.
+
+If you need to monitor how a long-running agent changes over time, attach a callback that inspects the current `ActionStep` and compares it with earlier steps in memory. This gives you a lightweight hook for tracking things like:
+
+- tool usage changing over time
+- observations becoming shorter or narrower after memory cleanup
+- vocabulary or constraint markers disappearing from later steps
+
+```py
+from smolagents import ActionStep, CodeAgent
+
+def log_behavioral_fingerprint(memory_step: ActionStep, agent: CodeAgent) -> None:
+    previous_steps = [
+        step
+        for step in agent.memory.steps
+        if isinstance(step, ActionStep) and step is not memory_step
+    ]
+    previous_step = previous_steps[-1] if previous_steps else None
+
+    fingerprint = {
+        "step_number": memory_step.step_number,
+        "tool_call_count": len(memory_step.tool_calls or []),
+        "observation_chars": len(memory_step.observations or ""),
+        "previous_observation_chars": (
+            len(previous_step.observations or "") if previous_step else 0
+        ),
+    }
+    print(fingerprint)
+
+
+agent = CodeAgent(
+    tools=[],
+    model=model,
+    step_callbacks=[log_behavioral_fingerprint],
+)
+```
+
+This is often enough to build an external monitor for behavioral drift in long-running runs. If you need a first-class event for explicit consolidation or compaction boundaries, you still need a custom memory-management layer on top of the existing callback system.
+
 ### Run agents one step at a time
 
 This can be useful in case you have tool calls that take days: you can just run your agents step by step.
