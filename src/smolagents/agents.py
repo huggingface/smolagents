@@ -903,6 +903,7 @@ You have been provided with these additional arguments, that you can access dire
 
         Args:
             output_dir (`str` or `Path`): The folder in which you want to save your agent.
+            relative_path (`str`, *optional*): Dotted module path prefix locating this agent within a hierarchy of managed agents. Used internally when recursively saving managed agents so that the import paths in the generated files reflect the agent hierarchy; leave as `None` for the top-level agent.
         """
         make_init_file(output_dir)
 
