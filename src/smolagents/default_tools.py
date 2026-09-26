@@ -120,7 +120,13 @@ class DuckDuckGoSearchTool(Tool):
 
     name = "web_search"
     description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results."""
-    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
+    inputs = {"query": {"type": "string", "description": "The search query to perform."}, 
+              "timelimit": {
+                  "type": "string",
+                  "description": "Optionally restrict results to a certain timeframe, e.g., 'd', 'w', 'm', 'y', which restrict to the last day, week, month, or year respectively, \
+                  or a custom range like '2025-01-01..2025-12-31', which restricts results to between 1 January 2025 and 31 December 2025.",
+                  "nullable": True,
+              }}
     output_type = "string"
 
     def __init__(self, max_results: int = 10, rate_limit: float | None = 1.0, **kwargs):
@@ -137,9 +143,9 @@ class DuckDuckGoSearchTool(Tool):
             ) from e
         self.ddgs = DDGS(**kwargs)
 
-    def forward(self, query: str) -> str:
+    def forward(self, query: str, timelimit: str | None = None) -> str:
         self._enforce_rate_limit()
-        results = self.ddgs.text(query, max_results=self.max_results)
+        results = self.ddgs.text(query, max_results=self.max_results, timelimit=timelimit)
         if len(results) == 0:
             raise Exception("No results found! Try a less restrictive/shorter query.")
         postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
