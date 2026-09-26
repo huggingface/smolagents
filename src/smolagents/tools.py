@@ -365,12 +365,14 @@ class Tool(BaseTool):
         return tool_dict
 
     @classmethod
-    def from_dict(cls, tool_dict: dict[str, Any], **kwargs) -> "Tool":
+    def from_dict(cls, tool_dict: dict[str, Any], trust_remote_code: bool = False, **kwargs) -> "Tool":
         """
         Create tool from a dictionary representation.
 
         Args:
             tool_dict (`dict[str, Any]`): Dictionary representation of the tool.
+            trust_remote_code (`bool`, *optional*, defaults to `False`):
+                Whether to trust the execution of code from the tool.
             **kwargs: Additional keyword arguments to pass to the tool's constructor.
 
         Returns:
@@ -379,7 +381,7 @@ class Tool(BaseTool):
         if "code" not in tool_dict:
             raise ValueError("Tool dictionary must contain 'code' key with the tool source code")
 
-        tool = cls.from_code(tool_dict["code"], **kwargs)
+        tool = cls.from_code(tool_dict["code"], trust_remote_code=trust_remote_code, **kwargs)
 
         # Set output_schema if it exists in the dictionary
         if "output_schema" in tool_dict:
@@ -566,10 +568,15 @@ class Tool(BaseTool):
         )
 
         tool_code = Path(tool_file).read_text()
-        return Tool.from_code(tool_code, **kwargs)
+        return Tool.from_code(tool_code, trust_remote_code=trust_remote_code, **kwargs)
 
     @classmethod
-    def from_code(cls, tool_code: str, **kwargs):
+    def from_code(cls, tool_code: str, trust_remote_code: bool = False, **kwargs):
+        if not trust_remote_code:
+            raise ValueError(
+                "Loading a tool from code requires to acknowledge you trust its code: to do so, pass `trust_remote_code=True`."
+            )
+
         module = types.ModuleType("dynamic_tool")
 
         exec(tool_code, module.__dict__)
