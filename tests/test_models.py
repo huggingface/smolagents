@@ -222,6 +222,40 @@ class TestModel:
 
         assert "nullable" in get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
 
+    def test_get_json_schema_sanitizes_nested_any(self):
+        from typing import Any, Dict, List, Optional
+
+        @tool
+        def t(v: Dict[str, Any], w: List[Any], x: Optional[Dict[str, Any]]) -> str:
+            """
+            Doc.
+
+            Args:
+                v: a dict of anything
+                w: a list of anything
+                x: an optional dict of anything
+            """
+            return ""
+
+        schema = get_tool_json_schema(t)["function"]["parameters"]["properties"]
+        # Nested "any" markers must become "string" at any depth, not just the
+        # top level (JSON Schema has no "any" type).
+        assert schema["v"]["additionalProperties"]["type"] == "string"
+        assert schema["w"]["items"]["type"] == "string"
+        assert schema["x"]["additionalProperties"]["type"] == "string"
+
+        # Walk the whole schema: no "type" field may still say "any".
+        def types_contain_any(node):
+            if isinstance(node, dict):
+                if node.get("type") == "any":
+                    return True
+                return any(types_contain_any(v) for v in node.values())
+            if isinstance(node, list):
+                return any(types_contain_any(v) for v in node)
+            return False
+
+        assert not types_contain_any(get_tool_json_schema(t))
+
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
         data = json.loads(message.model_dump_json())
