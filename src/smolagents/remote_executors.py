@@ -94,11 +94,12 @@ class RemotePythonExecutor(PythonExecutor):
     def send_tools(self, tools: dict[str, Tool]):
         if "final_answer" in tools:
             self._patch_final_answer_with_exception(tools["final_answer"])
+        tool_dicts, code = self.validate_tools_are_remote_serializable(tools, self.logger)
         # Install tool packages
         packages_to_install = {
             pkg
-            for tool in tools.values()
-            for pkg in tool.to_dict()["requirements"]
+            for tool_dict in tool_dicts.values()
+            for pkg in tool_dict["requirements"]
             if pkg not in self.installed_packages + ["smolagents"]
         }
         if "PIL" in packages_to_install:
@@ -107,10 +108,49 @@ class RemotePythonExecutor(PythonExecutor):
         if packages_to_install:
             self.installed_packages += self.install_packages(list(packages_to_install))
         # Get tool definitions
-        code = get_tools_definition_code(tools)
         if code:
             code_output = self.run_code_raise_errors(code)
             self.logger.log(code_output.logs)
+
+    @classmethod
+    def validate_tools_are_remote_serializable(cls, tools: dict[str, Tool], logger) -> tuple[dict[str, dict], str]:
+        tool_dicts = cls._get_tool_dicts(tools, logger)
+        code = cls._get_tools_definition_code(tools, logger)
+        return tool_dicts, code
+
+    @classmethod
+    def _get_tool_dicts(cls, tools: dict[str, Tool], logger) -> dict[str, dict]:
+        tool_dicts = {}
+        for tool_name, tool in tools.items():
+            try:
+                tool_dicts[tool_name] = tool.to_dict()
+            except Exception as e:
+                cls._raise_remote_tool_serialization_error(tool_name, tool, e, logger)
+        return tool_dicts
+
+    @classmethod
+    def _get_tools_definition_code(cls, tools: dict[str, Tool], logger) -> str:
+        try:
+            return get_tools_definition_code(tools)
+        except Exception as e:
+            for tool_name, tool in tools.items():
+                try:
+                    get_tools_definition_code({tool_name: tool})
+                except Exception as single_tool_error:
+                    cls._raise_remote_tool_serialization_error(tool_name, tool, single_tool_error, logger)
+            raise AgentError(f"Could not send tools to the remote Python executor: {e}", logger) from e
+
+    @staticmethod
+    def _raise_remote_tool_serialization_error(tool_name: str, tool: Tool, error: Exception, logger):
+        error_summary = str(error).splitlines()[0] if str(error) else repr(error)
+        raise AgentError(
+            f"Tool {tool_name!r} ({type(tool).__name__}) cannot be sent to a remote Python executor because it "
+            "cannot be serialized into standalone Python source. Remote executors support self-contained Tool "
+            'subclasses or @tool functions. Use executor_type="local" for runtime adapter tools such as MCP tools, '
+            "or wrap the integration in a serializable Tool subclass that can reconnect from inside the remote "
+            f"environment. Original error: {type(error).__name__}: {error_summary}",
+            logger,
+        ) from error
 
     def send_variables(self, variables: dict[str, Any]):
         """Send variables to the kernel namespace using SafeSerializer.

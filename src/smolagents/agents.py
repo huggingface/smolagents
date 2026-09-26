@@ -77,7 +77,7 @@ from .monitoring import (
     Monitor,
     TokenUsage,
 )
-from .remote_executors import BlaxelExecutor, DockerExecutor, E2BExecutor, ModalExecutor
+from .remote_executors import BlaxelExecutor, DockerExecutor, E2BExecutor, ModalExecutor, RemotePythonExecutor
 from .tools import BaseTool, Tool, validate_tool_arguments
 from .utils import (
     AgentError,
@@ -1582,6 +1582,8 @@ class CodeAgent(MultiStepAgent):
             )
         self.executor_type = executor_type
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
+        if executor is None and self.executor_type in {"blaxel", "e2b", "modal", "docker"} and not self.managed_agents:
+            RemotePythonExecutor.validate_tools_are_remote_serializable(self.tools, self.logger)
         self.python_executor = executor or self.create_python_executor()
 
     def __enter__(self):
