@@ -1058,114 +1058,135 @@ class ToolCollection:
             yield cls(tools)
 
 
-def tool(tool_function: Callable) -> Tool:
+def tool(tool_function: Callable | None = None, *, output_name: str | None = None) -> Callable:
     """
     Convert a function into an instance of a dynamically created Tool subclass.
 
     Args:
-        tool_function (`Callable`): Function to convert into a Tool subclass.
+        tool_function (`Callable`, *optional*): Function to convert into a Tool subclass.
             Should have type hints for each input and a type hint for the output.
             Should also have a docstring including the description of the function
             and an 'Args:' part where each argument is described.
+        output_name (`str`, *optional*): Custom filename for media outputs (images/audio).
+            If not provided, counter-based naming is used (e.g., "image_1.png").
+
+    Example:
+        ```python
+        @tool
+        def my_tool(x: int) -> str:
+            return str(x)
+
+        @tool(output_name="my_image.png")
+        def generate_image() -> AgentImage:
+            ...
+        ```
     """
-    tool_json_schema = get_json_schema(tool_function)["function"]
-    if "return" not in tool_json_schema:
-        if len(tool_json_schema["parameters"]["properties"]) == 0:
-            tool_json_schema["return"] = {"type": "null"}
-        else:
-            raise TypeHintParsingException(
-                "Tool return type not found: make sure your function has a return type hint!"
-            )
+    def decorator(func: Callable) -> Tool:
+        tool_json_schema = get_json_schema(func)["function"]
+        if "return" not in tool_json_schema:
+            if len(tool_json_schema["parameters"]["properties"]) == 0:
+                tool_json_schema["return"] = {"type": "null"}
+            else:
+                raise TypeHintParsingException(
+                    "Tool return type not found: make sure your function has a return type hint!"
+                )
 
-    class SimpleTool(Tool):
-        def __init__(self):
-            self.is_initialized = True
-
-    # Set the class attributes
-    SimpleTool.name = tool_json_schema["name"]
-    SimpleTool.description = tool_json_schema["description"]
-    SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
-    SimpleTool.output_type = tool_json_schema["return"]["type"]
-
-    # Set output_schema if it exists in the JSON schema
-    if "output_schema" in tool_json_schema:
-        SimpleTool.output_schema = tool_json_schema["output_schema"]
-    elif "return" in tool_json_schema and "schema" in tool_json_schema["return"]:
-        SimpleTool.output_schema = tool_json_schema["return"]["schema"]
-
-    @wraps(tool_function)
-    def wrapped_function(*args, **kwargs):
-        return tool_function(*args, **kwargs)
-
-    # Bind the copied function to the forward method
-    SimpleTool.forward = staticmethod(wrapped_function)
-
-    # Get the signature parameters of the tool function
-    sig = inspect.signature(tool_function)
-    # - Add "self" as first parameter to tool_function signature
-    new_sig = sig.replace(
-        parameters=[inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)] + list(sig.parameters.values())
-    )
-    # - Set the signature of the forward method
-    SimpleTool.forward.__signature__ = new_sig
-
-    # Create and attach the source code of the dynamically created tool class and forward method
-    # - Get the source code of tool_function
-    tool_source = textwrap.dedent(inspect.getsource(tool_function))
-    # - Remove the tool decorator and function definition line
-    lines = tool_source.splitlines()
-    tree = ast.parse(tool_source)
-    #   - Find function definition
-    func_node = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
-    if not func_node:
-        raise ValueError(
-            f"No function definition found in the provided source of {tool_function.__name__}. "
-            "Ensure the input is a standard function."
-        )
-    #   - Extract decorator lines
-    decorator_lines = ""
-    if func_node.decorator_list:
-        tool_decorators = [d for d in func_node.decorator_list if isinstance(d, ast.Name) and d.id == "tool"]
-        if len(tool_decorators) > 1:
-            raise ValueError(
-                f"Multiple @tool decorators found on function '{func_node.name}'. Only one @tool decorator is allowed."
-            )
-        if len(tool_decorators) < len(func_node.decorator_list):
-            warnings.warn(
-                f"Function '{func_node.name}' has decorators other than @tool. "
-                "This may cause issues with serialization in the remote executor. See issue #1626."
-            )
-        decorator_start = tool_decorators[0].end_lineno if tool_decorators else 0
-        decorator_end = func_node.decorator_list[-1].end_lineno
-        decorator_lines = "\n".join(lines[decorator_start:decorator_end])
-    #   - Extract tool source body
-    body_start = func_node.body[0].lineno - 1  # AST lineno starts at 1
-    tool_source_body = "\n".join(lines[body_start:])
-    # - Create the forward method source, including def line and indentation
-    forward_method_source = f"def forward{new_sig}:\n{tool_source_body}"
-    # - Create the class source
-    indent = " " * 4  # for class method
-    class_source = (
-        textwrap.dedent(f"""
         class SimpleTool(Tool):
-            name: str = "{tool_json_schema["name"]}"
-            description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
-            inputs: dict[str, dict[str, str]] = {tool_json_schema["parameters"]["properties"]}
-            output_type: str = "{tool_json_schema["return"]["type"]}"
-
             def __init__(self):
                 self.is_initialized = True
 
-        """)
-        + textwrap.indent(decorator_lines, indent)
-        + textwrap.indent(forward_method_source, indent)
-    )
-    # - Store the source code on both class and method for inspection
-    SimpleTool.__source__ = class_source
-    SimpleTool.forward.__source__ = forward_method_source
+        # Set the class attributes
+        SimpleTool.name = tool_json_schema["name"]
+        SimpleTool.description = tool_json_schema["description"]
+        SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
+        SimpleTool.output_type = tool_json_schema["return"]["type"]
+        if output_name is not None:
+            SimpleTool.output_name = output_name
 
-    simple_tool = SimpleTool()
-    return simple_tool
+        # Set output_schema if it exists in the JSON schema
+        if "output_schema" in tool_json_schema:
+            SimpleTool.output_schema = tool_json_schema["output_schema"]
+        elif "return" in tool_json_schema and "schema" in tool_json_schema["return"]:
+            SimpleTool.output_schema = tool_json_schema["return"]["schema"]
+
+        @wraps(func)
+        def wrapped_function(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Bind the copied function to the forward method
+        SimpleTool.forward = staticmethod(wrapped_function)
+
+        # Get the signature parameters of the tool function
+        sig = inspect.signature(func)
+        # - Add "self" as first parameter to tool_function signature
+        new_sig = sig.replace(
+            parameters=[inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)] + list(sig.parameters.values())
+        )
+        # - Set the signature of the forward method
+        SimpleTool.forward.__signature__ = new_sig
+
+        # Create and attach the source code of the dynamically created tool class and forward method
+        # - Get the source code of tool_function
+        tool_source = textwrap.dedent(inspect.getsource(func))
+        # - Remove the tool decorator and function definition line
+        lines = tool_source.splitlines()
+        tree = ast.parse(tool_source)
+        #   - Find function definition
+        func_node = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
+        if not func_node:
+            raise ValueError(
+                f"No function definition found in the provided source of {func.__name__}. "
+                "Ensure the input is a standard function."
+            )
+        #   - Extract decorator lines
+        decorator_lines = ""
+        if func_node.decorator_list:
+            tool_decorators = [d for d in func_node.decorator_list if isinstance(d, ast.Name) and d.id == "tool"]
+            if len(tool_decorators) > 1:
+                raise ValueError(
+                    f"Multiple @tool decorators found on function '{func_node.name}'. Only one @tool decorator is allowed."
+                )
+            if len(tool_decorators) < len(func_node.decorator_list):
+                warnings.warn(
+                    f"Function '{func_node.name}' has decorators other than @tool. "
+                    "This may cause issues with serialization in the remote executor. See issue #1626."
+                )
+            decorator_start = tool_decorators[0].end_lineno if tool_decorators else 0
+            decorator_end = func_node.decorator_list[-1].end_lineno
+            decorator_lines = "\n".join(lines[decorator_start:decorator_end])
+        #   - Extract tool source body
+        body_start = func_node.body[0].lineno - 1  # AST lineno starts at 1
+        tool_source_body = "\n".join(lines[body_start:])
+        # - Create the forward method source, including def line and indentation
+        forward_method_source = f"def forward{new_sig}:\n{tool_source_body}"
+        # - Create the class source
+        indent = " " * 4  # for class method
+        class_source = (
+            textwrap.dedent(f"""
+            class SimpleTool(Tool):
+                name: str = "{tool_json_schema["name"]}"
+                description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
+                inputs: dict[str, dict[str, str]] = {tool_json_schema["parameters"]["properties"]}
+                output_type: str = "{tool_json_schema["return"]["type"]}"
+
+                def __init__(self):
+                    self.is_initialized = True
+
+            """)
+            + textwrap.indent(decorator_lines, indent)
+            + textwrap.indent(forward_method_source, indent)
+        )
+        # - Store the source code on both class and method for inspection
+        SimpleTool.__source__ = class_source
+        SimpleTool.forward.__source__ = forward_method_source
+
+        simple_tool = SimpleTool()
+        return simple_tool
+
+    # Handle both @tool and @tool(output_name="...") syntax
+    if tool_function is not None:
+        return decorator(tool_function)
+    return decorator
 
 
 class PipelineTool(Tool):
