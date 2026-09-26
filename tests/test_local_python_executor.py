@@ -42,6 +42,7 @@ from smolagents.local_python_executor import (
     get_safe_module,
     timeout,
 )
+from smolagents.tools import tool
 
 
 # Fake function we will use as tool
@@ -51,8 +52,9 @@ def add_two(x):
 
 class TestEvaluatePythonCode:
     def assertDictEqualNoPrint(self, dict1, dict2):
-        assert {k: v for k, v in dict1.items() if k != "_print_outputs"} == {
-            k: v for k, v in dict2.items() if k != "_print_outputs"
+        ignored_keys = {"_print_outputs", "_executed_tool_calls", "_tracked_tool_names"}
+        assert {k: v for k, v in dict1.items() if k not in ignored_keys} == {
+            k: v for k, v in dict2.items() if k not in ignored_keys
         }
 
     def test_evaluate_assign(self):
@@ -1465,6 +1467,37 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         ).output
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
+
+    def test_executor_tracks_agent_tool_calls(self):
+        @tool
+        def sample_tool(text: str, count: int) -> str:
+            """Repeat text.
+
+            Args:
+                text: Text to repeat.
+                count: Number of repetitions.
+            """
+
+            return text * count
+
+        executor = LocalPythonExecutor([])
+        executor.send_tools({"sample_tool": sample_tool, "final_answer": FinalAnswerTool()})
+
+        result = executor(
+            dedent(
+                """
+                alias = sample_tool
+                repeated = alias(text="ha", count=2)
+                final_answer(repeated)
+                """
+            )
+        )
+
+        assert result.output == "haha"
+        assert result.executed_tool_calls == [
+            {"name": "sample_tool", "arguments": {"text": "ha", "count": 2}},
+            {"name": "final_answer", "arguments": "haha"},
+        ]
 
     def test_evaluate_class_def_with_pass(self):
         code = dedent("""

@@ -1752,6 +1752,15 @@ class CodeAgent(MultiStepAgent):
         truncated_output = truncate_content(str(code_output.output))
         observation += "Last output from code snippet:\n" + truncated_output
         memory_step.observations = observation
+        if code_output.executed_tool_calls:
+            memory_step.tool_calls = memory_step.tool_calls + [
+                ToolCall(
+                    name=executed_tool_call["name"],
+                    arguments=executed_tool_call["arguments"],
+                    id=f"call_{len(self.memory.steps)}_{idx}",
+                )
+                for idx, executed_tool_call in enumerate(code_output.executed_tool_calls)
+            ]
 
         if not code_output.is_final_answer:
             execution_outputs_console += [
