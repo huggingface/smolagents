@@ -225,6 +225,31 @@ class TestWebSearchToolExa:
         assert "[Null Highlights Page](https://example.com)" in result
 
 
+def test_web_search_duckduckgo_respects_max_results():
+    html = """
+    <table>
+      <tr>
+        <td><a class="result-link">First</a></td>
+        <td class="result-snippet">First description</td>
+        <td><span class="link-text">first.example</span></td>
+      </tr>
+      <tr>
+        <td><a class="result-link">Second</a></td>
+        <td class="result-snippet">Second description</td>
+        <td><span class="link-text">second.example</span></td>
+      </tr>
+    </table>
+    """
+    tool = WebSearchTool(engine="duckduckgo", max_results=1)
+    with patch("requests.get") as mock_get:
+        mock_get.return_value.text = html
+        mock_get.return_value.raise_for_status = lambda: None
+        results = tool.search_duckduckgo("test query")
+
+    assert len(results) == 1
+    assert results[0]["title"] == "First"
+
+
 @pytest.mark.parametrize(
     "language, content_type, extract_format, query",
     [
