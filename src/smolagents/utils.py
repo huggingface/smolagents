@@ -207,8 +207,14 @@ def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
         `str`: Extracted code block.
 
     Raises:
-        ValueError: If no valid code block is found in the text.
+        ValueError: If no valid code block is found in the text or if the
+            model output is None.
     """
+    if text is None:
+        raise ValueError(
+            "The model output is empty (None). The LLM did not generate any text content. "
+            "Please retry or check your model configuration."
+        )
     matches = extract_code_from_text(text, code_block_tags)
     if not matches:  # Fallback to markdown pattern
         matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
