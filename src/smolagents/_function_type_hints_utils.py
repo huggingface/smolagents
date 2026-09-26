@@ -275,7 +275,7 @@ def _parse_google_format_docstring(
     # Clean and store the sections
     description = description_match.group(1).strip() if description_match else None
     docstring_args = args_match.group(1).strip() if args_match else None
-    returns = returns_match.group(1).strip() if returns_match else None
+    returns = re.sub(r"\s*\n+\s*", " ", returns_match.group(1).strip()) if returns_match else None
 
     # Parsing the arguments into a dictionary
     if docstring_args is not None:
