@@ -1413,6 +1413,23 @@ def evaluate_delete(
             raise InterpreterError(f"Deletion of {type(target).__name__} targets is not supported")
 
 
+def _evaluate_display_elements(
+    elts: list[ast.expr],
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> list[Any]:
+    """Evaluate the elements of a list/tuple/set display, spreading ``*`` unpackings (PEP 448)."""
+    values: list[Any] = []
+    for elt in elts:
+        if isinstance(elt, ast.Starred):
+            values.extend(evaluate_ast(elt.value, state, static_tools, custom_tools, authorized_imports))
+        else:
+            values.append(evaluate_ast(elt, state, static_tools, custom_tools, authorized_imports))
+    return values
+
+
 @safer_eval
 def evaluate_ast(
     expression: ast.AST,
@@ -1462,7 +1479,7 @@ def evaluate_ast(
         # Constant -> just return the value
         return expression.value
     elif isinstance(expression, ast.Tuple):
-        return tuple((evaluate_ast(elt, *common_params) for elt in expression.elts))
+        return tuple(_evaluate_display_elements(expression.elts, *common_params))
     elif isinstance(expression, ast.GeneratorExp):
         return evaluate_generatorexp(expression, *common_params)
     elif isinstance(expression, ast.ListComp):
@@ -1521,7 +1538,7 @@ def evaluate_ast(
         return "".join([str(evaluate_ast(v, *common_params)) for v in expression.values])
     elif isinstance(expression, ast.List):
         # List -> evaluate all elements
-        return [evaluate_ast(elt, *common_params) for elt in expression.elts]
+        return _evaluate_display_elements(expression.elts, *common_params)
     elif isinstance(expression, ast.Name):
         # Name -> pick up the value in the state
         return evaluate_name(expression, *common_params)
@@ -1557,7 +1574,7 @@ def evaluate_ast(
     elif isinstance(expression, ast.With):
         return evaluate_with(expression, *common_params)
     elif isinstance(expression, ast.Set):
-        return set((evaluate_ast(elt, *common_params) for elt in expression.elts))
+        return set(_evaluate_display_elements(expression.elts, *common_params))
     elif isinstance(expression, ast.Return):
         raise ReturnException(evaluate_ast(expression.value, *common_params) if expression.value else None)
     elif isinstance(expression, ast.Pass):
