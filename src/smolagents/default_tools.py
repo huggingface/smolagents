@@ -515,6 +515,7 @@ class VisitWebpageTool(Tool):
     def forward(self, url: str) -> str:
         try:
             import re
+            from urllib.parse import urlparse
 
             import requests
             from markdownify import markdownify
@@ -524,6 +525,28 @@ class VisitWebpageTool(Tool):
                 "You must install packages `markdownify` and `requests` to run this tool: for instance run `pip install markdownify requests`."
             ) from e
         try:
+            # Validate URL to prevent SSRF
+            parsed = urlparse(url)
+            if parsed.scheme not in ("http", "https"):
+                return f"Error: Unsupported URL scheme '{parsed.scheme}'"
+            
+            import socket
+            hostname = parsed.hostname
+            if hostname is None:
+                return "Error: No hostname found in URL"
+            
+            # Block access to private/internal IP addresses
+            try:
+                ip = socket.gethostbyname(hostname)
+                private_prefixes = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
+                    "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.",
+                    "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.",
+                    "192.168.", "127.", "0.", "169.254.")
+                if any(ip.startswith(p) for p in private_prefixes):
+                    return f"Error: Cannot access private/internal IP addresses"
+            except socket.gaierror:
+                return f"Error: Could not resolve hostname '{hostname}'"
+            
             # Send a GET request to the URL with a 20-second timeout
             response = requests.get(url, timeout=20)
             response.raise_for_status()  # Raise an exception for bad status codes
