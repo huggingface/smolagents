@@ -195,6 +195,37 @@ model = AzureOpenAIModel(
 
 [[autodoc]] AzureOpenAIModel
 
+### SambaNovaModel
+
+`SambaNovaModel` allows you to connect to SambaNova's API for fast inference. SambaNova provides an OpenAI-compatible API, making it easy to integrate with smolagents.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then, get your SambaNova API key from the [SambaNova Cloud](https://cloud.sambanova.ai/apis) and set it in your environment or pass it directly:
+
+```python
+import os
+
+from smolagents import SambaNovaModel
+
+model = SambaNovaModel(
+    model_id = "MiniMax-M2.7",  # Default model, see available models below
+    api_key = os.environ.get("SAMBANOVA_API_KEY"),
+)
+```
+
+Available models include:
+- `MiniMax-M2.7` (primary reasoning/chat model)
+- `gemma-4-31B-it` (vision-capable)
+- `DeepSeek-V3.1`, `DeepSeek-V3.2`
+- `Meta-Llama-3.3-70B-Instruct`
+- `gpt-oss-120b`
+
+[[autodoc]] SambaNovaModel
+
 ### AmazonBedrockModel
 
 `AmazonBedrockModel` helps you connect to Amazon Bedrock and run your agent with any available models.
