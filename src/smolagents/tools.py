@@ -354,7 +354,7 @@ class Tool(BaseTool):
 
             tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
 
-        requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
+        requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"IPython", "smolagents"}
 
         tool_dict = {"name": self.name, "code": tool_code, "requirements": sorted(requirements)}
 
