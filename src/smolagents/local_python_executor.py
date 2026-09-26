@@ -775,19 +775,9 @@ def evaluate_assign(
     authorized_imports: list[str],
 ) -> Any:
     result = evaluate_ast(assign.value, state, static_tools, custom_tools, authorized_imports)
-    if len(assign.targets) == 1:
-        target = assign.targets[0]
+    # Several targets means a chained assignment (`a = b = value`): each one gets the same value.
+    for target in assign.targets:
         set_value(target, result, state, static_tools, custom_tools, authorized_imports)
-    else:
-        expanded_values = []
-        for tgt in assign.targets:
-            if isinstance(tgt, ast.Starred):
-                expanded_values.extend(result)
-            else:
-                expanded_values.append(result)
-
-        for tgt, val in zip(assign.targets, expanded_values):
-            set_value(tgt, val, state, static_tools, custom_tools, authorized_imports)
     return result
 
 
@@ -803,16 +793,31 @@ def set_value(
         if target.id in static_tools:
             raise InterpreterError(f"Cannot assign to name '{target.id}': doing this would erase the existing tool!")
         state[target.id] = value
-    elif isinstance(target, ast.Tuple):
+    elif isinstance(target, (ast.Tuple, ast.List)):
         if not isinstance(value, tuple):
             if hasattr(value, "__iter__") and not isinstance(value, (str, bytes)):
                 value = tuple(value)
             else:
                 raise InterpreterError("Cannot unpack non-tuple value")
-        if len(target.elts) != len(value):
-            raise InterpreterError("Cannot unpack tuple of wrong size")
-        for i, elem in enumerate(target.elts):
-            set_value(elem, value[i], state, static_tools, custom_tools, authorized_imports)
+        starred_indices = [index for index, elem in enumerate(target.elts) if isinstance(elem, ast.Starred)]
+        if len(starred_indices) > 1:
+            raise InterpreterError("Cannot unpack: multiple starred expressions in assignment")
+        if starred_indices:
+            # `a, *b, c = value`: the starred target absorbs everything the fixed targets don't take.
+            count_before = starred_indices[0]
+            count_after = len(target.elts) - count_before - 1
+            if len(value) < count_before + count_after:
+                raise InterpreterError("Cannot unpack tuple of wrong size")
+            starred_value = list(value[count_before : len(value) - count_after])
+            values = (*value[:count_before], starred_value, *value[len(value) - count_after :])
+        else:
+            if len(target.elts) != len(value):
+                raise InterpreterError("Cannot unpack tuple of wrong size")
+            values = value
+        for elem, elem_value in zip(target.elts, values):
+            # Assign to the starred target itself, e.g. `b` in `*b`.
+            elem = elem.value if isinstance(elem, ast.Starred) else elem
+            set_value(elem, elem_value, state, static_tools, custom_tools, authorized_imports)
     elif isinstance(target, ast.Subscript):
         obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
         key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
@@ -1494,9 +1499,20 @@ def evaluate_ast(
         return evaluate_function_def(expression, *common_params)
     elif isinstance(expression, ast.Dict):
         # Dict -> evaluate all keys and values
-        keys = (evaluate_ast(k, *common_params) for k in expression.keys)
-        values = (evaluate_ast(v, *common_params) for v in expression.values)
-        return dict(zip(keys, values))
+        result = {}
+        for key_node, value_node in zip(expression.keys, expression.values):
+            if key_node is None:
+                # `**mapping` unpacking: the key is None and the value holds the mapping
+                starred_dict = evaluate_ast(value_node, *common_params)
+                if not isinstance(starred_dict, dict):
+                    raise InterpreterError(
+                        f"Cannot unpack non-dict value in dict literal: {type(starred_dict).__name__}"
+                    )
+                result.update(starred_dict)
+            else:
+                key = evaluate_ast(key_node, *common_params)
+                result[key] = evaluate_ast(value_node, *common_params)
+        return result
     elif isinstance(expression, ast.Expr):
         # Expression -> evaluate the content
         return evaluate_ast(expression.value, *common_params)
