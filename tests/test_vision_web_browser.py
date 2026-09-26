@@ -130,3 +130,20 @@ class TestSearchItemCtrlF:
         with patch("smolagents.vision_web_browser.driver", mock_driver, create=True):
             with pytest.raises(Exception, match="Match n°3 not found"):
                 search_item_ctrl_f("test", nth_result=3)
+
+    @pytest.mark.parametrize("nth_result", [0, -1])
+    def test_search_item_non_positive_nth_result_raises(self, mock_driver, nth_result):
+        """Test that nth_result < 1 raises a clear error instead of indexing from the end."""
+        mock_driver.find_elements.return_value = [Mock(), Mock(), Mock()]  # 3 elements
+
+        with patch("smolagents.vision_web_browser.driver", mock_driver, create=True):
+            with pytest.raises(Exception, match=f"Match n°{nth_result} not found"):
+                search_item_ctrl_f("test", nth_result=nth_result)
+
+    def test_search_item_zero_nth_result_empty_matches(self, mock_driver):
+        """Test that nth_result=0 with no matches raises a clear error instead of IndexError."""
+        mock_driver.find_elements.return_value = []  # No elements
+
+        with patch("smolagents.vision_web_browser.driver", mock_driver, create=True):
+            with pytest.raises(Exception, match="Match n°0 not found"):
+                search_item_ctrl_f("test", nth_result=0)
