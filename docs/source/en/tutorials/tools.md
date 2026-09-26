@@ -387,7 +387,7 @@ For Streamable HTTP-based MCP servers, simply pass a dict with parameters to `mc
 from smolagents import ToolCollection, CodeAgent
 
 with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
-    agent = CodeAgent(tools=[*tool_collection.tools], add_base_tools=True)
+    agent = CodeAgent(tools=[*tool_collection.tools], model=model, add_base_tools=True)
     agent.run("Please find a remedy for hangover.")
 ```
 
