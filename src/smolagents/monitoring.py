@@ -114,7 +114,7 @@ class Monitor:
                 f"| Input tokens: {self.total_input_token_count:,} | Output tokens: {self.total_output_token_count:,}"
             )
         console_outputs += "]"
-        self.logger.log(Text(console_outputs, style="dim"), level=1)
+        self.logger.log(Text(console_outputs, style="dim"), level=LogLevel.INFO)
 
 
 class LogLevel(IntEnum):
