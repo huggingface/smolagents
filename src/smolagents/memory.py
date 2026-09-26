@@ -53,6 +53,7 @@ class ActionStep(MemoryStep):
     timing: Timing
     model_input_messages: list[ChatMessage] | None = None
     tool_calls: list[ToolCall] | None = None
+    inner_tool_calls: list[ToolCall] | None = None
     error: AgentError | None = None
     model_output_message: ChatMessage | None = None
     model_output: str | list[dict[str, Any]] | None = None
@@ -74,6 +75,7 @@ class ActionStep(MemoryStep):
             if self.model_input_messages
             else None,
             "tool_calls": [tc.dict() for tc in self.tool_calls] if self.tool_calls else [],
+            "inner_tool_calls": [tc.dict() for tc in self.inner_tool_calls] if self.inner_tool_calls else [],
             "error": self.error.dict() if self.error else None,
             "model_output_message": make_json_serializable(get_dict_from_nested_dataclasses(self.model_output_message))
             if self.model_output_message
