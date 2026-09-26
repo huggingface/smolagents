@@ -1426,7 +1426,14 @@ class TestMultiStepAgent:
                 for content, expected_content in zip(message.content, expected_message.content):
                     assert content == expected_content
 
-    def test_interrupt(self):
+    @pytest.mark.parametrize(
+        "interrupt_args, expected_substring",
+        [
+            ((), "Agent interrupted"),
+            (("Critical tool failure.",), "Critical tool failure."),
+        ],
+    )
+    def test_interrupt(self, interrupt_args, expected_substring):
         fake_model = MagicMock()
         fake_model.generate.return_value = ChatMessage(
             role=MessageRole.ASSISTANT,
@@ -1437,7 +1444,7 @@ class TestMultiStepAgent:
         )
 
         def interrupt_callback(memory_step, agent):
-            agent.interrupt()
+            agent.interrupt(*interrupt_args)
 
         agent = CodeAgent(
             tools=[],
@@ -1446,7 +1453,7 @@ class TestMultiStepAgent:
         )
         with pytest.raises(AgentError) as e:
             agent.run("Test task")
-        assert "Agent interrupted" in str(e)
+        assert expected_substring in str(e)
 
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
