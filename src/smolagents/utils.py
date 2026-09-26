@@ -196,12 +196,13 @@ def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str |
 
 
 def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
-    """Extract code blocs from the LLM's output.
+    """Extract code blocks from the LLM's output.
 
     If a valid code block is passed, it returns it directly.
 
     Args:
         text (`str`): LLM's output text to parse.
+        code_block_tags (`tuple[str, str]`): The opening and closing code block tags.
 
     Returns:
         `str`: Extracted code block.
