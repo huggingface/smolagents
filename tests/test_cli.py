@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from smolagents.cli import load_model
+from smolagents.cli import interactive_mode, load_model
 from smolagents.local_python_executor import CodeOutput, LocalPythonExecutor
 from smolagents.models import InferenceClientModel, LiteLLMModel, OpenAIModel, TransformersModel
 
@@ -59,6 +59,21 @@ def test_load_model_invalid_model_type():
         load_model("InvalidModel", "test_model_id")
 
 
+def test_interactive_mode_preserves_selected_action_type_and_openai_model_type():
+    with (
+        patch(
+            "smolagents.cli.Prompt.ask",
+            side_effect=["tool_calling", "web_search", "OpenAIModel", "test_model_id", "test_prompt"],
+        ),
+        patch("smolagents.cli.Confirm.ask", return_value=False),
+    ):
+        result = interactive_mode()
+
+    assert result[0] == "test_prompt"
+    assert result[2] == "OpenAIModel"
+    assert result[-1] == "tool_calling"
+
+
 def test_cli_main(capsys):
     with patch("smolagents.cli.load_model") as mock_load_model:
         mock_load_model.return_value = "mock_model"
@@ -82,6 +97,24 @@ def test_cli_main(capsys):
     # agent.run
     assert len(mock_code_agent.return_value.run.call_args_list) == 1
     assert mock_code_agent.return_value.run.call_args.args == ("test_prompt",)
+
+
+def test_cli_main_with_tool_calling_agent():
+    with (
+        patch("smolagents.cli.load_model", return_value="mock_model") as mock_load_model,
+        patch("smolagents.cli.ToolCallingAgent") as mock_tool_calling_agent,
+    ):
+        from smolagents.cli import run_smolagent
+
+        run_smolagent("test_prompt", [], "InferenceClientModel", "test_model_id", action_type="tool_calling")
+
+    assert mock_load_model.call_args.args == ("InferenceClientModel", "test_model_id")
+    assert mock_tool_calling_agent.call_args.kwargs == {
+        "tools": [],
+        "model": "mock_model",
+        "stream_outputs": True,
+    }
+    assert mock_tool_calling_agent.return_value.run.call_args.args == ("test_prompt",)
 
 
 def test_vision_web_browser_main():
