@@ -1066,3 +1066,28 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class _FakeLangChainTool:
+    """Minimal stand-in for a LangChain tool; avoids importing langchain."""
+
+    name = "add_pair"
+    description = "Add two numbers."
+    args = {
+        "first": {"type": "integer", "title": "First"},
+        "second": {"type": "integer", "title": "Second"},
+    }
+
+    def run(self, tool_input):
+        return tool_input
+
+
+def test_from_langchain_maps_positional_args_in_declaration_order():
+    wrapped = Tool.from_langchain(_FakeLangChainTool())
+    assert wrapped.forward(3, 7) == {"first": 3, "second": 7}
+
+
+def test_from_langchain_accepts_keyword_and_mixed_args():
+    wrapped = Tool.from_langchain(_FakeLangChainTool())
+    assert wrapped.forward(first=3, second=7) == {"first": 3, "second": 7}
+    assert wrapped.forward(3, second=7) == {"first": 3, "second": 7}
