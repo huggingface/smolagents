@@ -2987,3 +2987,18 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_evaluate_python_code_allows_open_and_write_file(tmp_path):
+    output_path = tmp_path / "index.html"
+    code = dedent(
+        f"""
+        f = open({str(output_path)!r}, "w", encoding="utf-8")
+        written = f.write("<h1>Hello</h1>")
+        f.close()
+        written
+        """
+    )
+    result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+    assert result == len("<h1>Hello</h1>")
+    assert output_path.read_text(encoding="utf-8") == "<h1>Hello</h1>"
