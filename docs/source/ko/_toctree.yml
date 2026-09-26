@@ -20,8 +20,8 @@
     title: 📚 에이전트 메모리 관리
 - title: Conceptual guides
   sections:
-#  - local: conceptual_guides/intro_agents
-#    title: 🤖 What are agents?
+  - local: conceptual_guides/intro_agents
+    title: 🤖 에이전트란 무엇인가요?
   - local: conceptual_guides/react
     title: 🤔 멀티스텝 에이전트는 어떻게 동작하나요?
 - title: 예제
