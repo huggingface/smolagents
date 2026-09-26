@@ -1037,9 +1037,13 @@ class ToolCollection:
             from mcpadapt.core import MCPAdapt
             from mcpadapt.smolagents_adapter import SmolAgentsAdapter
         except ImportError:
-            raise ImportError(
-                """Please install 'mcp' extra to use ToolCollection.from_mcp: `pip install 'smolagents[mcp]'`."""
-            )
+            try:
+                # Fallback for mcpadapt >= 2.0 structure
+                from mcpadapt import MCPAdapt, SmolAgentsAdapter
+            except ImportError:
+                raise ImportError(
+                    """Please install 'mcp' extra to use ToolCollection.from_mcp: `pip install 'smolagents[mcp]'`."""
+                )
         if isinstance(server_parameters, dict):
             transport = server_parameters.get("transport")
             if transport is None:
