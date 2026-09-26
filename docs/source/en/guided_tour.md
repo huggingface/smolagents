@@ -314,7 +314,7 @@ Alternatively, you can use `LiteLLMModel` with Bedrock models:
 ```python
 from smolagents import LiteLLMModel, CodeAgent
 
-model = LiteLLMModel(model_name="bedrock/anthropic.claude-3-sonnet-20240229-v1:0")
+model = LiteLLMModel(model_id="bedrock/anthropic.claude-3-sonnet-20240229-v1:0")
 agent = CodeAgent(tools=[], model=model)
 
 agent.run("Explain the concept of quantum computing")
