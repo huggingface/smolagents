@@ -655,7 +655,11 @@ class Tool(BaseTool):
             ):
                 self.name = name
                 self.description = description
-                self.client = Client(space_id, hf_token=token)
+                # gradio_client >= 2.5.0 renamed the 'hf_token' kwarg to 'token'; pass whichever
+                # one the installed version understands so from_space keeps working either way.
+                client_init_params = inspect.signature(Client.__init__).parameters
+                token_kwarg = "token" if "token" in client_init_params else "hf_token"
+                self.client = Client(space_id, **{token_kwarg: token})
                 space_api = self.client.view_api(return_format="dict", print_info=False)
                 assert isinstance(space_api, dict)
                 space_description = space_api["named_endpoints"]

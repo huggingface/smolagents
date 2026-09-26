@@ -1066,3 +1066,78 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+def _fake_space_api():
+    return {
+        "named_endpoints": {
+            "generate": {
+                "parameters": [
+                    {
+                        "parameter_name": "prompt",
+                        "parameter_has_default": False,
+                        "type": {"type": "string"},
+                        "python_type": {"description": "The prompt to generate an image from."},
+                    }
+                ],
+                "returns": [{"component": "Image"}],
+            }
+        }
+    }
+
+
+class _FakeSpaceClient:
+    """Stand-in for gradio_client.Client (>= 2.5.0) that records the auth kwarg it received."""
+
+    def __init__(self, space_id, token=None):
+        self.space_id = space_id
+        self.token = token
+
+    def view_api(self, return_format=None, print_info=True):
+        return _fake_space_api()
+
+
+class _FakeLegacySpaceClient:
+    """gradio_client < 2.5.0 received the token through the hf_token kwarg."""
+
+    def __init__(self, space_id, hf_token=None):
+        self.space_id = space_id
+        self.hf_token = hf_token
+
+    def view_api(self, return_format=None, print_info=True):
+        return _fake_space_api()
+
+
+def test_from_space_with_new_gradio_client(monkeypatch):
+    """Tool.from_space passes the token via the token kwarg on gradio_client >= 2.5.0."""
+    monkeypatch.setattr("gradio_client.Client", _FakeSpaceClient)
+
+    tool = Tool.from_space(
+        "user/test-space",
+        name="image_generator",
+        description="Generate an image from a prompt",
+        api_name="generate",
+        token="hf_secret",
+    )
+
+    assert tool.client.space_id == "user/test-space"
+    assert tool.client.token == "hf_secret"
+    assert tool.inputs["prompt"]["type"] == "string"
+    assert tool.output_type == "image"
+
+
+def test_from_space_with_legacy_gradio_client(monkeypatch):
+    """Tool.from_space keeps using the hf_token kwarg on gradio_client < 2.5.0."""
+    monkeypatch.setattr("gradio_client.Client", _FakeLegacySpaceClient)
+
+    tool = Tool.from_space(
+        "user/test-space",
+        name="image_generator",
+        description="Generate an image from a prompt",
+        api_name="generate",
+        token="hf_secret",
+    )
+
+    assert tool.client.space_id == "user/test-space"
+    assert tool.client.hf_token == "hf_secret"
+    assert tool.inputs["prompt"]["type"] == "string"
