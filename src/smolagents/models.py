@@ -449,6 +449,32 @@ class _ParameterRemove:
 REMOVE_PARAMETER = _ParameterRemove()
 
 
+
+
+def parse_tool_calls_from_text(text, tool_name_key, tool_arguments_key):
+        """Extract ALL tool calls from text with multiple JSON objects."""
+        tool_calls = []
+        text_to_parse = text
+        while text_to_parse:
+                    try:
+                                    tool_call_dict, rest = parse_json_blob(text_to_parse)
+                                    tool_call = ChatMessageToolCall(
+                                                        id=str(uuid.uuid4()),
+                                                        type="function",
+                                                        function=ChatMessageToolCallFunction(
+                                                                                name=tool_call_dict[tool_name_key],
+                                                                                arguments=tool_call_dict.get(tool_arguments_key),
+                                                                            ),
+                                                    )
+                                    tool_calls.append(tool_call)
+                                    text_to_parse = rest.strip()
+                                    if not text_to_parse or "{" not in text_to_parse:
+                                                        break
+                                                except ValueError:
+                                                                if tool_calls:
+                                                                                    break
+                                                                                raise ValueError("No valid tool calls found")
+                                                        return tool_calls
 class Model:
     """Base class for all language model implementations.
 
@@ -585,8 +611,11 @@ class Model:
         message.role = MessageRole.ASSISTANT  # Overwrite role if needed
         if not message.tool_calls:
             assert message.content is not None, "Message contains no content and no tool calls"
-            message.tool_calls = [
-                get_tool_call_from_text(message.content, self.tool_name_key, self.tool_arguments_key)
+            message.tool_calls = parse_tool_calls_from_text(
+            message.content,
+            self.tool_name_key,
+            self.tool_arguments_key
+        )
             ]
         assert len(message.tool_calls) > 0, "No tool call was found in the model output"
         for tool_call in message.tool_calls:
