@@ -442,6 +442,7 @@ class MultiStepAgent(ABC):
         additional_args: dict | None = None,
         max_steps: int | None = None,
         return_full_result: bool | None = None,
+        chat_history: list[ChatMessage] | None = None,
     ) -> Any | RunResult:
         """
         Run the agent for the given task.
@@ -457,6 +458,8 @@ class MultiStepAgent(ABC):
             max_steps (`int`, *optional*): Maximum number of steps the agent can take to solve the task. if not provided, will use the agent's default value.
             return_full_result (`bool`, *optional*): Whether to return the full [`RunResult`] object or just the final answer output.
                 If `None` (default), the agent's `self.return_full_result` setting is used.
+            chat_history (`list[ChatMessage]`, *optional*): A list of chat messages to prepend as conversation context.
+                Useful for multi-turn conversations where you want to provide prior exchanges without using `reset=False`.
 
         Example:
         ```py
@@ -478,6 +481,11 @@ You have been provided with these additional arguments, that you can access dire
         if reset:
             self.memory.reset()
             self.monitor.reset()
+
+        if chat_history:
+            self.memory.chat_history = chat_history
+        elif reset:
+            self.memory.chat_history = []
 
         self.logger.log_task(
             content=self.task.strip(),
@@ -765,6 +773,8 @@ You have been provided with these additional arguments, that you can access dire
         the LLM.
         """
         messages = self.memory.system_prompt.to_messages(summary_mode=summary_mode)
+        if hasattr(self.memory, "chat_history") and self.memory.chat_history:
+            messages.extend(self.memory.chat_history)
         for memory_step in self.memory.steps:
             messages.extend(memory_step.to_messages(summary_mode=summary_mode))
         return messages
