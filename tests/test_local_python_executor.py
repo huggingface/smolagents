@@ -2987,3 +2987,79 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+class TestWithStatementContextCleanup:
+    """A with-statement that fails while entering must exit what it already entered."""
+
+    def test_earlier_context_is_exited_when_a_later_enter_raises(self):
+        import threading
+
+        from smolagents.local_python_executor import evaluate_python_code
+
+        class Tracked:
+            entered = False
+            exited = False
+
+            def __enter__(self):
+                self.entered = True
+                return self
+
+            def __exit__(self, *exc):
+                self.exited = True
+                return False
+
+        class Failing:
+            def __enter__(self):
+                raise RuntimeError("boom")
+
+            def __exit__(self, *exc):
+                return False
+
+        tracked = Tracked()
+        state = {"tracked": tracked, "failing": Failing()}
+
+        from smolagents.local_python_executor import InterpreterError
+
+        # evaluate_python_code wraps executor failures in InterpreterError.
+        with pytest.raises(InterpreterError, match="boom"):
+            evaluate_python_code("with tracked, failing:\n    pass", state=state)
+
+        assert tracked.entered
+        assert tracked.exited, "CPython exits the managers already entered"
+
+    def test_suppressing_exit_stops_the_error_from_propagating(self):
+        from smolagents.local_python_executor import evaluate_python_code
+
+        class Suppressor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return True
+
+        class Failing:
+            def __enter__(self):
+                raise RuntimeError("boom")
+
+            def __exit__(self, *exc):
+                return False
+
+        state = {"suppressor": Suppressor(), "failing": Failing()}
+
+        evaluate_python_code("with suppressor, failing:\n    pass", state=state)
+
+    def test_body_exception_still_propagates(self):
+        from smolagents.local_python_executor import evaluate_python_code
+
+        class Plain:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        state = {"plain": Plain()}
+
+        with pytest.raises(Exception):
+            evaluate_python_code("with plain:\n    raise ValueError('inner')", state=state)
