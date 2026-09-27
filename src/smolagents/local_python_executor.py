@@ -20,7 +20,12 @@ import difflib
 import inspect
 import logging
 import math
+import multiprocessing
+import os
+import pickle
 import re
+import signal
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -30,7 +35,7 @@ from functools import wraps
 from importlib import import_module
 from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
-from typing import Any
+from typing import Any, Literal
 
 from .tools import Tool
 from .utils import BASE_BUILTIN_MODULES, truncate_content
@@ -305,15 +310,16 @@ def timeout(timeout_seconds: int):
         @wraps(func)
         def wrapper(*args, **kwargs):
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
-            with ThreadPoolExecutor(max_workers=1) as executor:
+            executor = ThreadPoolExecutor(max_workers=1)
+            try:
                 future = executor.submit(func, *args, **kwargs)
-                try:
-                    result = future.result(timeout=timeout_seconds)
-                    return result
-                except FuturesTimeoutError:
-                    raise ExecutionTimeoutError(
-                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
-                    )
+                return future.result(timeout=timeout_seconds)
+            except FuturesTimeoutError:
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
 
         return wrapper
 
@@ -1580,6 +1586,186 @@ class FinalAnswerException(BaseException):
         self.value = value
 
 
+def _process_worker(
+    pipe_conn,
+    code: str,
+    static_tools: dict[str, Any] | None,
+    custom_tools: dict[str, Any] | None,
+    state: dict[str, Any] | None,
+    authorized_imports: list[str],
+    max_print_outputs_length: int,
+):
+    """Worker function executed inside isolated child process."""
+    try:
+        result, is_final_answer = evaluate_python_code(
+            code=code,
+            static_tools=static_tools,
+            custom_tools=custom_tools,
+            state=state,
+            authorized_imports=authorized_imports,
+            max_print_outputs_length=max_print_outputs_length,
+            timeout_seconds=None,
+            executor_type="thread",
+        )
+        print_outputs = str(state.get("_print_outputs", "")) if state else ""
+
+        return_state = {}
+        if state:
+            for k, v in state.items():
+                if k in {"_print_outputs", "_operations_count"}:
+                    continue
+                try:
+                    pickle.dumps(v)
+                    return_state[k] = v
+                except Exception:
+                    pass
+
+        try:
+            pickle.dumps(result)
+        except Exception:
+            try:
+                result = str(result)
+            except Exception:
+                result = None
+
+        pipe_conn.send({
+            "success": True,
+            "result": result,
+            "is_final_answer": is_final_answer,
+            "state": return_state,
+            "print_outputs": print_outputs,
+        })
+    except FinalAnswerException as e:
+        print_outputs = str(state.get("_print_outputs", "")) if state else ""
+        return_state = {}
+        if state:
+            for k, v in state.items():
+                if k in {"_print_outputs", "_operations_count"}:
+                    continue
+                try:
+                    pickle.dumps(v)
+                    return_state[k] = v
+                except Exception:
+                    pass
+        res_val = e.value
+        try:
+            pickle.dumps(res_val)
+        except Exception:
+            try:
+                res_val = str(res_val)
+            except Exception:
+                res_val = None
+        pipe_conn.send({
+            "success": True,
+            "result": res_val,
+            "is_final_answer": True,
+            "state": return_state,
+            "print_outputs": print_outputs,
+        })
+    except Exception as e:
+        print_outputs = str(state.get("_print_outputs", "")) if state else ""
+        pipe_conn.send({
+            "success": False,
+            "error_type": type(e).__name__,
+            "error_msg": str(e),
+            "print_outputs": print_outputs,
+        })
+    finally:
+        pipe_conn.close()
+
+
+def _execute_in_subprocess(
+    code: str,
+    static_tools: dict[str, Callable] | None,
+    custom_tools: dict[str, Callable] | None,
+    state: dict[str, Any] | None,
+    authorized_imports: list[str],
+    max_print_outputs_length: int,
+    timeout_seconds: int | None,
+) -> tuple[Any, bool]:
+    """Execute code in a separate process with monotonic timeout and SIGKILL."""
+    ctx = multiprocessing.get_context("fork" if hasattr(os, "fork") else "spawn")
+    parent_conn, child_conn = ctx.Pipe(duplex=False)
+
+    worker_state = state if state is not None else {}
+    proc = ctx.Process(
+        target=_process_worker,
+        args=(child_conn, code, static_tools, custom_tools, worker_state, authorized_imports, max_print_outputs_length),
+    )
+    proc.start()
+    child_conn.close()
+
+    start_time = time.monotonic()
+    try:
+        if timeout_seconds is not None:
+            deadline = start_time + timeout_seconds
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                if parent_conn.poll(remaining):
+                    break
+
+            if not parent_conn.poll(0):
+                if proc.is_alive():
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                    proc.join(timeout=1.0)
+                    if proc.is_alive():
+                        try:
+                            os.kill(proc.pid, signal.SIGKILL)
+                        except OSError:
+                            pass
+                        proc.join(timeout=0.5)
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
+        else:
+            parent_conn.poll(None)
+
+        try:
+            data = parent_conn.recv()
+        except EOFError:
+            proc.join(timeout=1.0)
+            exitcode = proc.exitcode
+            raise InterpreterError(
+                f"Process execution failed: worker process terminated unexpectedly with exit code {exitcode} (possible OOM or crash)"
+            )
+        finally:
+            proc.join(timeout=1.0)
+
+        if not data["success"]:
+            error_type = data.get("error_type", "InterpreterError")
+            error_msg = data.get("error_msg", "Unknown error")
+            if error_type == "InterpreterError":
+                raise InterpreterError(error_msg)
+            elif error_type in ERRORS:
+                raise ERRORS[error_type](error_msg)
+            else:
+                raise InterpreterError(f"Code execution failed due to: {error_type}: {error_msg}")
+
+        if state is not None:
+            state.update(data["state"])
+            if "_print_outputs" in state and hasattr(state["_print_outputs"], "value"):
+                state["_print_outputs"].value = data["print_outputs"]
+            else:
+                pc = PrintContainer()
+                pc.value = data["print_outputs"]
+                state["_print_outputs"] = pc
+
+        return data["result"], data["is_final_answer"]
+    finally:
+        parent_conn.close()
+        if proc.is_alive():
+            try:
+                proc.kill()
+            except OSError:
+                pass
+            proc.join(timeout=0.5)
+
+
 def evaluate_python_code(
     code: str,
     static_tools: dict[str, Callable] | None = None,
@@ -1588,7 +1774,8 @@ def evaluate_python_code(
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
     max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
     timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
-):
+    executor_type: Literal["thread", "process"] = "thread",
+) -> tuple[Any, bool]:
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
     of functions.
@@ -1610,7 +1797,24 @@ def evaluate_python_code(
             The print outputs will be stored in the state under the key "_print_outputs".
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
+        executor_type (`Literal["thread", "process"]`, defaults to `"thread"`):
+            Execution model to use. `"thread"` uses in-process ThreadPoolExecutor.
+            `"process"` spawns an isolated subprocess with hard monotonic timeout and SIGKILL.
     """
+    if executor_type not in {"thread", "process"}:
+        raise ValueError(f"Invalid executor_type: {executor_type}. Must be 'thread' or 'process'.")
+
+    if executor_type == "process":
+        return _execute_in_subprocess(
+            code=code,
+            static_tools=static_tools,
+            custom_tools=custom_tools,
+            state=state,
+            authorized_imports=authorized_imports,
+            max_print_outputs_length=max_print_outputs_length,
+            timeout_seconds=timeout_seconds,
+        )
+
     try:
         expression = ast.parse(code)
     except SyntaxError as e:
@@ -1703,6 +1907,9 @@ class LocalPythonExecutor(PythonExecutor):
             Additional Python functions to be added to the executor.
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
+        executor_type (`Literal["thread", "process"]`, defaults to `"thread"`):
+            Execution model to use. `"thread"` evaluates code in-process using ThreadPoolExecutor.
+            `"process"` spawns an isolated subprocess with hard monotonic timeout and SIGKILL.
     """
 
     def __init__(
@@ -1711,7 +1918,11 @@ class LocalPythonExecutor(PythonExecutor):
         max_print_outputs_length: int | None = None,
         additional_functions: dict[str, Callable] | None = None,
         timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
+        executor_type: Literal["thread", "process"] = "thread",
     ):
+        if executor_type not in {"thread", "process"}:
+            raise ValueError(f"Invalid executor_type: {executor_type}. Must be 'thread' or 'process'.")
+        self.executor_type = executor_type
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}
         self.max_print_outputs_length = max_print_outputs_length
@@ -1753,6 +1964,7 @@ class LocalPythonExecutor(PythonExecutor):
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
             timeout_seconds=self.timeout_seconds,
+            executor_type=self.executor_type,
         )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)

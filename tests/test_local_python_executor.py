@@ -2987,3 +2987,85 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+class TestProcessExecutor:
+    """Tests for executor_type='process' isolated subprocess evaluation."""
+
+    def test_process_executor_basic_eval(self):
+        """Test basic arithmetic evaluation and state in process mode."""
+        res, is_final = evaluate_python_code("x = 2 + 2", executor_type="process")
+        assert res == 4
+        assert not is_final
+
+        executor = LocalPythonExecutor([], executor_type="process")
+        executor.send_tools({})
+        out = executor("x = 20 + 22")
+        assert out.output == 42
+        assert not out.is_final_answer
+        assert executor.state.get("x") == 42
+
+    def test_process_executor_print_outputs(self):
+        """Test print output capturing in process mode."""
+        executor = LocalPythonExecutor([], executor_type="process")
+        executor.send_tools({})
+        out = executor("print('Hello from isolated process')\nx = 100")
+        assert "Hello from isolated process" in out.logs
+        assert out.output == 100
+
+    def test_process_executor_hard_timeout_infinite_loop(self):
+        """Test that runaway code (infinite loop) is terminated with SIGKILL within timeout."""
+        start = time.monotonic()
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            evaluate_python_code("while True:\n    pass", timeout_seconds=1, executor_type="process")
+        duration = time.monotonic() - start
+        assert duration < 2.5, f"Timeout took too long ({duration:.2f}s), process was not killed promptly"
+
+    def test_process_executor_state_persistence(self):
+        """Test that state persists across successive executions in LocalPythonExecutor."""
+        executor = LocalPythonExecutor([], executor_type="process")
+        executor.send_tools({})
+        out1 = executor("a = 10\nb = 20")
+        assert out1.output == 20
+        assert executor.state.get("a") == 10
+        assert executor.state.get("b") == 20
+
+        out2 = executor("c = a + b")
+        assert out2.output == 30
+        assert executor.state.get("c") == 30
+
+    def test_process_executor_final_answer(self):
+        """Test final_answer handling in process mode."""
+        executor = LocalPythonExecutor([], executor_type="process")
+        executor.send_tools({"final_answer": FinalAnswerTool()})
+        out = executor("final_answer(999)")
+        assert out.output == 999
+        assert out.is_final_answer is True
+
+    def test_process_executor_crash_isolation(self):
+        """Test that child process crash/SIGKILL is contained and raises InterpreterError without corrupting parent."""
+        code = "import os\nos.kill(os.getpid(), 9)"
+        with pytest.raises(InterpreterError, match="terminated unexpectedly with exit code"):
+            evaluate_python_code(code, authorized_imports=["os"], executor_type="process")
+
+    def test_invalid_executor_type(self):
+        """Test that invalid executor_type raises ValueError in both function and class."""
+        with pytest.raises(ValueError, match="Invalid executor_type"):
+            evaluate_python_code("x = 1", executor_type="invalid")
+
+        with pytest.raises(ValueError, match="Invalid executor_type"):
+            LocalPythonExecutor([], executor_type="invalid")
+
+    def test_code_agent_executor_type_process(self):
+        """Test CodeAgent configuration with executor_type='process'."""
+        from unittest.mock import MagicMock
+
+        from smolagents.agents import CodeAgent
+
+        agent = CodeAgent(tools=[], model=MagicMock(), executor_type="process")
+        assert isinstance(agent.python_executor, LocalPythonExecutor)
+        assert agent.python_executor.executor_type == "process"
+
+        with pytest.raises(ValueError, match="Unsupported executor type"):
+            CodeAgent(tools=[], model=MagicMock(), executor_type="invalid_executor")
+
