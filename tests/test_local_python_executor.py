@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ast
+import os
 import time
 import types
 from contextlib import nullcontext as does_not_raise
@@ -3069,3 +3070,83 @@ class TestProcessExecutor:
         with pytest.raises(ValueError, match="Unsupported executor type"):
             CodeAgent(tools=[], model=MagicMock(), executor_type="invalid_executor")
 
+    def test_process_executor_multi_turn_import_persistence(self):
+        """Test that imported modules persist across multiple execution turns in LocalPythonExecutor."""
+        executor = LocalPythonExecutor([], executor_type="process")
+        executor.send_tools({})
+        executor("import math")
+        executor("x = math.sqrt(16)")
+        assert executor.state["x"] == 4.0
+
+    def test_process_executor_closure_persistence(self):
+        """Test that closures and factory functions persist across multiple execution turns in LocalPythonExecutor."""
+        executor = LocalPythonExecutor([], executor_type="process")
+        executor.send_tools({})
+        executor(
+            dedent(
+                """
+                def make_multiplier(factor):
+                    def multiplier(n):
+                        return n * factor
+                    return multiplier
+
+                double = make_multiplier(2)
+                """
+            )
+        )
+        out = executor("ans = double(21)")
+        assert executor.state["ans"] == 42
+        assert out.output == 42
+
+    def test_process_executor_state_deletion_sync(self):
+        """Test that deleting variables via del in worker correctly synchronizes to parent state."""
+        executor = LocalPythonExecutor([], executor_type="process")
+        executor.send_tools({})
+        executor("x = 100")
+        assert executor.state.get("x") == 100
+        executor("del x")
+        assert "x" not in executor.state
+
+    @pytest.mark.skipif(not hasattr(os, "killpg"), reason="Process group extinction requires POSIX killpg")
+    def test_process_executor_grandchild_tree_extinction_on_timeout(self, tmp_path):
+        """Test that detached grandchild processes spawned by runaway code are terminated via process group SIGKILL on timeout."""
+        marker_file = tmp_path / "orphan_marker.txt"
+        code = dedent(
+            f"""
+            import subprocess
+            subprocess.Popen(["sh", "-c", "sleep 2 && touch {marker_file}"])
+            while True:
+                pass
+            """
+        )
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            evaluate_python_code(
+                code,
+                authorized_imports=["subprocess"],
+                timeout_seconds=1,
+                executor_type="process",
+            )
+
+        time.sleep(2.5)
+        assert not marker_file.exists(), "Grandchild process survived timeout: process group extinction failed"
+
+    @pytest.mark.skipif(not hasattr(os, "killpg"), reason="Process group extinction requires POSIX killpg")
+    def test_process_executor_grandchild_cleanup_on_worker_crash(self, tmp_path):
+        """Test that detached grandchild processes are terminated if the worker process crashes."""
+        marker_file = tmp_path / "crash_marker.txt"
+        code = dedent(
+            f"""
+            import subprocess, os
+            subprocess.Popen(["sh", "-c", "sleep 2 && touch {marker_file}"])
+            os.kill(os.getpid(), 9)
+            """
+        )
+        with pytest.raises(InterpreterError, match="terminated unexpectedly with exit code"):
+            evaluate_python_code(
+                code,
+                authorized_imports=["subprocess", "os"],
+                executor_type="process",
+            )
+
+        time.sleep(2.5)
+        assert not marker_file.exists(), "Grandchild process survived worker crash"
