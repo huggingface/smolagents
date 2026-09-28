@@ -135,6 +135,23 @@ def enum_choices_func():
 
 
 @pytest.fixture
+def non_string_enum_choices_func():
+    def choose_retries(retries: int, threshold: float, flag: bool, nullable_id: int | None = None) -> None:
+        """
+        Choose settings with non-string choices.
+
+        Args:
+            retries: Retry attempts (choices: [0, 1, 3])
+            threshold: Confidence threshold (choices: [0.1, 0.5, 1.0])
+            flag: Feature flag (choices: [true, false])
+            nullable_id: Optional ID (choices: [null, 1])
+        """
+        pass
+
+    return choose_retries
+
+
+@pytest.fixture
 def union_types_func():
     def process_union(value: int | str) -> bool | str:
         """
@@ -375,6 +392,16 @@ class TestGetJsonSchema:
         color_prop = schema["function"]["parameters"]["properties"]["color"]
         assert "enum" in color_prop
         assert color_prop["enum"] == ["red", "green", "blue"]
+
+    def test_non_string_enum_choices(self, non_string_enum_choices_func):
+        """Test schema generation for non-string enum choices (e.g. integers, floats, booleans) in docstrings."""
+        schema = get_json_schema(non_string_enum_choices_func)
+        params = schema["function"]["parameters"]["properties"]
+        assert params["retries"]["enum"] == [0, 1, 3]
+        assert params["retries"]["type"] == "integer"
+        assert params["threshold"]["enum"] == [0.1, 0.5, 1.0]
+        assert params["flag"]["enum"] == [True, False]
+        assert params["nullable_id"]["enum"] == [None, 1]
 
     def test_union_types(self, union_types_func):
         """Test schema generation for union types."""
