@@ -1587,7 +1587,12 @@ class FinalAnswerException(BaseException):
 
 
 def _kill_process_group(pid: int | None) -> None:
-    """Safely terminate a POSIX process group and all descendants without harming caller."""
+    """Safely terminate a POSIX process group and same-process-group descendants without harming caller.
+
+    Note: This signals descendants sharing the target PGID. Detached sessions created
+    via setsid() or start_new_session=True escape the process group and require kernel
+    namespace or cgroups v2 containment.
+    """
     if not pid or pid <= 0:
         return
     if hasattr(os, "killpg"):
@@ -2117,7 +2122,10 @@ class LocalPythonExecutor(PythonExecutor):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
         executor_type (`Literal["thread", "process"]`, defaults to `"thread"`):
             Execution model to use. `"thread"` evaluates code in-process using ThreadPoolExecutor.
-            `"process"` spawns an isolated subprocess with hard monotonic timeout and SIGKILL.
+            `"process"` spawns a dedicated worker process with monotonic timeout enforcement and
+            same-process-group descendant cleanup via SIGKILL. This isolates immediate crashes and
+            infinite loops, but is not an untrusted-code security sandbox (detached sessions via setsid
+            or resource limits like cgroups v2 require a dedicated sandbox runtime).
     """
 
     def __init__(
