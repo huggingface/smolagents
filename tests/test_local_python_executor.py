@@ -3109,7 +3109,7 @@ class TestProcessExecutor:
 
     @pytest.mark.skipif(not hasattr(os, "killpg"), reason="Process group extinction requires POSIX killpg")
     def test_process_executor_grandchild_tree_extinction_on_timeout(self, tmp_path):
-        """Test that detached grandchild processes spawned by runaway code are terminated via process group SIGKILL on timeout."""
+        """Test that same-process-group grandchild processes spawned by runaway code are terminated via process group SIGKILL on timeout."""
         marker_file = tmp_path / "orphan_marker.txt"
         code = dedent(
             f"""
@@ -3132,7 +3132,7 @@ class TestProcessExecutor:
 
     @pytest.mark.skipif(not hasattr(os, "killpg"), reason="Process group extinction requires POSIX killpg")
     def test_process_executor_grandchild_cleanup_on_worker_crash(self, tmp_path):
-        """Test that detached grandchild processes are terminated if the worker process crashes."""
+        """Test that same-process-group grandchild processes are terminated if the worker process crashes."""
         marker_file = tmp_path / "crash_marker.txt"
         code = dedent(
             f"""

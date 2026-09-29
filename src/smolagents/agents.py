@@ -1513,7 +1513,10 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         executor ([`PythonExecutor`], *optional*): Custom Python code executor. If not provided, a default executor will be created based on `executor_type`.
-        executor_type (`Literal["local", "process", "blaxel", "e2b", "modal", "docker"]`, default `"local"`): Type of code executor.
+        executor_type (`Literal["local", "process", "blaxel", "e2b", "modal", "docker"]`, default `"local"`):
+            Type of code executor. `"process"` spawns a dedicated worker process that isolates process crashes
+            and timeouts within the same process group, but is not an untrusted-code security sandbox (detached
+            sessions via setsid require a dedicated sandbox runtime).
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
