@@ -123,6 +123,24 @@ class TestTool:
             tool = create_tool()
             assert isinstance(tool, Tool)
 
+    def test_tool_input_misplaced_required_rejected(self):
+        """A 'required' key inside an input spec must fail fast at Tool creation time (see #1775)."""
+
+        def create_tool():
+            class TestTool(Tool):
+                name = "test_tool"
+                description = "A tool for testing input key validation"
+                inputs = {"text": {"type": "string", "description": "Some input", "required": True}}
+                output_type = "string"
+
+                def forward(self, text: str) -> str:
+                    return text
+
+            return TestTool()
+
+        with pytest.raises(ValueError, match="unexpected key 'required'"):
+            create_tool()
+
     @pytest.mark.parametrize(
         "tool_fixture, expected_output",
         [
@@ -141,6 +159,7 @@ class TestTool:
             ),
         ],
     )
+
     def test_tool_to_code_prompt_output_format(self, tool_fixture, expected_output, request):
         """Test that to_code_prompt generates properly formatted and indented output."""
         tool = request.getfixturevalue(tool_fixture)
@@ -168,6 +187,7 @@ class TestTool:
             ),
         ],
     )
+
     def test_tool_to_tool_calling_prompt_output_format(self, tool_fixture, expected_output, request):
         """Test that to_tool_calling_prompt generates properly formatted output."""
         tool = request.getfixturevalue(tool_fixture)
