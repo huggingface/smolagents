@@ -141,7 +141,7 @@ class Tool(BaseTool):
         super().__init_subclass__(**kwargs)
         validate_after_init(cls)
 
-    def validate_arguments(self):
+    def validate_arguments(self) -> None:
         required_attributes = {
             "description": str,
             "name": str,
@@ -248,7 +248,7 @@ class Tool(BaseTool):
             outputs = handle_agent_output_types(outputs, self.output_type)
         return outputs
 
-    def setup(self):
+    def setup(self) -> None:
         """
         Overwrite this method here for any operation that is expensive and needs to be executed before you start using
         your tool. Such as loading a big model.
@@ -387,7 +387,7 @@ class Tool(BaseTool):
 
         return tool
 
-    def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True):
+    def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True) -> None:
         """
         Saves the relevant code files for your tool so it can be pushed to the Hub. This will copy the code of your
         tool in `output_dir` as well as autogenerate:

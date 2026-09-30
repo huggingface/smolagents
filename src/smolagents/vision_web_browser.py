@@ -24,7 +24,7 @@ Please navigate to https://en.wikipedia.org/wiki/Chicago and give me a sentence 
 """
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a web browser automation script with a specified model.")
     parser.add_argument(
         "prompt",
@@ -135,7 +135,7 @@ def close_popups() -> str:
     webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 
 
-def initialize_driver():
+def initialize_driver() -> webdriver.Chrome:
     """Initialize the Selenium WebDriver."""
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--force-device-scale-factor=1")
@@ -145,7 +145,7 @@ def initialize_driver():
     return helium.start_chrome(headless=False, options=chrome_options)
 
 
-def initialize_agent(model):
+def initialize_agent(model) -> CodeAgent:
     """Initialize the CodeAgent with the specified model."""
     return CodeAgent(
         tools=[WebSearchTool(), go_back, close_popups, search_item_ctrl_f],
