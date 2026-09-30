@@ -23,6 +23,7 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from threading import Thread
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit, urlunsplit
 
 from .monitoring import TokenUsage
 from .tools import Tool
@@ -449,6 +450,47 @@ class _ParameterRemove:
 REMOVE_PARAMETER = _ParameterRemove()
 
 
+def strip_url_credentials(url: str) -> tuple[bool, str]:
+    """
+    Decide whether a base URL can be exported, and in what form.
+
+    A base URL is not automatically non-secret. `https://user:token@host/v1` carries userinfo, and
+    `https://host/v1?sig=...` carries a credential in the query: signed URLs use parameter names like
+    `sig`, `signature`, `X-Amz-Signature` and `X-Goog-Signature`, and provider-specific variants are
+    endless. An arbitrary query parameter cannot be classified as non-secret from its name, so a URL
+    carrying a query is not exported at all rather than exported with guessed-at parameters removed.
+    Userinfo has a defined structure, so it is dropped and the endpoint kept.
+
+    Args:
+        url (`str`): The URL to inspect.
+
+    Returns:
+        `tuple[bool, str]`: Whether to export the URL, and the value to export when the first element
+            is `True`.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        # Not a parseable URL (no scheme, or characters `urlsplit` rejects). Nothing here can be
+        # classified as safe, so refuse to export rather than persist a string we cannot read.
+        return False, ""
+
+    # A query cannot be proven free of credentials from parameter names alone: the signed-URL
+    # parameter set is open-ended, so any denylist would lag behind it. Fail closed.
+    if parts.query:
+        return False, ""
+
+    if parts.username is None and parts.password is None:
+        # No userinfo and no query: nothing to remove, so export the URL unchanged.
+        return True, url
+
+    # Rebuild host:port, dropping the "user:password@" prefix. Split on the last "@" so a password
+    # containing "@" does not truncate the host.
+    netloc = parts.netloc.rsplit("@", 1)[1]
+
+    return True, urlunsplit((parts.scheme, netloc, parts.path, "", parts.fragment))
+
+
 class Model:
     """Base class for all language model implementations.
 
@@ -602,7 +644,7 @@ class Model:
             "model_id": self.model_id,
         }
         for attribute in [
-            "custom_role_conversion",
+            "custom_role_conversions",
             "temperature",
             "max_tokens",
             "provider",
@@ -616,6 +658,37 @@ class Model:
         ]:
             if hasattr(self, attribute):
                 model_dictionary[attribute] = getattr(self, attribute)
+
+        # Models like OpenAIModel, AzureOpenAIModel and VLLMModel keep their connection settings in
+        # `client_kwargs` instead of attributes, so the loop above never sees them. Export the non-secret
+        # ones under their constructor parameter names so `from_dict` rebuilds the model against the same
+        # endpoint. `api_key` and any other client settings are intentionally not exported.
+        client_kwargs = getattr(self, "client_kwargs", None)
+        if isinstance(client_kwargs, dict):
+            for key in ("base_url", "organization", "project", "api_version", "azure_endpoint"):
+                value = client_kwargs.get(key)
+                if value is not None:
+                    model_dictionary["api_base" if key == "base_url" else key] = value
+
+        # A base URL is not automatically non-secret: `https://user:token@host/v1` carries userinfo and
+        # `https://host/v1?sig=...` carries a credential in the query. `to_dict()` output is written to
+        # `agent.json` / `app.py` by `Agent.save()` and rendered into shared artifacts, so a URL that
+        # cannot be proven credential-free is withheld rather than persisted.
+        for key in ("api_base", "azure_endpoint"):
+            url = model_dictionary.get(key)
+            if isinstance(url, str):
+                export, value = strip_url_credentials(url)
+                if export:
+                    if value != url:
+                        model_dictionary[key] = value
+                        print(
+                            f"For security reasons, we redacted the credentials embedded in the `{key}` URL of your model. Please export them manually."
+                        )
+                else:
+                    del model_dictionary[key]
+                    print(
+                        f"For security reasons, we do not export the `{key}` URL of your model because it carries a query string that cannot be verified as credential-free. Please export it manually."
+                    )
 
         dangerous_attributes = ["token", "api_key"]
         for attribute_name in dangerous_attributes:
