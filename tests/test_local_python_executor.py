@@ -1664,6 +1664,45 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert result == expected_result
 
     @pytest.mark.parametrize(
+        "code, expected_result",
+        [
+            (
+                dedent("""\
+                    values = [1, 2]
+                    calls = [0]
+                    def next_index():
+                        index = calls[0]
+                        calls[0] += 1
+                        return index
+                    values[next_index()] += 10
+                    (values, calls[0])
+                """),
+                ([11, 2], 1),
+            ),
+            (
+                dedent("""\
+                    class Box:
+                        def __init__(self, value):
+                            self.value = value
+                    boxes = [Box(1), Box(2)]
+                    calls = [0]
+                    def next_box():
+                        box = boxes[calls[0]]
+                        calls[0] += 1
+                        return box
+                    next_box().value += 10
+                    ([box.value for box in boxes], calls[0])
+                """),
+                ([11, 2], 1),
+            ),
+        ],
+    )
+    def test_evaluate_augassign_target_evaluated_once(self, code, expected_result):
+        result, _ = evaluate_python_code(code, {})
+
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
         "operator, expected_result",
         [
             ("+=", 7),
