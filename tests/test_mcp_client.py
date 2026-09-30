@@ -1,9 +1,11 @@
 import json
 from textwrap import dedent
+from unittest.mock import MagicMock
 
 import pytest
 from mcp import StdioServerParameters
 
+from smolagents import CodeAgent
 from smolagents.mcp_client import MCPClient
 
 
@@ -129,3 +131,24 @@ def test_multiple_servers(echo_server_script: str):
         assert tools[1].name == "echo_tool"
         assert tools[0].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
         assert tools[1].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
+
+
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
+def test_mcp_tool_to_dict_raises_informative_error(echo_server_script: str):
+    """Test that serializing an MCP tool raises a clear error instead of a validation failure (#1108)."""
+    server_parameters = StdioServerParameters(command="python", args=["-c", echo_server_script])
+    with MCPClient(server_parameters) as tools:
+        with pytest.raises(ValueError, match="Cannot serialize MCP tool 'echo_tool'"):
+            tools[0].to_dict()
+
+
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
+def test_agent_to_dict_with_mcp_tool_raises_informative_error(echo_server_script: str):
+    """Test that CodeAgent.to_dict() with an MCP tool raises a clear error instead of a validation failure (#1108)."""
+    server_parameters = StdioServerParameters(command="python", args=["-c", echo_server_script])
+    with MCPClient(server_parameters) as tools:
+        agent = CodeAgent(tools=tools, model=MagicMock())
+        with pytest.raises(ValueError, match="Cannot serialize MCP tool 'echo_tool'"):
+            agent.to_dict()
