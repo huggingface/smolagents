@@ -644,7 +644,9 @@ def evaluate_augassign(
 ) -> Any:
     def get_current_value(target: ast.AST) -> Any:
         if isinstance(target, ast.Name):
-            return state.get(target.id, 0)
+            if target.id not in state:
+                raise NameError(f"name '{target.id}' is not defined")
+            return state[target.id]
         elif isinstance(target, ast.Subscript):
             obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
             key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
