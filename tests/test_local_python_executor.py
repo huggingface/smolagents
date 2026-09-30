@@ -33,6 +33,7 @@ from smolagents.local_python_executor import (
     LocalPythonExecutor,
     PrintContainer,
     check_import_authorized,
+    check_safer_result,
     evaluate_boolop,
     evaluate_condition,
     evaluate_delete,
@@ -2329,6 +2330,19 @@ result = "completed"
 )
 def test_check_import_authorized(module: str, authorized_imports: list[str], expected: bool):
     assert check_import_authorized(module, authorized_imports) == expected
+
+
+def test_check_safer_result_blocks_nt_system():
+    """os.system is implemented in the `nt` module on Windows, so os.system.__module__
+    reports "nt" rather than "os" there. check_safer_result must still block it (GH-2232)."""
+
+    def nt_system():
+        pass
+
+    nt_system.__module__ = "nt"
+    nt_system.__name__ = "system"
+    with pytest.raises(InterpreterError, match="Forbidden access to function: system"):
+        check_safer_result(nt_system)
 
 
 class TestLocalPythonExecutor:
