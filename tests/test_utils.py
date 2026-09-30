@@ -142,6 +142,12 @@ import numpy as np
         result = parse_code_blobs(test_input, ("<code>", "</code>"))
         assert result == "Foo\n\ncode_a\n\ncode_b"
 
+    def test_parse_code_blobs_ignores_inner_backtick_fence(self):
+        # A ``` line inside the code body must not be mistaken for the closing fence.
+        code_blob = "```python\nx = 1\n```\nprint('inner fence on its own line')\n```"
+        result = parse_code_blobs(code_blob, ("```(?:python|py)", "\n```"))
+        assert result == "x = 1\n```\nprint('inner fence on its own line')"
+
 
 @pytest.fixture(scope="function")
 def ipython_shell():
