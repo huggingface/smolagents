@@ -882,11 +882,19 @@ You have been provided with these additional arguments, that you can access dire
             self.prompt_templates["managed_agent"]["report"], variables=dict(name=self.name, final_answer=report)
         )
         if self.provide_run_summary:
-            answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
-            for message in self.write_memory_to_messages(summary_mode=True):
+            unsafe_summary_roles = {MessageRole.TOOL_CALL, MessageRole.TOOL_RESPONSE}
+            summary_messages = [
+                message
+                for message in self.write_memory_to_messages(summary_mode=True)
+                if message.role not in unsafe_summary_roles
+            ]
+            if summary_messages:
+                answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
+            for message in summary_messages:
                 content = message.content
                 answer += "\n" + truncate_content(str(content)) + "\n---"
-            answer += "\n</summary_of_work>"
+            if summary_messages:
+                answer += "\n</summary_of_work>"
         return answer
 
     def save(self, output_dir: str | Path, relative_path: str | None = None):
