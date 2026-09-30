@@ -184,6 +184,10 @@ Extras for executing code remotely:
   ```bash
   pip install "smolagents[blaxel]"
   ```
+- **daytona**: Add support for Daytona sandboxes - fast-starting isolated environments with persistent Python state.
+  ```bash
+  pip install "smolagents[daytona]"
+  ```
 - **e2b**: Enable E2B support for remote execution.
   ```bash
   pip install "smolagents[e2b]"
@@ -197,6 +201,10 @@ Extras for executing code remotely:
 - **blaxel**: Add support for Blaxel sandboxes - fast-launching VMs with hibernation (recommended).
   ```bash
   uv pip install "smolagents[blaxel]"
+  ```
+- **daytona**: Add support for Daytona sandboxes - fast-starting isolated environments with persistent Python state.
+  ```bash
+  uv pip install "smolagents[daytona]"
   ```
 - **e2b**: Enable E2B support for remote execution.
   ```bash
