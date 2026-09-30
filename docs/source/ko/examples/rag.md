@@ -144,7 +144,7 @@ retriever_tool = RetrieverTool(docs_processed)
 ```
 
 > [!TIP]
-> 단순성과 속도를 위해 어휘 검색 방식인 BM25를 사용하고 있습니다. 실제 서비스 환경에서는 검색 품질을 높이기 위해 임베딩을 활용한 의미 기반 검색을 사용하는 것이 좋습니다. 고품질 임베딩 모델은 [MTEB 리더보드](https://huggingface.co/spaces/mteb/leaderboard)에서 확인하세요.
+> 단순성과 속도를 위해 어휘 검색 방식인 BM25를 사용하고 있습니다. 실제 서비스 환경에서는 검색 품질을 높이기 위해 임베딩을 활용한 의미 기반 검색을 사용하는 것이 좋습니다. 고품질 임베딩 모델은 [MTEB 리더보드](https://huggingface.co/mteb)에서 확인하세요.
 
 ### 4단계: 고급 검색 에이전트 만들기[[step-4-create-an-advanced-retrieval-agent]]
 

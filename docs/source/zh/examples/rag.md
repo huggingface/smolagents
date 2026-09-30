@@ -94,7 +94,7 @@ class RetrieverTool(Tool):
 
 retriever_tool = RetrieverTool(docs_processed)
 ```
-BM25 检索方法是一个经典的检索方法，因为它的设置速度非常快。为了提高检索准确性，你可以使用语义搜索，使用文档的向量表示替换 BM25：因此你可以前往 [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard) 选择一个好的嵌入模型。
+BM25 检索方法是一个经典的检索方法，因为它的设置速度非常快。为了提高检索准确性，你可以使用语义搜索，使用文档的向量表示替换 BM25：因此你可以前往 [MTEB Leaderboard](https://huggingface.co/mteb) 选择一个好的嵌入模型。
 
 现在我们已经创建了一个可以从知识库中检索信息的工具，现在我们可以很容易地创建一个利用这个
 `retriever_tool` 的 agent！此 agent 将使用如下参数初始化：
