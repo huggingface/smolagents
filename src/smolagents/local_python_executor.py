@@ -16,6 +16,7 @@
 # limitations under the License.
 import ast
 import builtins
+import contextlib
 import difflib
 import inspect
 import logging
@@ -32,6 +33,7 @@ from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
 from typing import Any
 
+from .network_guard import authorized_imports_reach_network, ssrf_guard
 from .tools import Tool
 from .utils import BASE_BUILTIN_MODULES, truncate_content
 
@@ -1703,6 +1705,15 @@ class LocalPythonExecutor(PythonExecutor):
             Additional Python functions to be added to the executor.
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
+        block_ssrf (`bool`, defaults to `True`):
+            Defense-in-depth SSRF guard (CVE-2026-2654): when a network-capable module is
+            authorized, block outbound connections to private / reserved / loopback /
+            link-local destinations (incl. the 169.254.169.254 cloud-metadata address).
+            This is not a sandbox boundary — for untrusted code use a remote executor.
+        network_allowlist (`list[str]`, *optional*):
+            Hostnames explicitly permitted to resolve to otherwise-blocked addresses
+            (e.g. an internal service intentionally exposed to the agent). Only meaningful
+            when ``block_ssrf`` is enabled.
     """
 
     def __init__(
@@ -1711,6 +1722,8 @@ class LocalPythonExecutor(PythonExecutor):
         max_print_outputs_length: int | None = None,
         additional_functions: dict[str, Callable] | None = None,
         timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
+        block_ssrf: bool = True,
+        network_allowlist: list[str] | None = None,
     ):
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}
@@ -1723,6 +1736,8 @@ class LocalPythonExecutor(PythonExecutor):
         self.static_tools = None
         self.additional_functions = additional_functions or {}
         self.timeout_seconds = timeout_seconds
+        self.block_ssrf = block_ssrf
+        self.network_allowlist = set(network_allowlist or [])
 
     def _check_authorized_imports_are_installed(self):
         """
@@ -1745,15 +1760,24 @@ class LocalPythonExecutor(PythonExecutor):
             )
 
     def __call__(self, code_action: str) -> CodeOutput:
-        output, is_final_answer = evaluate_python_code(
-            code_action,
-            static_tools=self.static_tools,
-            custom_tools=self.custom_tools,
-            state=self.state,
-            authorized_imports=self.authorized_imports,
-            max_print_outputs_length=self.max_print_outputs_length,
-            timeout_seconds=self.timeout_seconds,
+        # Defense-in-depth SSRF guard (CVE-2026-2654): only armed when a
+        # network-capable module is authorized, so the common no-network case
+        # pays nothing and behaviour is unchanged.
+        guard = (
+            ssrf_guard(self.network_allowlist)
+            if self.block_ssrf and authorized_imports_reach_network(self.authorized_imports)
+            else contextlib.nullcontext()
         )
+        with guard:
+            output, is_final_answer = evaluate_python_code(
+                code_action,
+                static_tools=self.static_tools,
+                custom_tools=self.custom_tools,
+                state=self.state,
+                authorized_imports=self.authorized_imports,
+                max_print_outputs_length=self.max_print_outputs_length,
+                timeout_seconds=self.timeout_seconds,
+            )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
 
