@@ -50,6 +50,29 @@ def structured_output_server_script():
     )
 
 
+@pytest.fixture
+def resource_server_script():
+    return dedent(
+        '''
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP("Resource Server")
+
+        @mcp.resource("config://app")
+        def app_config() -> str:
+            """Application configuration"""
+            return '{"name": "demo", "version": "1.0"}'
+
+        @mcp.resource("config://schema")
+        def db_schema() -> str:
+            """Database schema"""
+            return "CREATE TABLE users (id INT, name TEXT)"
+
+        mcp.run()
+        '''
+    )
+
+
 # Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
 @pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
 def test_mcp_client_with_syntax(echo_server_script: str):
@@ -129,3 +152,111 @@ def test_multiple_servers(echo_server_script: str):
         assert tools[1].name == "echo_tool"
         assert tools[0].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
         assert tools[1].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
+
+
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
+def test_mcp_client_resource_access(resource_server_script: str):
+    """Test listing and reading MCP resources through resource access tools."""
+    server_parameters = StdioServerParameters(command="python", args=["-c", resource_server_script])
+    mcp_client = MCPClient(server_parameters)
+    try:
+        resource_tools = mcp_client.get_resource_access_tools()
+        assert len(resource_tools) == 2
+        assert {tool.name for tool in resource_tools} == {"list_resources", "read_resource"}
+
+        # list_resources returns metadata for all exposed resources
+        list_tool = next(tool for tool in resource_tools if tool.name == "list_resources")
+        listed = list_tool.forward()
+        assert isinstance(listed, list)
+        assert len(listed) == 2
+        uris = {resource["uri"] for resource in listed}
+        assert "config://app" in uris
+        assert "config://schema" in uris
+        # metadata includes a human-readable name and description
+        app_resource = next(resource for resource in listed if resource["uri"] == "config://app")
+        assert app_resource["name"]
+        assert app_resource["description"]
+
+        # read_resource returns the text content for a known URI
+        read_tool = next(tool for tool in resource_tools if tool.name == "read_resource")
+        content = read_tool.forward(uri="config://app")
+        assert content["uri"] == "config://app"
+        assert content["contents"][0]["content"] == '{"name": "demo", "version": "1.0"}'
+
+        schema_content = read_tool.forward(uri="config://schema")
+        assert "CREATE TABLE users" in schema_content["contents"][0]["content"]
+
+        # read_resource reports an error for an unknown URI instead of raising
+        missing = read_tool.forward(uri="config://missing")
+        assert "error" in missing
+    finally:
+        mcp_client.disconnect()
+
+
+@pytest.fixture
+def prompt_server_script():
+    return dedent(
+        '''
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP("Prompt Server")
+
+        @mcp.prompt()
+        def summarize(text: str) -> str:
+            """Summarize the given text"""
+            return f"Please summarize the following text:\\n\\n{text}"
+
+        @mcp.prompt()
+        def greeting(name: str) -> str:
+            """Generate a friendly greeting"""
+            return f"Hello {name}, welcome to the MCP prompt server!"
+
+        mcp.run()
+        '''
+    )
+
+
+# Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
+@pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
+def test_mcp_client_prompt_access(prompt_server_script: str):
+    """Test listing and fetching MCP prompts through prompt access tools."""
+    server_parameters = StdioServerParameters(command="python", args=["-c", prompt_server_script])
+    mcp_client = MCPClient(server_parameters)
+    try:
+        prompt_tools = mcp_client.get_prompt_access_tools()
+        assert len(prompt_tools) == 2
+        assert {tool.name for tool in prompt_tools} == {"list_prompts", "get_prompt"}
+
+        # list_prompts returns metadata for all exposed prompts
+        list_tool = next(tool for tool in prompt_tools if tool.name == "list_prompts")
+        listed = list_tool.forward()
+        assert isinstance(listed, list)
+        assert len(listed) == 2
+        names = {prompt["name"] for prompt in listed}
+        assert names == {"summarize", "greeting"}
+        # metadata includes a description and the argument schema
+        summarize = next(prompt for prompt in listed if prompt["name"] == "summarize")
+        assert summarize["description"]
+        assert any(argument["name"] == "text" for argument in summarize["arguments"])
+
+        # get_prompt renders the template with the provided arguments
+        get_tool = next(tool for tool in prompt_tools if tool.name == "get_prompt")
+        result = get_tool.forward(name="summarize", arguments={"text": "Hello world"})
+        assert "error" not in result
+        assert result["name"] == "summarize"
+        assert len(result["messages"]) >= 1
+        message = result["messages"][0]
+        assert message["role"] == "user"
+        assert message["type"] == "text"
+        assert "Hello world" in message["content"]
+
+        # arguments are optional for prompts without arguments
+        greeting_result = get_tool.forward(name="greeting", arguments={"name": "Agent"})
+        assert "Agent" in greeting_result["messages"][0]["content"]
+
+        # get_prompt reports an error for an unknown prompt instead of raising
+        missing = get_tool.forward(name="nonexistent", arguments={})
+        assert "error" in missing
+    finally:
+        mcp_client.disconnect()
