@@ -178,6 +178,14 @@ class AgentAudio(AgentType, str):
     Audio type returned by the agent.
     """
 
+    def __new__(cls, value, samplerate=16_000):
+        # Python passes the full constructor signature to `__new__` when the subclass
+        # does not define one, and `str.__new__` rejects `samplerate` with
+        # `TypeError: 'samplerate' is an invalid keyword argument for str()`, so the
+        # documented argument was unusable. Only `value` defines the string part;
+        # `samplerate` is consumed by `__init__` below.
+        return super().__new__(cls, str(value))
+
     def __init__(self, value, samplerate=16_000):
         if not _is_package_available("soundfile") or not _is_package_available("torch"):
             raise ModuleNotFoundError(
