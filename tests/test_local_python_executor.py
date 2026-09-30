@@ -371,6 +371,18 @@ for result in search_results:
         assert result == 2
         self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
 
+    @pytest.mark.parametrize(
+        "body, expected",
+        [
+            ("for i in range(0):\n    pass\nelse:\n    x = 100", 100),
+            ("for i in range(3):\n    continue\nelse:\n    x = 100", 100),
+            ("for i in range(3):\n    break\nelse:\n    x = 100", 0),
+        ],
+    )
+    def test_for_else(self, body, expected):
+        result, _ = evaluate_python_code(f"x = 0\n{body}\nx", {"range": range}, state={})
+        assert result == expected
+
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
@@ -667,6 +679,18 @@ simple_set = {
         )
         state = {}
         evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+    @pytest.mark.parametrize(
+        "body, expected",
+        [
+            ("while False:\n    pass\nelse:\n    x = 100", 100),
+            ("while x < 3:\n    x += 1\n    continue\nelse:\n    x += 100", 103),
+            ("while True:\n    break\nelse:\n    x = 100", 0),
+        ],
+    )
+    def test_while_else(self, body, expected):
+        result, _ = evaluate_python_code(f"x = 0\n{body}\nx", BASE_PYTHON_TOOLS, state={})
+        assert result == expected
 
     def test_generator(self):
         code = "a = [1, 2, 3, 4, 5]; b = (i**2 for i in a); list(b)"
