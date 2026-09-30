@@ -385,7 +385,14 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                content = message.content[0]["text"]
+                # Concatenate text blocks only: an empty content list, or a first
+                # block that is not text (e.g. an image/audio block), must not
+                # crash with IndexError/KeyError in flatten mode.
+                content = "".join(
+                    element.get("text", "")
+                    for element in message.content
+                    if isinstance(element, dict) and element.get("type") == "text"
+                )
             else:
                 content = message.content
             output_message_list.append(
@@ -597,9 +604,11 @@ class Model:
         """
         Converts the model into a JSON-compatible dictionary.
         """
+        dangerous_attributes = ["token", "api_key"]
         model_dictionary = {
-            **self.kwargs,
-            "model_id": self.model_id,
+            key: value
+            for key, value in {**self.kwargs, "model_id": self.model_id}.items()
+            if key not in dangerous_attributes
         }
         for attribute in [
             "custom_role_conversion",
@@ -617,7 +626,6 @@ class Model:
             if hasattr(self, attribute):
                 model_dictionary[attribute] = getattr(self, attribute)
 
-        dangerous_attributes = ["token", "api_key"]
         for attribute_name in dangerous_attributes:
             if hasattr(self, attribute_name):
                 print(
@@ -985,12 +993,23 @@ class TransformersModel(Model):
                 self.stop_strings = stop_strings
                 self.tokenizer = tokenizer
                 self.stream = ""
+                self.last_input_len = 0
 
             def reset(self):
                 self.stream = ""
+                self.last_input_len = 0
 
             def __call__(self, input_ids, scores, **kwargs):
-                generated = self.tokenizer.decode(input_ids[0][-1], skip_special_tokens=True)
+                # Decode only the newly generated tokens: decoding a single token
+                # can split a multi-byte UTF-8 character across two tokens, so the
+                # accumulated stream would be mojibake and stop-sequence matching
+                # (e.g. for non-ASCII stop strings) would never succeed.
+                generated = self.tokenizer.decode(
+                    input_ids[0][self.last_input_len:],
+                    skip_special_tokens=True,
+                    errors="ignore",
+                )
+                self.last_input_len = len(input_ids[0])
                 self.stream += generated
                 if any([self.stream.endswith(stop_string) for stop_string in self.stop_strings]):
                     return True
