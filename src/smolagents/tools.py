@@ -717,7 +717,9 @@ class Tool(BaseTool):
 
                 output = self.client.predict(*args, api_name=self.api_name, **kwargs)
                 if isinstance(output, tuple) or isinstance(output, list):
-                    if isinstance(output[1], str):
+                    if len(output) == 0:
+                        return output
+                    if len(output) >= 2 and isinstance(output[1], str):
                         raise ValueError("The space returned this message: " + output[1])
                     output = output[
                         0
