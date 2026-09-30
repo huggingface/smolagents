@@ -1513,7 +1513,10 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         executor ([`PythonExecutor`], *optional*): Custom Python code executor. If not provided, a default executor will be created based on `executor_type`.
-        executor_type (`Literal["local", "blaxel", "e2b", "modal", "docker"]`, default `"local"`): Type of code executor.
+        executor_type (`Literal["local", "process", "blaxel", "e2b", "modal", "docker"]`, default `"local"`):
+            Type of code executor. `"process"` spawns a dedicated worker process that isolates process crashes
+            and timeouts within the same process group, but is not an untrusted-code security sandbox (detached
+            sessions via setsid require a dedicated sandbox runtime).
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
@@ -1532,7 +1535,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
         executor: PythonExecutor = None,
-        executor_type: Literal["local", "blaxel", "e2b", "modal", "docker"] = "local",
+        executor_type: Literal["local", "process", "blaxel", "e2b", "modal", "docker"] = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
@@ -1596,12 +1599,14 @@ class CodeAgent(MultiStepAgent):
             self.python_executor.cleanup()
 
     def create_python_executor(self) -> PythonExecutor:
-        if self.executor_type not in {"local", "blaxel", "e2b", "modal", "docker"}:
+        if self.executor_type not in {"local", "process", "blaxel", "e2b", "modal", "docker"}:
             raise ValueError(f"Unsupported executor type: {self.executor_type}")
 
-        if self.executor_type == "local":
+        if self.executor_type in {"local", "process"}:
+            local_executor_type = "process" if self.executor_type == "process" else "thread"
             return LocalPythonExecutor(
                 self.additional_authorized_imports,
+                executor_type=local_executor_type,
                 **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
             )
         else:

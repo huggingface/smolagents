@@ -20,7 +20,12 @@ import difflib
 import inspect
 import logging
 import math
+import multiprocessing
+import os
+import pickle
 import re
+import signal
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -30,7 +35,7 @@ from functools import wraps
 from importlib import import_module
 from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
-from typing import Any
+from typing import Any, Literal
 
 from .tools import Tool
 from .utils import BASE_BUILTIN_MODULES, truncate_content
@@ -305,15 +310,16 @@ def timeout(timeout_seconds: int):
         @wraps(func)
         def wrapper(*args, **kwargs):
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
-            with ThreadPoolExecutor(max_workers=1) as executor:
+            executor = ThreadPoolExecutor(max_workers=1)
+            try:
                 future = executor.submit(func, *args, **kwargs)
-                try:
-                    result = future.result(timeout=timeout_seconds)
-                    return result
-                except FuturesTimeoutError:
-                    raise ExecutionTimeoutError(
-                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
-                    )
+                return future.result(timeout=timeout_seconds)
+            except FuturesTimeoutError:
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
 
         return wrapper
 
@@ -1580,6 +1586,262 @@ class FinalAnswerException(BaseException):
         self.value = value
 
 
+def _kill_process_group(pid: int | None) -> None:
+    """Safely terminate a POSIX process group and same-process-group descendants without harming caller.
+
+    Note: This signals descendants sharing the target PGID. Detached sessions created
+    via setsid() or start_new_session=True escape the process group and require kernel
+    namespace or cgroups v2 containment.
+    """
+    if not pid or pid <= 0:
+        return
+    if hasattr(os, "killpg"):
+        parent_pid = os.getpid()
+        parent_pgid = os.getpgrp() if hasattr(os, "getpgrp") else None
+        if pid == parent_pid or pid == parent_pgid:
+            return
+
+        target_pgid = pid
+        if hasattr(os, "getpgid"):
+            try:
+                actual_pgid = os.getpgid(pid)
+                if actual_pgid not in (parent_pid, parent_pgid):
+                    target_pgid = actual_pgid
+            except (ProcessLookupError, OSError):
+                target_pgid = pid
+
+        if target_pgid not in (parent_pid, parent_pgid):
+            try:
+                os.killpg(target_pgid, signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                pass
+
+
+def _process_worker(
+    pipe_conn,
+    code: str,
+    static_tools: dict[str, Any] | None,
+    custom_tools: dict[str, Any] | None,
+    state: dict[str, Any] | None,
+    authorized_imports: list[str],
+    max_print_outputs_length: int,
+):
+    """Worker function executed inside isolated child process."""
+    if hasattr(os, "setsid"):
+        try:
+            os.setsid()
+        except OSError:
+            if hasattr(os, "setpgrp"):
+                try:
+                    os.setpgrp()
+                except OSError:
+                    pass
+    try:
+        result, is_final_answer = evaluate_python_code(
+            code=code,
+            static_tools=static_tools,
+            custom_tools=custom_tools,
+            state=state,
+            authorized_imports=authorized_imports,
+            max_print_outputs_length=max_print_outputs_length,
+            timeout_seconds=None,
+            executor_type="thread",
+        )
+        print_outputs = str(state.get("_print_outputs", "")) if state else ""
+
+        return_state = {}
+        if state:
+            for k, v in state.items():
+                if k in {"_print_outputs", "_operations_count"} or isinstance(v, ModuleType):
+                    continue
+                try:
+                    pickle.dumps(v)
+                    return_state[k] = v
+                except Exception:
+                    pass
+
+        try:
+            pickle.dumps(result)
+        except Exception:
+            try:
+                result = str(result)
+            except Exception:
+                result = None
+
+        pipe_conn.send(
+            {
+                "success": True,
+                "result": result,
+                "is_final_answer": is_final_answer,
+                "state": return_state,
+                "print_outputs": print_outputs,
+            }
+        )
+    except FinalAnswerException as e:
+        print_outputs = str(state.get("_print_outputs", "")) if state else ""
+        return_state = {}
+        if state:
+            for k, v in state.items():
+                if k in {"_print_outputs", "_operations_count"} or isinstance(v, ModuleType):
+                    continue
+                try:
+                    pickle.dumps(v)
+                    return_state[k] = v
+                except Exception:
+                    pass
+        res_val = e.value
+        try:
+            pickle.dumps(res_val)
+        except Exception:
+            try:
+                res_val = str(res_val)
+            except Exception:
+                res_val = None
+        pipe_conn.send(
+            {
+                "success": True,
+                "result": res_val,
+                "is_final_answer": True,
+                "state": return_state,
+                "print_outputs": print_outputs,
+            }
+        )
+    except Exception as e:
+        print_outputs = str(state.get("_print_outputs", "")) if state else ""
+        pipe_conn.send(
+            {
+                "success": False,
+                "error_type": type(e).__name__,
+                "error_msg": str(e),
+                "print_outputs": print_outputs,
+            }
+        )
+    finally:
+        pipe_conn.close()
+
+
+def _execute_in_subprocess(
+    code: str,
+    static_tools: dict[str, Callable] | None,
+    custom_tools: dict[str, Callable] | None,
+    state: dict[str, Any] | None,
+    authorized_imports: list[str],
+    max_print_outputs_length: int,
+    timeout_seconds: int | None,
+) -> tuple[Any, bool]:
+    """Execute code in a separate process with monotonic timeout and SIGKILL."""
+    ctx = multiprocessing.get_context("fork" if hasattr(os, "fork") else "spawn")
+    parent_conn, child_conn = ctx.Pipe(duplex=False)
+
+    worker_state = {}
+    if state is not None:
+        for k, v in state.items():
+            if k in {"_print_outputs", "_operations_count"} or isinstance(v, ModuleType):
+                continue
+            try:
+                pickle.dumps(v)
+                worker_state[k] = v
+            except Exception:
+                pass
+
+    proc = ctx.Process(
+        target=_process_worker,
+        args=(
+            child_conn,
+            code,
+            static_tools,
+            custom_tools,
+            worker_state,
+            authorized_imports,
+            max_print_outputs_length,
+        ),
+    )
+    proc.start()
+    child_conn.close()
+
+    start_time = time.monotonic()
+    try:
+        if timeout_seconds is not None:
+            deadline = start_time + timeout_seconds
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                if parent_conn.poll(remaining):
+                    break
+
+            if not parent_conn.poll(0):
+                child_pid = proc.pid
+                _kill_process_group(child_pid)
+                if proc.is_alive():
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                    proc.join(timeout=1.0)
+                    if proc.is_alive():
+                        try:
+                            os.kill(proc.pid, signal.SIGKILL)
+                        except OSError:
+                            pass
+                        proc.join(timeout=0.5)
+                _kill_process_group(child_pid)
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
+        else:
+            parent_conn.poll(None)
+
+        try:
+            data = parent_conn.recv()
+        except EOFError:
+            child_pid = proc.pid
+            _kill_process_group(child_pid)
+            proc.join(timeout=1.0)
+            exitcode = proc.exitcode
+            _kill_process_group(child_pid)
+            raise InterpreterError(
+                f"Process execution failed: worker process terminated unexpectedly with exit code {exitcode} (possible OOM or crash)"
+            )
+        finally:
+            proc.join(timeout=1.0)
+
+        if not data["success"]:
+            error_type = data.get("error_type", "InterpreterError")
+            error_msg = data.get("error_msg", "Unknown error")
+            if error_type == "InterpreterError":
+                raise InterpreterError(error_msg)
+            elif error_type in ERRORS:
+                raise ERRORS[error_type](error_msg)
+            else:
+                raise InterpreterError(f"Code execution failed due to: {error_type}: {error_msg}")
+
+        if state is not None:
+            deleted_keys = set(worker_state.keys()) - set(data["state"].keys())
+            for k in deleted_keys:
+                state.pop(k, None)
+            state.update(data["state"])
+            if "_print_outputs" in state and hasattr(state["_print_outputs"], "value"):
+                state["_print_outputs"].value = data["print_outputs"]
+            else:
+                pc = PrintContainer()
+                pc.value = data["print_outputs"]
+                state["_print_outputs"] = pc
+
+        return data["result"], data["is_final_answer"]
+    finally:
+        parent_conn.close()
+        child_pid = proc.pid if proc else None
+        _kill_process_group(child_pid)
+        if proc and proc.is_alive():
+            try:
+                proc.kill()
+            except OSError:
+                pass
+            proc.join(timeout=0.5)
+        _kill_process_group(child_pid)
+
+
 def evaluate_python_code(
     code: str,
     static_tools: dict[str, Callable] | None = None,
@@ -1588,7 +1850,8 @@ def evaluate_python_code(
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
     max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
     timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
-):
+    executor_type: Literal["thread", "process"] = "thread",
+) -> tuple[Any, bool]:
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
     of functions.
@@ -1610,7 +1873,24 @@ def evaluate_python_code(
             The print outputs will be stored in the state under the key "_print_outputs".
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
+        executor_type (`Literal["thread", "process"]`, defaults to `"thread"`):
+            Execution model to use. `"thread"` uses in-process ThreadPoolExecutor.
+            `"process"` spawns an isolated subprocess with hard monotonic timeout and SIGKILL.
     """
+    if executor_type not in {"thread", "process"}:
+        raise ValueError(f"Invalid executor_type: {executor_type}. Must be 'thread' or 'process'.")
+
+    if executor_type == "process":
+        return _execute_in_subprocess(
+            code=code,
+            static_tools=static_tools,
+            custom_tools=custom_tools,
+            state=state,
+            authorized_imports=authorized_imports,
+            max_print_outputs_length=max_print_outputs_length,
+            timeout_seconds=timeout_seconds,
+        )
+
     try:
         expression = ast.parse(code)
     except SyntaxError as e:
@@ -1685,6 +1965,143 @@ class PythonExecutor(ABC):
     def __call__(self, code_action: str) -> CodeOutput: ...
 
 
+def _persistent_worker_loop(
+    pipe_conn,
+    authorized_imports: list[str],
+    max_print_outputs_length: int,
+    initial_static_tools: dict[str, Any] | None,
+    initial_state: dict[str, Any] | None = None,
+):
+    """Long-running worker process preserving state, modules, and closures."""
+    if hasattr(os, "setsid"):
+        try:
+            os.setsid()
+        except OSError:
+            if hasattr(os, "setpgrp"):
+                try:
+                    os.setpgrp()
+                except OSError:
+                    pass
+
+    state = {"__name__": "__main__"}
+    if initial_state:
+        state.update(initial_state)
+    custom_tools = {}
+    static_tools = initial_static_tools.copy() if initial_static_tools else {}
+
+    while True:
+        try:
+            if not pipe_conn.poll(None):
+                break
+            msg = pipe_conn.recv()
+        except (EOFError, KeyboardInterrupt):
+            break
+
+        cmd = msg.get("cmd")
+        if cmd == "EXECUTE":
+            code = msg["code"]
+            try:
+                result, is_final_answer = evaluate_python_code(
+                    code=code,
+                    static_tools=static_tools,
+                    custom_tools=custom_tools,
+                    state=state,
+                    authorized_imports=authorized_imports,
+                    max_print_outputs_length=max_print_outputs_length,
+                    timeout_seconds=None,
+                    executor_type="thread",
+                )
+                print_outputs = str(state.get("_print_outputs", ""))
+
+                sync_state = {}
+                for k, v in state.items():
+                    if k in {"_print_outputs", "_operations_count"} or isinstance(v, ModuleType):
+                        continue
+                    try:
+                        pickle.dumps(v)
+                        sync_state[k] = v
+                    except Exception:
+                        pass
+
+                try:
+                    pickle.dumps(result)
+                except Exception:
+                    try:
+                        result = str(result)
+                    except Exception:
+                        result = None
+
+                pipe_conn.send(
+                    {
+                        "success": True,
+                        "result": result,
+                        "is_final_answer": is_final_answer,
+                        "state": sync_state,
+                        "print_outputs": print_outputs,
+                    }
+                )
+            except FinalAnswerException as e:
+                print_outputs = str(state.get("_print_outputs", ""))
+                sync_state = {}
+                for k, v in state.items():
+                    if k in {"_print_outputs", "_operations_count"} or isinstance(v, ModuleType):
+                        continue
+                    try:
+                        pickle.dumps(v)
+                        sync_state[k] = v
+                    except Exception:
+                        pass
+                res_val = e.value
+                try:
+                    pickle.dumps(res_val)
+                except Exception:
+                    try:
+                        res_val = str(res_val)
+                    except Exception:
+                        res_val = None
+                pipe_conn.send(
+                    {
+                        "success": True,
+                        "result": res_val,
+                        "is_final_answer": True,
+                        "state": sync_state,
+                        "print_outputs": print_outputs,
+                    }
+                )
+            except Exception as e:
+                print_outputs = str(state.get("_print_outputs", ""))
+                sync_state = {}
+                for k, v in state.items():
+                    if k in {"_print_outputs", "_operations_count"} or isinstance(v, ModuleType):
+                        continue
+                    try:
+                        pickle.dumps(v)
+                        sync_state[k] = v
+                    except Exception:
+                        pass
+                pipe_conn.send(
+                    {
+                        "success": False,
+                        "error_type": type(e).__name__,
+                        "error_msg": str(e),
+                        "state": sync_state,
+                        "print_outputs": print_outputs,
+                    }
+                )
+        elif cmd == "SEND_VARIABLES":
+            state.update(msg.get("variables", {}))
+            pipe_conn.send({"success": True})
+        elif cmd == "SEND_TOOLS":
+            if msg.get("tools") is not None:
+                static_tools.clear()
+                static_tools.update(msg["tools"])
+            pipe_conn.send({"success": True})
+        elif cmd == "SHUTDOWN":
+            break
+
+    pipe_conn.close()
+
+
 class LocalPythonExecutor(PythonExecutor):
     """
     Executor of Python code in a local environment.
@@ -1703,6 +2120,12 @@ class LocalPythonExecutor(PythonExecutor):
             Additional Python functions to be added to the executor.
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
+        executor_type (`Literal["thread", "process"]`, defaults to `"thread"`):
+            Execution model to use. `"thread"` evaluates code in-process using ThreadPoolExecutor.
+            `"process"` spawns a dedicated worker process with monotonic timeout enforcement and
+            same-process-group descendant cleanup via SIGKILL. This isolates immediate crashes and
+            infinite loops, but is not an untrusted-code security sandbox (detached sessions via setsid
+            or resource limits like cgroups v2 require a dedicated sandbox runtime).
     """
 
     def __init__(
@@ -1711,7 +2134,11 @@ class LocalPythonExecutor(PythonExecutor):
         max_print_outputs_length: int | None = None,
         additional_functions: dict[str, Callable] | None = None,
         timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
+        executor_type: Literal["thread", "process"] = "thread",
     ):
+        if executor_type not in {"thread", "process"}:
+            raise ValueError(f"Invalid executor_type: {executor_type}. Must be 'thread' or 'process'.")
+        self.executor_type = executor_type
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}
         self.max_print_outputs_length = max_print_outputs_length
@@ -1723,6 +2150,8 @@ class LocalPythonExecutor(PythonExecutor):
         self.static_tools = None
         self.additional_functions = additional_functions or {}
         self.timeout_seconds = timeout_seconds
+        self._worker_proc = None
+        self._worker_conn = None
 
     def _check_authorized_imports_are_installed(self):
         """
@@ -1744,25 +2173,193 @@ class LocalPythonExecutor(PythonExecutor):
                 f"Please install these modules or remove them from the authorized imports list."
             )
 
-    def __call__(self, code_action: str) -> CodeOutput:
-        output, is_final_answer = evaluate_python_code(
-            code_action,
-            static_tools=self.static_tools,
-            custom_tools=self.custom_tools,
-            state=self.state,
-            authorized_imports=self.authorized_imports,
-            max_print_outputs_length=self.max_print_outputs_length,
-            timeout_seconds=self.timeout_seconds,
+    def _ensure_worker(self):
+        """Ensure persistent worker subprocess is spawned and running."""
+        if self.executor_type != "process":
+            return
+        if self._worker_proc is not None and self._worker_proc.is_alive():
+            return
+
+        ctx = multiprocessing.get_context("fork" if hasattr(os, "fork") else "spawn")
+        parent_conn, child_conn = ctx.Pipe(duplex=True)
+        self._worker_conn = parent_conn
+
+        initial_state = {}
+        for k, v in self.state.items():
+            if k in {"_print_outputs", "_operations_count"} or isinstance(v, ModuleType):
+                continue
+            try:
+                pickle.dumps(v)
+                initial_state[k] = v
+            except Exception:
+                pass
+
+        self._worker_proc = ctx.Process(
+            target=_persistent_worker_loop,
+            args=(
+                child_conn,
+                self.authorized_imports,
+                self.max_print_outputs_length,
+                self.static_tools,
+                initial_state,
+            ),
         )
-        logs = str(self.state["_print_outputs"])
-        return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
+        self._worker_proc.start()
+        child_conn.close()
+
+    def _terminate_worker(self) -> int | None:
+        """Safely terminate persistent worker process and its process group."""
+        if hasattr(self, "_worker_conn") and self._worker_conn is not None:
+            try:
+                self._worker_conn.close()
+            except Exception:
+                pass
+            self._worker_conn = None
+
+        if hasattr(self, "_worker_proc") and self._worker_proc is not None:
+            proc = self._worker_proc
+            self._worker_proc = None
+            try:
+                child_pid = proc.pid
+                _kill_process_group(child_pid)
+                if proc.is_alive():
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                    try:
+                        proc.join(timeout=1.0)
+                    except Exception:
+                        pass
+                    if proc.is_alive():
+                        try:
+                            os.kill(proc.pid, signal.SIGKILL)
+                        except OSError:
+                            pass
+                        try:
+                            proc.join(timeout=0.5)
+                        except Exception:
+                            pass
+                else:
+                    try:
+                        proc.join(timeout=0.5)
+                    except Exception:
+                        pass
+                _kill_process_group(child_pid)
+                return proc.exitcode
+            except Exception:
+                return None
+        return None
+
+    def __call__(self, code_action: str) -> CodeOutput:
+        if self.executor_type == "thread":
+            output, is_final_answer = evaluate_python_code(
+                code_action,
+                static_tools=self.static_tools,
+                custom_tools=self.custom_tools,
+                state=self.state,
+                authorized_imports=self.authorized_imports,
+                max_print_outputs_length=self.max_print_outputs_length,
+                timeout_seconds=self.timeout_seconds,
+                executor_type="thread",
+            )
+            logs = str(self.state["_print_outputs"])
+            return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
+
+        self._ensure_worker()
+        try:
+            self._worker_conn.send({"cmd": "EXECUTE", "code": code_action})
+        except (EOFError, BrokenPipeError, OSError):
+            exitcode = self._terminate_worker()
+            raise InterpreterError(
+                f"Process execution failed: worker process terminated unexpectedly with exit code {exitcode}"
+            )
+
+        start_time = time.monotonic()
+        if self.timeout_seconds is not None:
+            deadline = start_time + self.timeout_seconds
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                if self._worker_conn.poll(remaining):
+                    break
+            if not self._worker_conn.poll(0):
+                self._terminate_worker()
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {self.timeout_seconds} seconds"
+                )
+        else:
+            self._worker_conn.poll(None)
+
+        try:
+            data = self._worker_conn.recv()
+        except EOFError:
+            exitcode = self._terminate_worker()
+            raise InterpreterError(
+                f"Process execution failed: worker process terminated unexpectedly with exit code {exitcode} (possible OOM or crash)"
+            )
+
+        if not data["success"]:
+            if "state" in data:
+                self.state.clear()
+                self.state.update(data["state"])
+            pc = PrintContainer()
+            pc.value = data.get("print_outputs", "")
+            self.state["_print_outputs"] = pc
+            error_type = data.get("error_type", "InterpreterError")
+            error_msg = data.get("error_msg", "Unknown error")
+            if error_type == "InterpreterError":
+                raise InterpreterError(error_msg)
+            elif error_type in ERRORS:
+                raise ERRORS[error_type](error_msg)
+            else:
+                raise InterpreterError(f"Code execution failed due to: {error_type}: {error_msg}")
+
+        self.state.clear()
+        self.state.update(data["state"])
+        pc = PrintContainer()
+        pc.value = data["print_outputs"]
+        self.state["_print_outputs"] = pc
+        return CodeOutput(output=data["result"], logs=data["print_outputs"], is_final_answer=data["is_final_answer"])
 
     def send_variables(self, variables: dict[str, Any]):
         self.state.update(variables)
+        if self.executor_type == "process" and self._worker_proc is not None and self._worker_proc.is_alive():
+            try:
+                picklable_vars = {}
+                for k, v in variables.items():
+                    if k in {"_print_outputs", "_operations_count"} or isinstance(v, ModuleType):
+                        continue
+                    try:
+                        pickle.dumps(v)
+                        picklable_vars[k] = v
+                    except Exception:
+                        pass
+                self._worker_conn.send({"cmd": "SEND_VARIABLES", "variables": picklable_vars})
+                self._worker_conn.recv()
+            except (EOFError, BrokenPipeError, OSError):
+                self._terminate_worker()
 
     def send_tools(self, tools: dict[str, Tool]):
         # Combine agent tools, base Python tools, and additional Python functions
         self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy(), **self.additional_functions}
+        if self.executor_type == "process" and self._worker_proc is not None and self._worker_proc.is_alive():
+            try:
+                self._worker_conn.send({"cmd": "SEND_TOOLS", "tools": self.static_tools})
+                self._worker_conn.recv()
+            except (EOFError, BrokenPipeError, OSError):
+                self._terminate_worker()
+
+    def cleanup(self):
+        """Terminate persistent worker process if running."""
+        self._terminate_worker()
+
+    def __del__(self):
+        try:
+            self._terminate_worker()
+        except Exception:
+            pass
 
 
 __all__ = ["evaluate_python_code", "LocalPythonExecutor"]
