@@ -310,7 +310,19 @@ class CallbackRegistry:
             receive only the memory_step, while callbacks with multiple parameters
             receive both the memory_step and any additional kwargs.
         """
-        # For compatibility with old callbacks that only take the step as an argument
+        # For compatibility with old callbacks that only take the step as an argument.
+        # The call shape is chosen by whether the callback can accept the extra kwargs
+        # (e.g. ``agent``), not by a raw parameter count: a flexible ``def cb(step, *args)``
+        # has two parameters but still cannot accept ``agent=``, so it must be called
+        # with the step only.
         for cls in memory_step.__class__.__mro__:
             for cb in self._callbacks.get(cls, []):
-                cb(memory_step) if len(inspect.signature(cb).parameters) == 1 else cb(memory_step, **kwargs)
+                parameters = inspect.signature(cb).parameters
+                accepts_extra_kwargs = any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD for p in parameters.values()
+                ) or set(kwargs) <= {
+                    p.name
+                    for p in parameters.values()
+                    if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+                }
+                cb(memory_step) if not accepts_extra_kwargs else cb(memory_step, **kwargs)
