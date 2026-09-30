@@ -59,6 +59,19 @@ MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
 MAX_EXECUTION_TIME_SECONDS = 30
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
+FORBIDDEN_CLASS_DUNDER_METHODS = [
+    "__del__",
+    "__new__",
+    "__getattribute__",
+    "__setattr__",
+    "__delattr__",
+    "__reduce__",
+    "__reduce_ex__",
+    "__getstate__",
+    "__setstate__",
+    "__copy__",
+    "__deepcopy__",
+]
 
 
 def custom_print(*args):
@@ -564,6 +577,10 @@ def evaluate_class_def(
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
+            if stmt.name in FORBIDDEN_CLASS_DUNDER_METHODS:
+                raise InterpreterError(
+                    f"Defining {stmt.name!r} in a class body is not allowed in the sandbox"
+                )
             class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value:
