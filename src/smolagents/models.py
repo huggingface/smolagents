@@ -289,12 +289,9 @@ def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
-        if value["type"] == "any":
-            value["type"] = "string"
-        if not ("nullable" in value and value["nullable"]):
-            required.append(key)
-
-        # parse anyOf
+        # Parse anyOf first so the required/optional decision below sees the
+        # final nullability: a parameter that is nullable through a "null"
+        # anyOf branch must not be marked as required.
         if "anyOf" in value:
             types = []
             enum = None
@@ -314,6 +311,11 @@ def get_tool_json_schema(tool: Tool) -> dict:
                 value["enum"] = enum
 
             value.pop("anyOf")
+
+        if value.get("type") == "any":
+            value["type"] = "string"
+        if not value.get("nullable", False):
+            required.append(key)
 
     return {
         "type": "function",
