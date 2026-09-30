@@ -297,6 +297,10 @@ class CallbackRegistry:
             self._callbacks[step_cls] = []
         self._callbacks[step_cls].append(callback)
 
+    def items(self):
+        """Returns the internal callbacks dictionary items for serialization."""
+        return self._callbacks.items()
+
     def callback(self, memory_step, **kwargs):
         """Call callbacks registered for a step type.
 
