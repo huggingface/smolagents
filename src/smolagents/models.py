@@ -285,12 +285,58 @@ tool_role_conversions = {
 }
 
 
+def _sanitize_tool_json_schema(schema: dict[str, Any]) -> None:
+    """Replace internal ``"any"`` types without traversing annotation payloads."""
+    schema_type = schema.get("type")
+    if schema_type == "any":
+        schema["type"] = "string"
+    elif isinstance(schema_type, list):
+        schema["type"] = ["string" if value == "any" else value for value in schema_type]
+
+    # Values under keywords such as ``default``, ``examples``, and ``enum`` are
+    # arbitrary JSON data, not schemas. Descend only through JSON Schema
+    # keywords whose values contain subschemas so payloads remain untouched.
+    for keyword in (
+        "additionalItems",
+        "additionalProperties",
+        "contains",
+        "contentSchema",
+        "else",
+        "if",
+        "items",
+        "not",
+        "propertyNames",
+        "then",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+    ):
+        nested_schema = schema.get(keyword)
+        if isinstance(nested_schema, dict):
+            _sanitize_tool_json_schema(nested_schema)
+        elif keyword == "items" and isinstance(nested_schema, list):
+            for item in nested_schema:
+                if isinstance(item, dict):
+                    _sanitize_tool_json_schema(item)
+
+    for keyword in ("allOf", "anyOf", "oneOf", "prefixItems"):
+        nested_schemas = schema.get(keyword)
+        if isinstance(nested_schemas, list):
+            for nested_schema in nested_schemas:
+                if isinstance(nested_schema, dict):
+                    _sanitize_tool_json_schema(nested_schema)
+
+    for keyword in ("$defs", "definitions", "dependencies", "dependentSchemas", "patternProperties", "properties"):
+        nested_schemas = schema.get(keyword)
+        if isinstance(nested_schemas, dict):
+            for nested_schema in nested_schemas.values():
+                if isinstance(nested_schema, dict):
+                    _sanitize_tool_json_schema(nested_schema)
+
+
 def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
-        if value["type"] == "any":
-            value["type"] = "string"
         if not ("nullable" in value and value["nullable"]):
             required.append(key)
 
@@ -314,6 +360,8 @@ def get_tool_json_schema(tool: Tool) -> dict:
                 value["enum"] = enum
 
             value.pop("anyOf")
+
+        _sanitize_tool_json_schema(value)
 
     return {
         "type": "function",
