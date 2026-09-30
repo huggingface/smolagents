@@ -597,9 +597,11 @@ class Model:
         """
         Converts the model into a JSON-compatible dictionary.
         """
+        dangerous_attributes = ["token", "api_key"]
         model_dictionary = {
-            **self.kwargs,
-            "model_id": self.model_id,
+            key: value
+            for key, value in {**self.kwargs, "model_id": self.model_id}.items()
+            if key not in dangerous_attributes
         }
         for attribute in [
             "custom_role_conversion",
@@ -617,7 +619,6 @@ class Model:
             if hasattr(self, attribute):
                 model_dictionary[attribute] = getattr(self, attribute)
 
-        dangerous_attributes = ["token", "api_key"]
         for attribute_name in dangerous_attributes:
             if hasattr(self, attribute_name):
                 print(
