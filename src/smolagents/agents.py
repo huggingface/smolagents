@@ -681,6 +681,10 @@ You have been provided with these additional arguments, that you can access dire
         else:
             # Summary mode removes the system prompt and previous planning messages output by the model.
             # Removing previous planning messages avoids influencing too much the new plan.
+            # Note: this call site deliberately includes TOOL_CALL/TOOL_RESPONSE messages
+            # (unlike the ManagedAgent.__call__ site which builds the summary from safe
+            # step fields). Here the messages feed back into the same agent for replanning,
+            # so tool I/O is relevant context — not a cross-agent leak.
             memory_messages = self.write_memory_to_messages(summary_mode=True)
             plan_update_pre = ChatMessage(
                 role=MessageRole.SYSTEM,
@@ -883,9 +887,29 @@ You have been provided with these additional arguments, that you can access dire
         )
         if self.provide_run_summary:
             answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
-            for message in self.write_memory_to_messages(summary_mode=True):
-                content = message.content
-                answer += "\n" + truncate_content(str(content)) + "\n---"
+            # Build the summary directly from safe step fields instead of
+            # calling write_memory_to_messages(summary_mode=True). That method
+            # invokes ActionStep.to_messages(), which serializes
+            # ToolCall.arguments via tc.dict() and emits observations_images as
+            # MessageRole.USER messages — both before any role filter could
+            # remove them. A raising argument serializer would abort summary
+            # construction, and image observations (which may contain secrets
+            # in their rendered form) bypassed the TOOL_CALL/TOOL_RESPONSE
+            # filter entirely. By reading only structured tc.name values and
+            # the task text here, we never touch arguments or observations.
+            tool_names = [tc.name for step in self.memory.steps for tc in (getattr(step, "tool_calls", None) or [])]
+            for step in self.memory.steps:
+                # TaskStep carries only the task text — safe to include.
+                if isinstance(step, TaskStep):
+                    answer += "\n" + truncate_content(f"New task:\n{step.task}") + "\n---"
+                # ActionStep: model_output is suppressed in summary mode, and
+                # tool_calls/observations/observations_images are unsafe to
+                # render. Skip entirely — tool names are emitted once below.
+                # PlanningStep and SystemPromptStep return [] in summary mode.
+            # Emit tool names once after the loop so they don't repeat per
+            # step (which would grow O(steps²) in the parent's context).
+            if tool_names:
+                answer += "\nCalled tools: " + ", ".join(tool_names) + "\n---"
             answer += "\n</summary_of_work>"
         return answer
 
