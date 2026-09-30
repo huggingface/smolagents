@@ -187,3 +187,15 @@ class TestMethodChecker:
         method_checker = MethodChecker(set())
         method_checker.visit(ast.parse(source_code))
         assert method_checker.errors == []
+
+    def test_for_loop_with_list_target(self):
+        source_code = dedent(
+            """
+            def forward(self, pairs: list) -> str:
+                for [a, b] in pairs:
+                    return a + b
+            """
+        )
+        method_checker = MethodChecker(set())
+        method_checker.visit(ast.parse(source_code))
+        assert method_checker.errors == []
