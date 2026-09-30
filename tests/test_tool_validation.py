@@ -31,10 +31,13 @@ class ValidTool(Tool):
     output_type = "string"
     simple_attr = "string"
     dict_attr = {"key": "value"}
+    tuple_attr = (".png", ".jpg")
+    list_attr = [".png", ".jpg"]
 
-    def __init__(self, optional_param="default"):
+    def __init__(self, optional_param="default", tuple_default=(1, 2, 3)):
         super().__init__()
         self.param = optional_param
+        self.tuple_default = tuple_default
 
     def forward(self, input: str) -> str:
         return input.upper()
