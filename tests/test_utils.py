@@ -23,6 +23,8 @@ from IPython.core.interactiveshell import InteractiveShell
 from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
+    RetryError,
+    Retrying,
     create_agent_gradio_app_template,
     get_source,
     instance_to_source,
@@ -552,3 +554,79 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+class TestRetrying:
+    def test_default_wait_backs_off(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleeps.append(seconds))
+        calls = {"count": 0}
+
+        def fail():
+            calls["count"] += 1
+            raise ValueError("rate limited")
+
+        retryer = Retrying(max_attempts=3, jitter=False, retry_predicate=lambda e: True, reraise=True)
+        with pytest.raises(ValueError):
+            retryer(fail)
+        assert calls["count"] == 3
+        # Default wait_seconds=1.0 with exponential_base=2.0: sleeps between the 3 attempts
+        assert sleeps == [2.0, 4.0]
+
+    def test_wait_seconds_scales_backoff(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleeps.append(seconds))
+
+        def fail():
+            raise ValueError("rate limited")
+
+        retryer = Retrying(
+            max_attempts=3, wait_seconds=0.5, jitter=False, retry_predicate=lambda e: True, reraise=True
+        )
+        with pytest.raises(ValueError):
+            retryer(fail)
+        assert sleeps == [1.0, 2.0]
+
+    def test_reraise_true_raises_last_exception(self, monkeypatch):
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: None)
+
+        def fail():
+            raise ValueError("rate limited")
+
+        retryer = Retrying(max_attempts=2, retry_predicate=lambda e: True, reraise=True)
+        with pytest.raises(ValueError, match="rate limited"):
+            retryer(fail)
+
+    def test_reraise_false_raises_retry_error(self, monkeypatch):
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: None)
+
+        def fail():
+            raise ValueError("rate limited")
+
+        retryer = Retrying(max_attempts=2, retry_predicate=lambda e: True, reraise=False)
+        with pytest.raises(RetryError) as exc_info:
+            retryer(fail)
+        assert isinstance(exc_info.value.last_exception, ValueError)
+        assert isinstance(exc_info.value.__cause__, ValueError)
+
+    def test_non_retryable_exception_propagates(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleeps.append(seconds))
+        calls = {"count": 0}
+
+        def fail():
+            calls["count"] += 1
+            raise KeyError("not retryable")
+
+        retryer = Retrying(max_attempts=3, retry_predicate=lambda e: isinstance(e, ValueError))
+        with pytest.raises(KeyError):
+            retryer(fail)
+        assert calls["count"] == 1
+        assert sleeps == []
+
+    def test_successful_call_returns_result(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleeps.append(seconds))
+        retryer = Retrying(max_attempts=3, retry_predicate=lambda e: True)
+        assert retryer(lambda: "ok") == "ok"
+        assert sleeps == []
