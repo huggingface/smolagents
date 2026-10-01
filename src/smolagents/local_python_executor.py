@@ -59,6 +59,36 @@ MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
 MAX_EXECUTION_TIME_SECONDS = 30
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
+ALWAYS_FORBIDDEN_CLASS_DUNDER_METHODS = {
+    "__del__",
+    "__delattr__",
+    "__getattr__",
+    "__getattribute__",
+    "__setattr__",
+}
+CONFIGURABLE_CLASS_DUNDER_METHODS = {
+    "__eq__",
+    "__hash__",
+    "__index__",
+    "__ne__",
+    "__repr__",
+    "__str__",
+}
+DEFAULT_FORBIDDEN_CLASS_DUNDER_METHODS = ALWAYS_FORBIDDEN_CLASS_DUNDER_METHODS | CONFIGURABLE_CLASS_DUNDER_METHODS
+ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY = "_allowed_class_dunder_methods"
+
+
+def validate_allowed_class_dunder_methods(allowed_class_dunder_methods: list[str] | None) -> set[str]:
+    allowed_class_dunder_methods = set(allowed_class_dunder_methods or [])
+    invalid_dunder_methods = allowed_class_dunder_methods - CONFIGURABLE_CLASS_DUNDER_METHODS
+    if invalid_dunder_methods:
+        configurable_methods = ", ".join(sorted(CONFIGURABLE_CLASS_DUNDER_METHODS))
+        invalid_methods = ", ".join(sorted(invalid_dunder_methods))
+        raise InterpreterError(
+            f"Only representation and comparison class dunder methods can be allowed. "
+            f"Configurable methods: {configurable_methods}. Invalid methods: {invalid_methods}."
+        )
+    return allowed_class_dunder_methods
 
 
 def custom_print(*args):
@@ -564,6 +594,12 @@ def evaluate_class_def(
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
+            allowed_class_dunder_methods = state.get(ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY, set())
+            if stmt.name in DEFAULT_FORBIDDEN_CLASS_DUNDER_METHODS and stmt.name not in allowed_class_dunder_methods:
+                raise InterpreterError(
+                    f"Defining class method {stmt.name!r} is not allowed because it can be invoked implicitly "
+                    "outside the sandboxed execution flow."
+                )
             class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value:
@@ -800,6 +836,10 @@ def set_value(
     authorized_imports: list[str],
 ) -> None:
     if isinstance(target, ast.Name):
+        if target.id == ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY:
+            raise InterpreterError(
+                f"Cannot assign to name '{target.id}': this name is reserved for interpreter state."
+            )
         if target.id in static_tools:
             raise InterpreterError(f"Cannot assign to name '{target.id}': doing this would erase the existing tool!")
         state[target.id] = value
@@ -1397,6 +1437,10 @@ def evaluate_delete(
     for target in delete_node.targets:
         if isinstance(target, ast.Name):
             # Handle simple variable deletion (del x)
+            if target.id == ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY:
+                raise InterpreterError(
+                    f"Cannot delete name '{target.id}': this name is reserved for interpreter state."
+                )
             if target.id in state:
                 del state[target.id]
             else:
@@ -1588,6 +1632,7 @@ def evaluate_python_code(
     authorized_imports: list[str] = BASE_BUILTIN_MODULES,
     max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
     timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
+    allowed_class_dunder_methods: list[str] | None = None,
 ):
     """
     Evaluate a python expression using the content of the variables stored in a state and only evaluating a given set
@@ -1610,6 +1655,8 @@ def evaluate_python_code(
             The print outputs will be stored in the state under the key "_print_outputs".
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
+        allowed_class_dunder_methods (`list[str]`, *optional*):
+            Representation and comparison dunder methods that class definitions may override.
     """
     try:
         expression = ast.parse(code)
@@ -1622,6 +1669,10 @@ def evaluate_python_code(
 
     if state is None:
         state = {}
+    allowed_class_dunder_methods = validate_allowed_class_dunder_methods(allowed_class_dunder_methods)
+    had_allowed_class_dunder_methods = ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY in state
+    previous_allowed_class_dunder_methods = state.get(ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY)
+    state[ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY] = allowed_class_dunder_methods
     static_tools = static_tools.copy() if static_tools is not None else {}
     custom_tools = custom_tools if custom_tools is not None else {}
     state["_print_outputs"] = PrintContainer()
@@ -1664,7 +1715,13 @@ def evaluate_python_code(
     if timeout_seconds is not None:
         _execute_code = timeout(timeout_seconds)(_execute_code)
 
-    return _execute_code()
+    try:
+        return _execute_code()
+    finally:
+        if had_allowed_class_dunder_methods:
+            state[ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY] = previous_allowed_class_dunder_methods
+        else:
+            state.pop(ALLOWED_CLASS_DUNDER_METHODS_STATE_KEY, None)
 
 
 @dataclass
@@ -1703,6 +1760,8 @@ class LocalPythonExecutor(PythonExecutor):
             Additional Python functions to be added to the executor.
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
+        allowed_class_dunder_methods (`list[str]`, *optional*):
+            Representation and comparison dunder methods that class definitions may override.
     """
 
     def __init__(
@@ -1711,6 +1770,7 @@ class LocalPythonExecutor(PythonExecutor):
         max_print_outputs_length: int | None = None,
         additional_functions: dict[str, Callable] | None = None,
         timeout_seconds: int | None = MAX_EXECUTION_TIME_SECONDS,
+        allowed_class_dunder_methods: list[str] | None = None,
     ):
         self.custom_tools = {}
         self.state = {"__name__": "__main__"}
@@ -1723,6 +1783,7 @@ class LocalPythonExecutor(PythonExecutor):
         self.static_tools = None
         self.additional_functions = additional_functions or {}
         self.timeout_seconds = timeout_seconds
+        self.allowed_class_dunder_methods = list(validate_allowed_class_dunder_methods(allowed_class_dunder_methods))
 
     def _check_authorized_imports_are_installed(self):
         """
@@ -1753,6 +1814,7 @@ class LocalPythonExecutor(PythonExecutor):
             authorized_imports=self.authorized_imports,
             max_print_outputs_length=self.max_print_outputs_length,
             timeout_seconds=self.timeout_seconds,
+            allowed_class_dunder_methods=self.allowed_class_dunder_methods,
         )
         logs = str(self.state["_print_outputs"])
         return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
