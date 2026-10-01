@@ -23,6 +23,8 @@ from IPython.core.interactiveshell import InteractiveShell
 from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
+    RetryError,
+    Retrying,
     create_agent_gradio_app_template,
     get_source,
     instance_to_source,
@@ -30,6 +32,46 @@ from smolagents.utils import (
     parse_code_blobs,
     parse_json_blob,
 )
+
+
+def test_retrying_default_wait_seconds_uses_exponential_backoff(monkeypatch):
+    sleeps = []
+    calls = 0
+
+    def boom():
+        nonlocal calls
+        calls += 1
+        raise ValueError("rate limited")
+
+    monkeypatch.setattr("smolagents.utils.time.sleep", sleeps.append)
+    retrying = Retrying(max_attempts=3, jitter=False, retry_predicate=lambda error: isinstance(error, ValueError))
+
+    with pytest.raises(RetryError) as error_info:
+        retrying(boom)
+
+    assert calls == 3
+    assert sleeps == [2.0, 4.0]
+    assert isinstance(error_info.value.last_exception, ValueError)
+
+
+@pytest.mark.parametrize("reraise, expected_exception", [(False, RetryError), (True, ValueError)])
+def test_retrying_reraise_controls_final_exception(monkeypatch, reraise, expected_exception):
+    def boom():
+        raise ValueError("rate limited")
+
+    monkeypatch.setattr("smolagents.utils.time.sleep", lambda _: None)
+    retrying = Retrying(
+        max_attempts=2,
+        jitter=False,
+        retry_predicate=lambda error: isinstance(error, ValueError),
+        reraise=reraise,
+    )
+
+    with pytest.raises(expected_exception) as error_info:
+        retrying(boom)
+
+    if not reraise:
+        assert isinstance(error_info.value.last_exception, ValueError)
 
 
 class ValidTool(Tool):
