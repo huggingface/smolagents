@@ -266,14 +266,17 @@ class SafeSerializer:
         """
         if not allow_pickle:
             # Safe ONLY mode - no pickle fallback
-            json_safe = SafeSerializer.to_json_safe(obj)  # Raises SerializationError if fails
+            try:
+                json_safe = SafeSerializer.to_json_safe(obj)
+            except RecursionError as e:
+                raise SerializationError("Cannot safely serialize an excessively deep or cyclic object graph") from e
             return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
         else:
             # Try safe first, fallback to pickle
             try:
                 json_safe = SafeSerializer.to_json_safe(obj)
                 return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
-            except SerializationError:
+            except (SerializationError, RecursionError):
                 # Warn about insecure pickle usage
                 import warnings
 
@@ -415,14 +418,19 @@ class SafeSerializer:
 
         if not allow_pickle:
             # Safe ONLY - no pickle fallback
-            json_safe = to_json_safe(obj)  # Raises SerializationError if fails
+            try:
+                json_safe = to_json_safe(obj)
+            except RecursionError as e:
+                raise SerializationError(
+                    "Cannot safely serialize an excessively deep or cyclic object graph"
+                ) from e
             return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
         else:
             # Try safe first, fallback to pickle if allowed
             try:
                 json_safe = to_json_safe(obj)
                 return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
-            except SerializationError:
+            except (SerializationError, RecursionError):
                 try:
                     return "pickle:" + base64.b64encode(pickle.dumps(obj)).decode()
                 except (pickle.PicklingError, TypeError, AttributeError) as e:
