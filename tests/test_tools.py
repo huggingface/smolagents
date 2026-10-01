@@ -187,6 +187,71 @@ class TestTool:
 
         assert coolfunc.output_type == "number"
 
+    def test_tool_decorator_supports_instance_methods(self):
+        class InstanceTool:
+            def __init__(self, prefix: str):
+                self.prefix = prefix
+
+            @tool
+            def format_text(self, text: str) -> str:
+                """Format text with the instance prefix.
+
+                Args:
+                    text: Text to format.
+
+                Returns:
+                    The formatted text.
+                """
+                return f"{self.prefix}: {text}"
+
+            @tool
+            def format_annotated(self: Any, text: str) -> str:
+                """Format text with an annotated instance parameter.
+
+                Args:
+                    text: Text to format.
+
+                Returns:
+                    The formatted text.
+                """
+                return f"{self.prefix}: {text}"
+
+            @staticmethod
+            @tool
+            def format_static(text: str) -> str:
+                """Format text statically.
+
+                Args:
+                    text: Text to format.
+
+                Returns:
+                    The formatted text.
+                """
+                return f"static: {text}"
+
+        first = InstanceTool("first")
+        second = InstanceTool("second")
+
+        # The leading `self` is not part of the tool inputs.
+        assert set(first.format_text.inputs) == {"text"}
+        assert set(first.format_annotated.inputs) == {"text"}
+        assert set(first.format_static.inputs) == {"text"}
+
+        # Each instance gets its own bound tool, preserving instance state.
+        assert first.format_text is not second.format_text
+        assert first.format_text("hello") == "first: hello"
+        assert second.format_text("hello") == "second: hello"
+        assert first.format_text(text="hello") == "first: hello"
+        assert first.format_annotated("hello") == "first: hello"
+        assert second.format_annotated("hello") == "second: hello"
+
+        # Staticmethods keep their existing behavior and stay unbound.
+        assert first.format_static is second.format_static
+        assert first.format_static("hello") == "static: hello"
+
+        # Accessing the tool through the class returns it unbound, taking the instance explicitly.
+        assert InstanceTool.format_text(first, "hello") == "first: hello"
+
     def test_tool_init_vanilla(self):
         class HFModelDownloadsTool(Tool):
             name = "model_download_counter"

@@ -29,6 +29,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import contextmanager
+from copy import copy
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -1063,12 +1064,18 @@ def tool(tool_function: Callable) -> Tool:
     Convert a function into an instance of a dynamically created Tool subclass.
 
     Args:
-        tool_function (`Callable`): Function to convert into a Tool subclass.
+        tool_function (`Callable`): Function or instance method to convert into a Tool subclass.
             Should have type hints for each input and a type hint for the output.
             Should also have a docstring including the description of the function
             and an 'Args:' part where each argument is described.
     """
-    tool_json_schema = get_json_schema(tool_function)["function"]
+    signature = inspect.signature(tool_function)
+    parameters = list(signature.parameters.values())
+    # Instance/class methods already take `self`/`cls` as their first parameter: it is not a tool input, so
+    # it must be skipped in the JSON schema and must not be prepended again to the forward signature.
+    is_bound_method = bool(parameters) and parameters[0].name in ("self", "cls")
+
+    tool_json_schema = get_json_schema(tool_function, skip_self=is_bound_method)["function"]
     if "return" not in tool_json_schema:
         if len(tool_json_schema["parameters"]["properties"]) == 0:
             tool_json_schema["return"] = {"type": "null"}
@@ -1100,14 +1107,28 @@ def tool(tool_function: Callable) -> Tool:
     # Bind the copied function to the forward method
     SimpleTool.forward = staticmethod(wrapped_function)
 
-    # Get the signature parameters of the tool function
-    sig = inspect.signature(tool_function)
-    # - Add "self" as first parameter to tool_function signature
-    new_sig = sig.replace(
-        parameters=[inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)] + list(sig.parameters.values())
+    # - Add "self" as first parameter to a standalone tool's signature; methods already have their own.
+    new_sig = (
+        signature
+        if is_bound_method
+        else signature.replace(
+            parameters=[inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)] + parameters
+        )
     )
     # - Set the signature of the forward method
     SimpleTool.forward.__signature__ = new_sig
+
+    # - Bind a copy of the tool to each owning instance, so instance methods keep access to their state.
+    if is_bound_method:
+
+        def __get__(self, instance, owner=None):
+            if instance is None:
+                return self
+            bound_tool = copy(self)
+            bound_tool.forward = tool_function.__get__(instance, owner)
+            return bound_tool
+
+        SimpleTool.__get__ = __get__
 
     # Create and attach the source code of the dynamically created tool class and forward method
     # - Get the source code of tool_function

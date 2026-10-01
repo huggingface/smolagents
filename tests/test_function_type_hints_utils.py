@@ -16,7 +16,12 @@ from typing import Any
 
 import pytest
 
-from smolagents._function_type_hints_utils import DocstringParsingException, get_imports, get_json_schema
+from smolagents._function_type_hints_utils import (
+    DocstringParsingException,
+    TypeHintParsingException,
+    get_imports,
+    get_json_schema,
+)
 
 
 @pytest.fixture
@@ -269,6 +274,63 @@ class TestGetJsonSchema:
         }
         assert schema["function"]["parameters"]["properties"]["y"] == expected_schema["parameters"]["properties"]["y"]
         assert schema["function"] == expected_schema
+
+    def test_get_json_schema_skip_self(self):
+        class MethodTool:
+            def format_text(self, text: str) -> str:
+                """Format text.
+
+                Args:
+                    text: Text to format.
+
+                Returns:
+                    The formatted text.
+                """
+                return text
+
+        schema = get_json_schema(MethodTool.format_text, skip_self=True)["function"]
+        assert "self" not in schema["parameters"]["properties"]
+        assert schema["parameters"]["properties"]["text"]["type"] == "string"
+        assert schema["parameters"]["required"] == ["text"]
+
+        # Without `skip_self`, an unannotated `self` is reported as missing a type hint.
+        with pytest.raises(TypeHintParsingException):
+            get_json_schema(MethodTool.format_text)
+
+    def test_get_json_schema_skip_self_annotated(self):
+        class MethodTool:
+            def format_text(self: Any, text: str) -> str:
+                """Format text.
+
+                Args:
+                    text: Text to format.
+
+                Returns:
+                    The formatted text.
+                """
+                return text
+
+        schema = get_json_schema(MethodTool.format_text, skip_self=True)["function"]
+        assert "self" not in schema["parameters"]["properties"]
+        assert schema["parameters"]["required"] == ["text"]
+
+    def test_get_json_schema_skip_self_classmethod(self):
+        class MethodTool:
+            @classmethod
+            def format_text(cls, text: str) -> str:
+                """Format text.
+
+                Args:
+                    text: Text to format.
+
+                Returns:
+                    The formatted text.
+                """
+                return text
+
+        schema = get_json_schema(MethodTool.format_text.__func__, skip_self=True)["function"]
+        assert "cls" not in schema["parameters"]["properties"]
+        assert schema["parameters"]["required"] == ["text"]
 
     @pytest.mark.parametrize(
         "fixture_name,should_fail",
