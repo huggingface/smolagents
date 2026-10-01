@@ -444,6 +444,19 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == "t-h-e-s-e-a-g-u-l-l"
 
+    def test_dict_unpacking(self):
+        code = '{**{"a": 1}, "b": 2}'
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {"a": 1, "b": 2}
+
+        code_override = '{**{"a": 1, "b": 2}, **{"b": 99}}'
+        result_override, _ = evaluate_python_code(code_override, {}, state={})
+        assert result_override == {"a": 1, "b": 99}
+
+        code_non_mapping = '{**[1, 2]}'
+        with pytest.raises(InterpreterError, match="is not a mapping"):
+            evaluate_python_code(code_non_mapping, {}, state={})
+
     def test_string_indexing(self):
         code = """text_block = [
     "THESE",

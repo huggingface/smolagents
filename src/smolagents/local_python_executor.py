@@ -1493,10 +1493,18 @@ def evaluate_ast(
     elif isinstance(expression, ast.FunctionDef):
         return evaluate_function_def(expression, *common_params)
     elif isinstance(expression, ast.Dict):
-        # Dict -> evaluate all keys and values
-        keys = (evaluate_ast(k, *common_params) for k in expression.keys)
-        values = (evaluate_ast(v, *common_params) for v in expression.values)
-        return dict(zip(keys, values))
+        # Dict -> evaluate all keys and values, supporting dict unpacking ({**d, 'k': v})
+        res = {}
+        for k, v in zip(expression.keys, expression.values):
+            val = evaluate_ast(v, *common_params)
+            if k is None:
+                if not isinstance(val, Mapping):
+                    raise TypeError(f"'{type(val).__name__}' object is not a mapping")
+                res.update(val)
+            else:
+                key = evaluate_ast(k, *common_params)
+                res[key] = val
+        return res
     elif isinstance(expression, ast.Expr):
         # Expression -> evaluate the content
         return evaluate_ast(expression.value, *common_params)
