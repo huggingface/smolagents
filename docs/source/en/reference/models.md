@@ -254,7 +254,7 @@ print(model([{"role": "user", "content": "Ok!"}], stop_sequences=["great"]))
 You're free to create and use your own models to power your agent.
 
 You could subclass the base `Model` class to create a model for your agent.
-The main criteria is to subclass the `generate` method, with these two criteria:
+Override the `generate` method so that it meets these two criteria:
 1. It follows the [messages format](./chat_templating) (`List[Dict[str, str]]`) for its input `messages`, and it returns an object with a `.content` attribute.
 2. It stops generating outputs at the sequences passed in the argument `stop_sequences`.
 
