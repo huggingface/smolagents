@@ -331,7 +331,7 @@ def get_tool_json_schema(tool: Tool) -> dict:
 
 def get_clean_message_list(
     message_list: list[ChatMessage | dict],
-    role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
+    role_conversions: dict[MessageRole, MessageRole] | dict[str, str] | None = None,
     convert_images_to_image_urls: bool = False,
     flatten_messages_as_text: bool = False,
 ) -> list[dict[str, Any]]:
@@ -345,8 +345,17 @@ def get_clean_message_list(
         convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
         flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
     """
+    role_conversions = role_conversions or {}
     output_message_list: list[dict[str, Any]] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
+
+    def content_as_text(content: str | list[dict[str, Any]] | None) -> str:
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        return "\n".join(element["text"] for element in content if element["type"] == "text")
+
     for message in message_list:
         if isinstance(message, dict):
             message = ChatMessage.from_dict(message)
@@ -373,10 +382,19 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
-                output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
+                output_message_list[-1]["content"] += "\n" + content_as_text(message.content)
+            elif isinstance(message.content, str):
+                if isinstance(output_message_list[-1]["content"], str):
+                    output_message_list[-1]["content"] += "\n" + message.content
+                elif output_message_list[-1]["content"] and output_message_list[-1]["content"][-1]["type"] == "text":
+                    output_message_list[-1]["content"][-1]["text"] += "\n" + message.content
+                else:
+                    output_message_list[-1]["content"].append({"type": "text", "text": message.content})
             else:
+                assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
+                if isinstance(output_message_list[-1]["content"], str):
+                    output_message_list[-1]["content"] = [{"type": "text", "text": output_message_list[-1]["content"]}]
                 for el in message.content:
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
@@ -385,7 +403,7 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                content = message.content[0]["text"]
+                content = content_as_text(message.content)
             else:
                 content = message.content
             output_message_list.append(
