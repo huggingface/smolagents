@@ -673,6 +673,8 @@ def evaluate_augassign(
         current_value -= value_to_add
     elif isinstance(expression.op, ast.Mult):
         current_value *= value_to_add
+    elif isinstance(expression.op, ast.MatMult):
+        current_value @= value_to_add
     elif isinstance(expression.op, ast.Div):
         current_value /= value_to_add
     elif isinstance(expression.op, ast.Mod):
@@ -745,6 +747,8 @@ def evaluate_binop(
         return left_val - right_val
     elif isinstance(binop.op, ast.Mult):
         return left_val * right_val
+    elif isinstance(binop.op, ast.MatMult):
+        return left_val @ right_val
     elif isinstance(binop.op, ast.Div):
         return left_val / right_val
     elif isinstance(binop.op, ast.Mod):
