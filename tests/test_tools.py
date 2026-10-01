@@ -187,6 +187,42 @@ class TestTool:
 
         assert coolfunc.output_type == "number"
 
+    def test_tool_decorator_supports_instance_methods(self):
+        class InstanceTool:
+            def __init__(self, prefix: str):
+                self.prefix = prefix
+
+            @tool
+            def format_text(self, text: str) -> str:
+                """Format text with the instance prefix.
+
+                Args:
+                    text: Text to format.
+
+                Returns:
+                    The formatted text.
+                """
+                return f"{self.prefix}: {text}"
+
+            @tool
+            def format_annotated(self: Any, text: str) -> str:
+                """Format text with an annotated instance parameter.
+
+                Args:
+                    text: Text to format.
+                """
+                return f"{self.prefix}: {text}"
+
+        first = InstanceTool("first").format_text
+        second = InstanceTool("second").format_text
+        annotated = InstanceTool("annotated").format_annotated
+
+        assert set(first.inputs) == {"text"}
+        assert first is not second
+        assert first("hello") == "first: hello"
+        assert second("hello") == "second: hello"
+        assert annotated("hello") == "annotated: hello"
+
     def test_tool_init_vanilla(self):
         class HFModelDownloadsTool(Tool):
             name = "model_download_counter"
