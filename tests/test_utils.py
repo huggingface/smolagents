@@ -23,6 +23,8 @@ from IPython.core.interactiveshell import InteractiveShell
 from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
+    RetryError,
+    Retrying,
     create_agent_gradio_app_template,
     get_source,
     instance_to_source,
@@ -552,3 +554,69 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+class TestRetrying:
+    def test_default_wait_seconds_produces_nonzero_backoff(self, monkeypatch):
+        """Regression test: with the default wait_seconds, retries must not sleep for 0 seconds."""
+        sleep_calls = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleep_calls.append(seconds))
+
+        retrying = Retrying(max_attempts=3, retry_predicate=lambda e: True, reraise=True)
+
+        def always_fails():
+            raise ValueError("boom")
+
+        with pytest.raises(ValueError):
+            retrying(always_fails)
+
+        # 2 sleeps between the 3 attempts, and none of them should be 0 (which would defeat backoff)
+        assert len(sleep_calls) == 2
+        assert all(seconds > 0 for seconds in sleep_calls)
+
+    def test_explicit_wait_seconds_zero_still_retries_without_sleeping(self, monkeypatch):
+        """An explicit wait_seconds=0.0 is a deliberate choice and should keep working (no sleep, no error)."""
+        sleep_calls = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleep_calls.append(seconds))
+
+        attempts = []
+        retrying = Retrying(max_attempts=3, wait_seconds=0.0, retry_predicate=lambda e: True, reraise=True)
+
+        def always_fails():
+            attempts.append(1)
+            raise ValueError("boom")
+
+        with pytest.raises(ValueError):
+            retrying(always_fails)
+
+        assert len(attempts) == 3
+        assert sleep_calls == []
+
+    def test_reraise_true_raises_original_exception(self, monkeypatch):
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: None)
+        retrying = Retrying(max_attempts=2, wait_seconds=0.0, retry_predicate=lambda e: True, reraise=True)
+
+        def always_fails():
+            raise ValueError("original error")
+
+        with pytest.raises(ValueError, match="original error"):
+            retrying(always_fails)
+
+    def test_reraise_false_wraps_in_retry_error(self, monkeypatch):
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: None)
+        retrying = Retrying(max_attempts=2, wait_seconds=0.0, retry_predicate=lambda e: True, reraise=False)
+
+        def always_fails():
+            raise ValueError("original error")
+
+        with pytest.raises(RetryError) as exc_info:
+            retrying(always_fails)
+
+        assert exc_info.value.attempt_number == 2
+        assert isinstance(exc_info.value.last_exception, ValueError)
+        assert isinstance(exc_info.value.__cause__, ValueError)
+
+    def test_success_returns_result(self, monkeypatch):
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: None)
+        retrying = Retrying(max_attempts=3, wait_seconds=0.0, retry_predicate=lambda e: True)
+        assert retrying(lambda: 42) == 42
