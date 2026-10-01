@@ -233,3 +233,22 @@ class AgentLoggerLogTaskTester(unittest.TestCase):
         rendered = console.export_text()
         self.assertIn("k", rendered)
         self.assertIn("also", rendered)
+
+
+class AgentLoggerLogRuleTester(unittest.TestCase):
+    def test_logger_log_rule_passes_level_through(self):
+        """
+        Regression test: ``log_rule()`` must forward its ``level`` argument.
+
+        ``AgentMemory.replay()`` logs step separators at ``LogLevel.ERROR`` so they
+        render even for an agent created with a low ``verbosity_level``. Before the
+        fix, ``log_rule`` hardcoded ``LogLevel.INFO``, so those separators were
+        filtered out and replay steps ran together.
+        """
+        console = Console(record=True, width=120, highlight=False)
+        logger = AgentLogger(level=LogLevel.ERROR, console=console)
+
+        logger.log_rule("Step 1", level=LogLevel.ERROR)
+
+        rendered = console.export_text()
+        self.assertIn("Step 1", rendered)
