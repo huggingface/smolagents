@@ -378,6 +378,39 @@ for result in search_results:
         assert result == 9
         self.assertDictEqualNoPrint(state, {"x": 3, "y": 6, "_operations_count": {"counter": 4}})
 
+    def test_evaluate_matmul(self):
+        # MatMult (PEP 465) for both binary and augmented assignment forms
+        code = dedent("""\
+            import numpy as np
+            a = np.eye(2)
+            b = np.ones((2, 2))
+            result = (a @ b).tolist()
+            c = np.eye(2)
+            c @= b
+            result, c.tolist()
+        """)
+        result, _ = evaluate_python_code(code, {}, state={}, authorized_imports=["numpy"])
+        assert result == ([[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]])
+
+    def test_evaluate_matmul_custom_class(self):
+        class Matrix:
+            def __init__(self, value):
+                self.value = value
+
+            def __matmul__(self, other):
+                return Matrix(self.value * other.value)
+
+            def __imatmul__(self, other):
+                self.value *= other.value
+                return self
+
+        code = "a @ b"
+        result, _ = evaluate_python_code(code, {}, state={"a": Matrix(2), "b": Matrix(3)})
+        assert result.value == 6
+        code = "a @= b"
+        result, _ = evaluate_python_code(code, {}, state={"a": Matrix(2), "b": Matrix(3)})
+        assert result.value == 6
+
     def test_recursive_function(self):
         code = """
 def recur_fibo(n):
