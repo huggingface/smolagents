@@ -86,6 +86,31 @@ class TestRemotePythonExecutor:
         assert "!pip install wikipedia-api" == executor.run_code_raise_errors.call_args_list[0].args[0]
         assert "class WikipediaSearchTool(Tool)" in executor.run_code_raise_errors.call_args_list[1].args[0]
 
+    def test_send_tools_twice_sends_a_working_final_answer(self):
+        tool = FinalAnswerTool()
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
+        executor.run_code_raise_errors = MagicMock()
+        executor.send_tools({"final_answer": tool})
+        executor.send_tools({"final_answer": tool})
+        first, second = (
+            call.args[0] for call in executor.run_code_raise_errors.call_args_list if "class Tool:" in call.args[0]
+        )
+        assert first == second
+        namespace = {}
+        exec(second, namespace)
+        with pytest.raises(BaseException) as exception:
+            namespace["final_answer"](42)
+        assert type(exception.value).__name__ == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION
+        assert RemotePythonExecutor._deserialize_final_answer(exception.value.value) == 42
+
+    def test_send_tools_leaves_the_tool_unchanged(self):
+        tool = FinalAnswerTool()
+        executor = RemotePythonExecutor(additional_imports=[], logger=MagicMock())
+        executor.run_code_raise_errors = MagicMock()
+        executor.send_tools({"final_answer": tool})
+        assert type(tool) is FinalAnswerTool
+        assert "def forward(" in FinalAnswerTool().to_dict()["code"]
+
 
 class TestE2BExecutorUnit:
     def test_e2b_executor_instantiation(self):
