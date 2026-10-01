@@ -24,6 +24,17 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
+import queue
+import threading as _threading
+import weakref
+
+
+def _daemon_thread_factory(*args, **kwargs):
+    """Thread factory that makes worker threads daemon so a hung wrapped call
+    cannot keep the process alive after the timeout fires."""
+    t = _threading.Thread(*args, **kwargs)
+    t.daemon = True
+    return t
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from functools import wraps
@@ -304,16 +315,32 @@ def timeout(timeout_seconds: int):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # Create a new ThreadPoolExecutor for each call to avoid threading issues
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
+            # Run the wrapped call on a DAEMON thread and wait on a queue.
+            # Python cannot kill a thread, so a hung call (e.g. a blocked
+            # network request or an infinite loop) keeps running after the
+            # timeout. A daemon thread cannot keep the interpreter alive, so
+            # the caller gets ExecutionTimeoutError and the process can exit
+            # cleanly — unlike ThreadPoolExecutor, whose non-daemon worker
+            # threads block interpreter shutdown forever (see #2464).
+            result_queue: "queue.Queue" = queue.Queue(maxsize=1)
+
+            def _run():
                 try:
-                    result = future.result(timeout=timeout_seconds)
-                    return result
-                except FuturesTimeoutError:
-                    raise ExecutionTimeoutError(
-                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
-                    )
+                    result_queue.put((True, func(*args, **kwargs)))
+                except BaseException as exc:  # noqa: BLE001
+                    result_queue.put((False, exc))
+
+            t = _threading.Thread(target=_run, name="smol-timeout", daemon=True)
+            t.start()
+            try:
+                ok, payload = result_queue.get(timeout=timeout_seconds)
+            except queue.Empty:
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
+            if ok:
+                return payload
+            raise payload
 
         return wrapper
 
