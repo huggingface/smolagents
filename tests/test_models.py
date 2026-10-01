@@ -361,6 +361,20 @@ class TestInferenceClientModel:
                 response_format={"type": "json_object"},
             )
 
+    def test_structured_output_is_forwarded_to_inference_client(self):
+        response_format = {"type": "json_object"}
+        model = InferenceClientModel(model_id="test-model", token="abc", provider="cerebras")
+        model.client = MagicMock()
+        mock_response = model.client.chat_completion.return_value
+        mock_response.choices[0].message = ChatCompletionOutputMessage(role=MessageRole.ASSISTANT)
+
+        model.generate(
+            messages=[ChatMessage(role=MessageRole.USER, content="Return JSON")],
+            response_format=response_format,
+        )
+
+        assert model.client.chat_completion.call_args.kwargs["response_format"] == response_format
+
     @require_run_all
     def test_get_hfapi_message_no_tool(self):
         model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
