@@ -26,6 +26,7 @@ from smolagents.models import (
     AzureOpenAIModel,
     ChatMessage,
     ChatMessageToolCall,
+    _coerce_tool_call,
     InferenceClientModel,
     LiteLLMModel,
     LiteLLMRouterModel,
@@ -47,6 +48,35 @@ from .utils.markers import require_run_all
 
 
 class TestModel:
+    def test_coerce_tool_call_variations(self):
+        """Test _coerce_tool_call handles dicts, custom objects, and missing keys without crashing."""
+        # 1. Minimal dict missing 'id' and 'type'
+        d = {"function": {"name": "get_weather", "arguments": "{\"city\": \"Hanoi\"}"}}
+        tc1 = _coerce_tool_call(d)
+        assert isinstance(tc1, ChatMessageToolCall)
+        assert tc1.function.name == "get_weather"
+        assert tc1.function.arguments == "{\"city\": \"Hanoi\"}"
+        assert tc1.id == ""
+        assert tc1.type == "function"
+
+        # 2. Custom object with function attribute (e.g. OpenAI SDK style without model_dump)
+        class CustomToolCall:
+            def __init__(self):
+                self.id = "call_abc123"
+                self.type = "function"
+                self.function = type("Fn", (), {"name": "calculator", "arguments": "{\"expr\": \"2+2\"}"})()
+
+        tc2 = _coerce_tool_call(CustomToolCall())
+        assert isinstance(tc2, ChatMessageToolCall)
+        assert tc2.function.name == "calculator"
+        assert tc2.function.arguments == "{\"expr\": \"2+2\"}"
+        assert tc2.id == "call_abc123"
+        assert tc2.type == "function"
+
+        # 3. Already ChatMessageToolCall instance
+        tc3 = _coerce_tool_call(tc2)
+        assert tc3 is tc2
+
     def test_prepare_completion_kwargs_parameter_precedence(self):
         """Test that self.kwargs have highest precedence and REMOVE_PARAMETER works correctly"""
         from smolagents.models import REMOVE_PARAMETER
