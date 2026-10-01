@@ -296,14 +296,13 @@ locals().update(vars_dict)
         # Rename the original forward method to _forward
         # - Get the original forward method function from the final_answer_tool instance
         original_forward_function = final_answer_tool.forward.__func__
+        
         # - Wrap it rather than reusing the function object
         def _forward(self, *args, **kwargs):
             return original_forward_function(self, *args, **kwargs)
 
         # - Give the wrapper the original method's source, renamed
-        _forward.__source__ = get_source(original_forward_function).replace(
-            "def forward(", "def _forward(", 1
-        )
+        _forward.__source__ = get_source(original_forward_function).replace("def forward(", "def _forward(", 1)
         _FinalAnswerTool._forward = _forward
 
         # Set the new class as the class of the final_answer_tool instance
