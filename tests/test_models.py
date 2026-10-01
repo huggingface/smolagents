@@ -361,6 +361,18 @@ class TestInferenceClientModel:
                 response_format={"type": "json_object"},
             )
 
+    def test_generate_returns_message_when_usage_is_none(self):
+        model = InferenceClientModel(model_id="test-model", token="abc")
+        model.client = MagicMock()
+        mock_response = model.client.chat_completion.return_value
+        mock_response.choices[0].message = ChatCompletionOutputMessage(role="assistant", content="Hello!")
+        # Providers routed through InferenceClient can omit usage: the payload parser then yields usage=None
+        mock_response.usage = None
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+        message = model.generate(messages)
+        assert message.content == "Hello!"
+        assert message.token_usage is None
+
     @require_run_all
     def test_get_hfapi_message_no_tool(self):
         model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", max_tokens=10)
@@ -474,6 +486,23 @@ class TestLiteLLMModel:
             # + 0.48s (2nd retry) [0.22 * 2.0 * (1 + 1 * 0.1)]
             # = 0.704s (allow some tolerance)
             assert 0.67 <= elapsed_time <= 0.73
+
+    def test_generate_returns_message_when_usage_is_missing(self):
+        import litellm
+
+        # litellm only attaches a usage attribute when the provider reply carries non-null usage
+        mock_response = litellm.ModelResponse(
+            choices=[{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "Hello!"}}]
+        )
+        assert not hasattr(mock_response, "usage")
+        mock_client = MagicMock()
+        mock_client.completion.return_value = mock_response
+        with patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_client):
+            model = LiteLLMModel(model_id="test-model")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+            message = model.generate(messages)
+        assert message.content == "Hello!"
+        assert message.token_usage is None
 
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
@@ -589,6 +618,25 @@ class TestOpenAIModel:
             assert result.content == "This is some text"
             assert "<STOP>" not in result.content
             assert "and this should be removed" not in result.content
+
+    def test_generate_returns_message_when_usage_is_none(self):
+        # OpenAI-compatible servers can return a valid completion with "usage": null:
+        # the openai SDK types ChatCompletion.usage as Optional[CompletionUsage]
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.content = "Hello!"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage = None
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            MockOpenAI.return_value.chat.completions.create.return_value = mock_response
+            model = OpenAIModel(model_id="test-model")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+            message = model.generate(messages)
+
+        assert message.content == "Hello!"
+        assert message.token_usage is None
 
 
 class TestAmazonBedrockModel:
