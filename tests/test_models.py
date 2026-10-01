@@ -517,6 +517,89 @@ class TestLiteLLMRouterModel:
             assert mock_router.call_args.kwargs["routing_strategy"] == "simple-shuffle"
             assert router_model.client == mock_router.return_value
 
+    @pytest.fixture
+    def vllm_model_list(self):
+        return [
+            {
+                "model_name": "vllm-group",
+                "litellm_params": {
+                    "model": "openai/my-model",
+                    "api_base": "http://10.0.0.5:8000/v1",
+                    "api_key": "sk-deployment",
+                },
+            }
+        ]
+
+    @pytest.fixture
+    def mock_litellm_completion_response(self):
+        import litellm
+
+        return litellm.ModelResponse(
+            choices=[{"message": {"role": "assistant", "content": "hi"}}],
+            usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        )
+
+    @pytest.fixture
+    def mock_litellm_completion_stream_response(self):
+        from litellm.types.utils import ModelResponseStream, StreamingChoices, Usage
+
+        return iter(
+            [
+                ModelResponseStream(
+                    id="chatcmpl-test",
+                    created=0,
+                    choices=[StreamingChoices(index=0, delta={"role": "assistant", "content": "hi"})],
+                ),
+                ModelResponseStream(
+                    id="chatcmpl-test",
+                    created=0,
+                    choices=[StreamingChoices(index=0, delta={}, finish_reason="stop")],
+                    usage=Usage(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+                ),
+            ]
+        )
+
+    def test_generate_uses_deployment_credentials(self, vllm_model_list, mock_litellm_completion_response):
+        """Unset model-level api_base/api_key must not override the credentials of each deployment."""
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "hi"}])]
+        model = LiteLLMRouterModel(model_id="vllm-group", model_list=vllm_model_list)
+
+        with patch("litellm.completion", return_value=mock_litellm_completion_response) as completion:
+            model.generate(messages)
+
+        assert completion.call_args.kwargs["api_base"] == "http://10.0.0.5:8000/v1"
+        assert completion.call_args.kwargs["api_key"] == "sk-deployment"
+
+    def test_generate_stream_uses_deployment_credentials(
+        self, vllm_model_list, mock_litellm_completion_stream_response
+    ):
+        """Unset model-level api_base/api_key must not override the credentials of each deployment."""
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "hi"}])]
+        model = LiteLLMRouterModel(model_id="vllm-group", model_list=vllm_model_list)
+
+        with patch("litellm.completion", return_value=mock_litellm_completion_stream_response) as completion:
+            deltas = list(model.generate_stream(messages))
+
+        assert [delta.content for delta in deltas if delta.content] == ["hi"]
+        assert completion.call_args.kwargs["api_base"] == "http://10.0.0.5:8000/v1"
+        assert completion.call_args.kwargs["api_key"] == "sk-deployment"
+
+    def test_explicit_credentials_override_deployments(self, vllm_model_list, mock_litellm_completion_response):
+        """Explicit model-level api_base/api_key must still override every deployment's credentials."""
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "hi"}])]
+        model = LiteLLMRouterModel(
+            model_id="vllm-group",
+            model_list=vllm_model_list,
+            api_base="http://10.0.0.9:9000/v1",
+            api_key="sk-router-override",
+        )
+
+        with patch("litellm.completion", return_value=mock_litellm_completion_response) as completion:
+            model.generate(messages)
+
+        assert completion.call_args.kwargs["api_base"] == "http://10.0.0.9:9000/v1"
+        assert completion.call_args.kwargs["api_key"] == "sk-router-override"
+
 
 class TestOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
