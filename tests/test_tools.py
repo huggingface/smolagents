@@ -328,6 +328,69 @@ class TestTool:
         fail_tool = PassTool()
         fail_tool.to_dict()
 
+    def test_mcp_adapted_tool_to_dict_uses_mcp_proxy(self):
+        server_parameters = {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}
+
+        class MCPAdaptTool(Tool):
+            def __init__(
+                self,
+                name: str,
+                description: str,
+                inputs: dict[str, dict[str, str]],
+                output_type: str,
+            ):
+                self.name = name
+                self.description = description
+                self.inputs = inputs
+                self.output_type = output_type
+                self.is_initialized = True
+                self.skip_forward_signature_validation = True
+
+            def forward(self, *args, **kwargs):
+                return kwargs
+
+        tool = MCPAdaptTool(
+            name="add_numbers",
+            description="Add two numbers",
+            inputs={
+                "a": {"type": "integer", "description": "First integer"},
+                "b": {"type": "integer", "description": "Second integer"},
+            },
+            output_type="object",
+        )
+        tool._mcp_tool_name = "add_numbers"
+        tool._mcp_server_parameters = server_parameters
+        tool._mcp_structured_output = False
+
+        tool_dict = tool.to_dict()
+
+        assert tool_dict["name"] == "add_numbers"
+        assert "ToolCollection.from_mcp" in tool_dict["code"]
+        assert repr(server_parameters) in tool_dict["code"]
+        assert "add_numbers" in tool_dict["code"]
+        assert "mcpadapt" in tool_dict["requirements"]
+
+    def test_mcp_adapted_stdio_tool_to_dict_raises_clear_error(self):
+        class MCPAdaptTool(Tool):
+            def __init__(self):
+                self.name = "add_numbers"
+                self.description = "Add two numbers"
+                self.inputs = {"a": {"type": "integer", "description": "First integer"}}
+                self.output_type = "object"
+                self.is_initialized = True
+                self.skip_forward_signature_validation = True
+
+            def forward(self, *args, **kwargs):
+                return kwargs
+
+        tool = MCPAdaptTool()
+        tool._mcp_tool_name = "add_numbers"
+        tool._mcp_server_parameters = mcp.StdioServerParameters(command="python", args=["-c", "print('ready')"])
+        tool._mcp_structured_output = False
+
+        with pytest.raises(ValueError, match="Cannot serialize MCP tools loaded from stdio"):
+            tool.to_dict()
+
     def test_saving_tool_allows_no_imports_from_outside_methods(self, tmp_path):
         # Test that using imports from outside functions fails
         import numpy as np
@@ -803,8 +866,12 @@ def mock_server_parameters():
 
 @pytest.fixture
 def mock_mcp_adapt():
+    tool1 = MagicMock()
+    tool1.name = "tool1"
+    tool2 = MagicMock()
+    tool2.name = "tool2"
     with patch("mcpadapt.core.MCPAdapt") as mock:
-        mock.return_value.__enter__.return_value = ["tool1", "tool2"]
+        mock.return_value.__enter__.return_value = [tool1, tool2]
         mock.return_value.__exit__.return_value = None
         yield mock
 
@@ -822,8 +889,12 @@ class TestToolCollection:
         with ToolCollection.from_mcp(mock_server_parameters, trust_remote_code=True) as tool_collection:
             assert isinstance(tool_collection, ToolCollection)
             assert len(tool_collection.tools) == 2
-            assert "tool1" in tool_collection.tools
-            assert "tool2" in tool_collection.tools
+            assert tool_collection.tools[0].name == "tool1"
+            assert tool_collection.tools[1].name == "tool2"
+
+            assert tool_collection.tools[0]._mcp_tool_name == "tool1"
+            assert tool_collection.tools[0]._mcp_server_parameters == mock_server_parameters
+            assert tool_collection.tools[0]._mcp_structured_output is False
 
     @require_run_all
     def test_integration_from_mcp(self):
