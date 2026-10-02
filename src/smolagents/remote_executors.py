@@ -843,12 +843,13 @@ class ModalExecutor(RemotePythonExecutor):
                 if resp.status_code == 200:
                     break
             except RequestException:
-                n_retries += 1
-                if n_retries % 10 == 0:
-                    self.logger.log("Waiting for server to startup, retrying...", level=LogLevel.INFO)
-                if n_retries > 60:
-                    raise RuntimeError("Unable to connect to sandbox")
-                time.sleep(1.0)
+                pass
+            n_retries += 1
+            if n_retries % 10 == 0:
+                self.logger.log("Waiting for server to startup, retrying...", level=LogLevel.INFO)
+            if n_retries > 60:
+                raise RuntimeError("Unable to connect to sandbox")
+            time.sleep(1.0)
 
     @classmethod
     def _strip_ansi_colors(cls, text: str) -> str:
