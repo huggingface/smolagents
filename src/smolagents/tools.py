@@ -67,11 +67,95 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _is_literal_serializable(value: Any) -> bool:
+    """Return True if `value` can be safely rebuilt with `repr()` in generated source."""
+    if value is None or isinstance(value, (bool, int, float, str, bytes)):
+        return True
+    if isinstance(value, (list, tuple)):
+        return all(_is_literal_serializable(item) for item in value)
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, (str, int, float, bool)) and _is_literal_serializable(item) for key, item in value.items()
+        )
+    return False
+
+
+def _serializable_init_kwargs(
+    init: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> dict[str, Any]:
+    """Capture serializable constructor arguments actually passed (or defaulted) at init time.
+
+    Remote executors rebuild tools from source and previously always called `ToolClass()`.
+    Storing the call kwargs lets us emit `ToolClass(api_url=..., timeout=...)` instead.
+    Values equal to the signature default are omitted so unchanged tools stay `ToolClass()`.
+    """
+    try:
+        signature = inspect.signature(init)
+        bound = signature.bind(instance, *args, **kwargs)
+        bound.apply_defaults()
+    except (TypeError, ValueError):
+        return {}
+
+    captured: dict[str, Any] = {}
+    for name, value in bound.arguments.items():
+        if name == "self":
+            continue
+        parameter = signature.parameters.get(name)
+        if parameter is None:
+            continue
+        if parameter.kind is inspect.Parameter.VAR_POSITIONAL:
+            continue
+        if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+            for key, item in value.items():
+                if _is_literal_serializable(item):
+                    captured[key] = item
+            continue
+        if not _is_literal_serializable(value):
+            continue
+        if parameter.default is not inspect.Parameter.empty and parameter.default == value:
+            continue
+        captured[name] = value
+    return captured
+
+
+def _tool_instantiation_source(tool: "Tool") -> str:
+    """Return `ClassName(...)` source that rebuilds `tool` with its captured init kwargs."""
+    kwargs = getattr(tool, "_constructor_kwargs", None)
+    if kwargs is None:
+        kwargs = {}
+        try:
+            signature = inspect.signature(tool.__class__.__init__)
+        except (TypeError, ValueError):
+            signature = None
+        if signature is not None:
+            for name, parameter in signature.parameters.items():
+                if name == "self" or parameter.kind in (
+                    inspect.Parameter.VAR_POSITIONAL,
+                    inspect.Parameter.VAR_KEYWORD,
+                ):
+                    continue
+                if not hasattr(tool, name):
+                    continue
+                value = getattr(tool, name)
+                if not _is_literal_serializable(value):
+                    continue
+                if parameter.default is not inspect.Parameter.empty and parameter.default == value:
+                    continue
+                kwargs[name] = value
+
+    class_name = tool.__class__.__name__
+    if not kwargs:
+        return f"{class_name}()"
+    argument_source = ", ".join(f"{name}={value!r}" for name, value in kwargs.items())
+    return f"{class_name}({argument_source})"
+
+
 def validate_after_init(cls):
     original_init = cls.__init__
 
     @wraps(original_init)
     def new_init(self, *args, **kwargs):
+        self._constructor_kwargs = _serializable_init_kwargs(original_init, self, args, kwargs)
         original_init(self, *args, **kwargs)
         self.validate_arguments()
 
@@ -1338,7 +1422,7 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
         validate_tool_attributes(tool.__class__, check_imports=False)
         tool_code = instance_to_source(tool, base_cls=Tool)
         tool_code = tool_code.replace("from smolagents.tools import Tool", "")
-        tool_code += f"\n\n{tool.name} = {tool.__class__.__name__}()\n"
+        tool_code += f"\n\n{tool.name} = {_tool_instantiation_source(tool)}\n"
         tool_codes.append(tool_code)
 
     tool_definition_code = "\n".join([f"import {module}" for module in BASE_BUILTIN_MODULES])
