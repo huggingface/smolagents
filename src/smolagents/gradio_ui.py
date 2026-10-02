@@ -419,6 +419,13 @@ class GradioUI:
                     all_messages[streaming_msg_idx] = msg
                 yield all_messages
 
+    def clear_agent_state(self):
+        """Reset the agent's memory and monitor when the Gradio chat is cleared."""
+        self.agent.memory.reset()
+        monitor = getattr(self.agent, "monitor", None)
+        if monitor is not None:
+            monitor.reset()
+
     def launch(self, share: bool = True, **kwargs):
         """
         Launch the Gradio app with the agent interface.
@@ -458,6 +465,11 @@ class GradioUI:
             save_history=True,
             **type_messages_kwarg,
         )
+        # Gradio Chatbot.clear fires when the user hits Clear; also reset agent state.
+        chatbot.clear(self.clear_agent_state)
+        # "New chat" (save_history=True) clears the UI without going through Chatbot.clear.
+        if getattr(demo, "new_chat_button", None) is not None:
+            demo.new_chat_button.click(self.clear_agent_state, queue=False)
         return demo
 
 
