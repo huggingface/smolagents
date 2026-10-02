@@ -668,7 +668,8 @@ nested_answer()
             assert False, "Error raised in check"
 
         agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_always_fails])
-        agent.run("Dummy task.")
+        with pytest.raises(AgentError, match="check_always_fails failed"):
+            agent.run("Dummy task.")
         assert error_string in str(agent.write_memory_to_messages())
         assert "Error raised in check" in str(agent.write_memory_to_messages())
 
@@ -722,11 +723,10 @@ nested_answer()
             max_steps=3,  # Limit steps to avoid long test run
         )
         agent.state["expected_answer"] = "wrong answer"
-        output = agent.run("Dummy task.")
+        with pytest.raises(AgentError, match="check_uses_agent_state failed"):
+            agent.run("Dummy task.")
 
-        # The agent should have reached max steps and provided a final answer anyway
-        assert output is not None
-        # Check that there were failed validation attempts in the memory
+        # The fallback answer is checked instead of bypassing validation.
         failed_steps = [step for step in agent.memory.steps if hasattr(step, "error") and step.error is not None]
         assert len(failed_steps) > 0, "Expected some steps to have validation errors"
 
