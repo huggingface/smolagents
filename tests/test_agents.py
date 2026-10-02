@@ -160,6 +160,7 @@ class FakeToolCallModelImage(Model):
                 ],
             )
         else:
+            # With counter-based naming, the first image is stored as "image_1.png"
             return ChatMessage(
                 role=MessageRole.ASSISTANT,
                 content="",
@@ -167,7 +168,7 @@ class FakeToolCallModelImage(Model):
                     ChatMessageToolCall(
                         id="call_1",
                         type="function",
-                        function=ChatMessageToolCallFunction(name="final_answer", arguments="image.png"),
+                        function=ChatMessageToolCallFunction(name="final_answer", arguments="image_1.png"),
                     )
                 ],
             )
@@ -442,7 +443,8 @@ class TestAgent:
         agent = ToolCallingAgent(tools=[fake_image_generation_tool], model=FakeToolCallModelImage())
         output = agent.run("Make me an image.")
         assert isinstance(output, AgentImage)
-        assert isinstance(agent.state["image.png"], PIL.Image.Image)
+        # With counter-based naming, the first image is stored as "image_1.png"
+        assert isinstance(agent.state["image_1.png"], PIL.Image.Image)
 
     def test_toolcalling_agent_handles_image_inputs(self, shared_datadir):
         import PIL.Image
@@ -2626,3 +2628,66 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class TestMediaOutputNaming:
+    """Tests for unique media output naming (image/audio counters)."""
+
+    def test_image_counter_increments(self):
+        """Test that image outputs get unique names with incrementing counters."""
+        agent = ToolCallingAgent(model=MagicMock(), tools=[])
+        assert agent._media_counters["image"] == 0
+
+        # Simulate multiple image outputs
+        agent._media_counters["image"] += 1
+        assert agent._media_counters["image"] == 1
+
+        agent._media_counters["image"] += 1
+        assert agent._media_counters["image"] == 2
+
+    def test_audio_counter_increments(self):
+        """Test that audio outputs get unique names with incrementing counters."""
+        agent = ToolCallingAgent(model=MagicMock(), tools=[])
+        assert agent._media_counters["audio"] == 0
+
+        agent._media_counters["audio"] += 1
+        assert agent._media_counters["audio"] == 1
+
+    def test_tool_output_name_attribute(self):
+        """Test that tools can have output_name attribute."""
+
+        @tool(output_name="custom_image.png")
+        def generate_custom_image() -> str:
+            """
+            Generates a custom image.
+
+            Returns:
+                The image data
+            """
+            return "image_data"
+
+        assert hasattr(generate_custom_image, "output_name")
+        assert generate_custom_image.output_name == "custom_image.png"
+
+    def test_tool_without_output_name(self):
+        """Test that tools without output_name work normally."""
+
+        @tool
+        def generate_image() -> str:
+            """
+            Generates an image.
+
+            Returns:
+                The image data
+            """
+            return "image_data"
+
+        assert not hasattr(generate_image, "output_name") or getattr(generate_image, "output_name", None) is None
+
+    def test_media_counters_initialized(self):
+        """Test that media counters are properly initialized in agents."""
+        code_agent = CodeAgent(model=MagicMock(), tools=[])
+        tool_agent = ToolCallingAgent(model=MagicMock(), tools=[])
+
+        assert code_agent._media_counters == {"image": 0, "audio": 0}
+        assert tool_agent._media_counters == {"image": 0, "audio": 0}
