@@ -22,9 +22,11 @@ been duplicated.
 TODO: move them to `huggingface_hub` to avoid code duplication.
 """
 
+import ast
 import inspect
 import json
 import re
+import textwrap
 import types
 from collections.abc import Callable
 from copy import copy
@@ -66,23 +68,39 @@ def get_imports(code: str) -> list[str]:
     Returns:
         `list[str]`: List of all packages required to use the input code.
     """
-    # filter out try/except block so in custom code we can have try/except imports
-    code = re.sub(r"\s*try\s*:.*?except.*?:", "", code, flags=re.DOTALL)
 
-    # filter out imports under is_flash_attn_2_available block for avoid import issues in cpu only environment
-    code = re.sub(
-        r"if is_flash_attn[a-zA-Z0-9_]+available\(\):\s*(from flash_attn\s*.*\s*)+",
-        "",
-        code,
-        flags=re.MULTILINE,
-    )
+    def is_flash_attn_available_call(node: ast.AST) -> bool:
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id.startswith("is_flash_attn")
+            and node.func.id.endswith("available")
+        )
 
-    # Imports of the form `import xxx` or `import xxx as yyy`
-    imports = re.findall(r"^\s*import\s+(\S+?)(?:\s+as\s+\S+)?\s*$", code, flags=re.MULTILINE)
-    # Imports of the form `from xxx import yyy`
-    imports += re.findall(r"^\s*from\s+(\S+)\s+import", code, flags=re.MULTILINE)
+    class ImportVisitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.imports: set[str] = set()
+
+        def visit_Try(self, node: ast.Try) -> None:
+            return
+
+        def visit_If(self, node: ast.If) -> None:
+            if is_flash_attn_available_call(node.test):
+                return
+            self.generic_visit(node)
+
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                self.imports.add(alias.name.split(".")[0])
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            if node.level == 0 and node.module:
+                self.imports.add(node.module.split(".")[0])
+
+    visitor = ImportVisitor()
+    visitor.visit(ast.parse(textwrap.dedent(code)))
+    imports = visitor.imports
     # Only keep the top-level module
-    imports = [imp.split(".")[0] for imp in imports if not imp.startswith(".")]
     return [get_package_name(import_name) for import_name in set(imports)]
 
 
