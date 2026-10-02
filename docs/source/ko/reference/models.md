@@ -250,11 +250,11 @@ print(model([{"role": "user", "content": "좋아!"}], stop_sequences=["이"]))
 
 기본 `Model` 클래스를 상속받아 에이전트를 위한 모델을 만들 수 있습니다.
 주요 기준은 `generate` 메소드를 오버라이드하는 것이며, 다음 두 가지 기준을 따릅니다:
-1. 입력으로 전달되는 `messages`는 [메시지 형식](./chat_templating)(`List[Dict[str, str]]`)을 따라야 하며 `.content` 속성을 가진 객체를 반환합니다.
+1. 입력으로 전달되는 `messages`는 메시지 형식(`List[Dict[str, str]]`)을 따라야 하며 `.content` 속성을 가진 객체를 반환합니다.
 2. `stop_sequences` 인수로 전달된 시퀀스에서 출력을 중단합니다.
 
 LLM을 정의하기 위해, 기본 `Model` 클래스를 상속하는 `CustomModel` 클래스를 만들 수 있습니다.
-이 클래스는 [메시지](./chat_templating) 리스트를 받아 텍스트를 포함하는 `.content` 속성을 가진 객체를 반환하는 `generate` 메소드를 가져야 합니다. `generate` 메소드는 또한 생성을 중단할 시점을 나타내는 `stop_sequences` 인수를 받아들여야 합니다.
+이 클래스는 메시지 리스트를 받아 텍스트를 포함하는 `.content` 속성을 가진 객체를 반환하는 `generate` 메소드를 가져야 합니다. `generate` 메소드는 또한 생성을 중단할 시점을 나타내는 `stop_sequences` 인수를 받아들여야 합니다.
 
 ```python
 from huggingface_hub import login, InferenceClient
