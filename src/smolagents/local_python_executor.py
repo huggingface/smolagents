@@ -1166,6 +1166,12 @@ def evaluate_try(
     try:
         for stmt in try_node.body:
             evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+    except (BreakException, ContinueException, ReturnException):
+        # break / continue / return are modelled internally as exceptions for
+        # control flow; they are not real exceptions in Python and must never be
+        # caught by a user `except` clause. Re-raise so the enclosing loop or
+        # function handles them. The `finally` block below still runs, as in CPython.
+        raise
     except Exception as e:
         matched = False
         for handler in try_node.handlers:
