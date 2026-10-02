@@ -232,6 +232,31 @@ final_answer(7.2904)
             )
 
 
+class FakeCodeModelCallsTool(Model):
+    def generate(self, messages, stop_sequences=None):
+        prompt = str(messages)
+        if "fake_db_result" not in prompt:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="""
+Thought: I should query the database tool.
+<code>
+fake_db_result = fake_db_tool(query="SELECT 1")
+</code>
+""",
+            )
+        else:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="""
+Thought: I can now answer with the tool result.
+<code>
+final_answer(fake_db_result)
+</code>
+""",
+            )
+
+
 class FakeCodeModelImageGeneration(Model):
     def generate(self, messages, stop_sequences=None):
         prompt = str(messages)
@@ -472,6 +497,51 @@ class TestAgent:
         assert agent.memory.steps[2].tool_calls == [
             ToolCall(name="python_interpreter", arguments="final_answer(7.2904)", id="call_2")
         ]
+
+    def test_code_agent_inner_tool_calls_populated(self):
+        @tool
+        def fake_db_tool(query: str) -> str:
+            """
+            Run a fake database query.
+
+            Args:
+                query: SQL query to execute.
+            """
+            return "result"
+
+        agent = CodeAgent(tools=[fake_db_tool], model=FakeCodeModelCallsTool())
+        output = agent.run("Query the database.")
+
+        assert output == "result"
+        assert agent.memory.steps[1].inner_tool_calls == [
+            ToolCall(name="fake_db_tool", arguments={"query": "SELECT 1"}, id="call_1_0")
+        ]
+        assert agent.memory.steps[1].tool_calls[0].name == "python_interpreter"
+
+    def test_code_agent_inner_tool_calls_in_get_full_steps(self):
+        @tool
+        def fake_db_tool(query: str) -> str:
+            """
+            Run a fake database query.
+
+            Args:
+                query: SQL query to execute.
+            """
+            return "result"
+
+        agent = CodeAgent(tools=[fake_db_tool], model=FakeCodeModelCallsTool())
+        agent.run("Query the database.")
+
+        first_action_step = agent.memory.get_full_steps()[1]
+        assert "inner_tool_calls" in first_action_step
+        assert first_action_step["inner_tool_calls"][0]["function"]["name"] == "fake_db_tool"
+        assert first_action_step["inner_tool_calls"][0]["function"]["arguments"] == {"query": "SELECT 1"}
+
+    def test_code_agent_no_tool_call_leaves_inner_tool_calls_none(self):
+        agent = CodeAgent(tools=[], model=FakeCodeModel())
+        agent.run("What is 2 multiplied by 3.6452?")
+
+        assert agent.memory.steps[1].inner_tool_calls is None
 
     def test_additional_args_added_to_task(self):
         agent = CodeAgent(tools=[], model=FakeCodeModel())

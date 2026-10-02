@@ -83,6 +83,9 @@ def test_action_step_dict():
         },
     }
 
+    assert "inner_tool_calls" in action_step_dict
+    assert action_step_dict["inner_tool_calls"] == []
+
     assert "timing" in action_step_dict
     assert action_step_dict["timing"] == {"start_time": 0.0, "end_time": 1.0, "duration": 1.0}
 
