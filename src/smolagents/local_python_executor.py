@@ -915,7 +915,51 @@ def evaluate_call(
             and (func.__name__ not in ALLOWED_DUNDER_METHODS)
         ):
             raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
-        return func(*args, **kwargs)
+        tracked_tool_name = get_tracked_tool_name(func_name, func, state, static_tools)
+        result = func(*args, **kwargs)
+        if tracked_tool_name is not None:
+            state["_executed_tool_calls"].append(
+                {
+                    "name": tracked_tool_name,
+                    "arguments": format_tool_call_arguments(args, kwargs),
+                }
+            )
+        return result
+
+
+def format_tool_call_arguments(args: list[Any], kwargs: dict[str, Any]) -> Any:
+    """Reshape tool call arguments into a normalized form for recording in memory.
+
+    Returns kwargs dict if present, positional args otherwise.
+    Note: returned values may contain arbitrary Python objects; consumers
+    that need JSON-safe output should apply their own serialization.
+    """
+    if kwargs:
+        if args:
+            return {"args": args, "kwargs": kwargs}
+        return kwargs
+    if len(args) == 1:
+        return args[0]
+    if len(args) > 1:
+        return args
+    return {}
+
+
+def get_tracked_tool_name(
+    func_name: str | None,
+    func: Callable,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+) -> str | None:
+    tracked_tool_names = state.get("_tracked_tool_names", set())
+    if func_name in tracked_tool_names:
+        return func_name
+
+    reverse_lookup = state.get("_tool_reverse_lookup")
+    if reverse_lookup is not None:
+        resolved_func = inspect.unwrap(func)
+        return reverse_lookup.get(id(resolved_func))
+    return None
 
 
 def evaluate_subscript(
@@ -1608,8 +1652,12 @@ def evaluate_python_code(
             A dictionary mapping variable names to values. The `state` should contain the initial inputs but will be
             updated by this function to contain all variables as they are evaluated.
             The print outputs will be stored in the state under the key "_print_outputs".
+        authorized_imports (`list[str]`):
+            The modules the evaluated code is allowed to import.
         timeout_seconds (`int`, *optional*, defaults to `MAX_EXECUTION_TIME_SECONDS`):
             Maximum time in seconds allowed for code execution. Set to `None` to disable timeout.
+        max_print_outputs_length (`int`, *optional*, defaults to `DEFAULT_MAX_LEN_OUTPUT`):
+            Maximum length of captured print output before it is truncated.
     """
     try:
         expression = ast.parse(code)
@@ -1626,6 +1674,7 @@ def evaluate_python_code(
     custom_tools = custom_tools if custom_tools is not None else {}
     state["_print_outputs"] = PrintContainer()
     state["_operations_count"] = {"counter": 0}
+    state["_executed_tool_calls"] = []
 
     if "final_answer" in static_tools:
         previous_final_answer = static_tools["final_answer"]
@@ -1672,6 +1721,7 @@ class CodeOutput:
     output: Any
     logs: str
     is_final_answer: bool
+    executed_tool_calls: list[dict[str, Any]] | None = None
 
 
 class PythonExecutor(ABC):
@@ -1755,14 +1805,25 @@ class LocalPythonExecutor(PythonExecutor):
             timeout_seconds=self.timeout_seconds,
         )
         logs = str(self.state["_print_outputs"])
-        return CodeOutput(output=output, logs=logs, is_final_answer=is_final_answer)
+        return CodeOutput(
+            output=output,
+            logs=logs,
+            is_final_answer=is_final_answer,
+            executed_tool_calls=list(self.state.get("_executed_tool_calls", [])),
+        )
 
     def send_variables(self, variables: dict[str, Any]):
         self.state.update(variables)
 
     def send_tools(self, tools: dict[str, Tool]):
         # Combine agent tools, base Python tools, and additional Python functions
+        self.state["_tracked_tool_names"] = set(tools.keys())
         self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy(), **self.additional_functions}
+
+        # Build reverse lookup for O(1) tool name resolution by function identity
+        self.state["_tool_reverse_lookup"] = {}
+        for name, tool in tools.items():
+            self.state["_tool_reverse_lookup"][id(inspect.unwrap(tool))] = name
 
 
 __all__ = ["evaluate_python_code", "LocalPythonExecutor"]
