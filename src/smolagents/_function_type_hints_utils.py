@@ -77,8 +77,8 @@ def get_imports(code: str) -> list[str]:
         flags=re.MULTILINE,
     )
 
-    # Imports of the form `import xxx` or `import xxx as yyy`
-    imports = re.findall(r"^\s*import\s+(\S+?)(?:\s+as\s+\S+)?\s*$", code, flags=re.MULTILINE)
+    # Imports of the form `import xxx` or `import xxx as yyy` (with optional inline comment)
+    imports = re.findall(r"^\s*import\s+(\S+?)(?:\s+as\s+\S+)?\s*(?:#.*)?\s*$", code, flags=re.MULTILINE)
     # Imports of the form `from xxx import yyy`
     imports += re.findall(r"^\s*from\s+(\S+)\s+import", code, flags=re.MULTILINE)
     # Only keep the top-level module
