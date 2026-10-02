@@ -375,18 +375,40 @@ class GradioUI:
 
         return text, files if files else None
 
+    def _images_from_files(self, file_paths: list | None) -> list | None:
+        """Load image files as PIL images for ``agent.run(images=...)``.
+
+        ``agent.run`` documents ``images`` as ``list[PIL.Image.Image]``. Gradio
+        multimodal uploads are filesystem paths, so only image files are opened
+        and copied; other attachments stay in the task text.
+        """
+        if not file_paths:
+            return None
+
+        from PIL import Image
+
+        image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff"}
+        images = []
+        for file_path in file_paths:
+            path = file_path if isinstance(file_path, (str, os.PathLike)) else getattr(file_path, "name", file_path)
+            if Path(str(path)).suffix.lower() in image_extensions:
+                with Image.open(path) as image:
+                    images.append(image.copy())
+        return images or None
+
     def _stream_response(self, message: str | dict, history: list[dict]) -> Generator:  # noqa: ARG002
         """Stream agent responses for ChatInterface."""
         import gradio as gr
 
         task, task_files = self._process_message(message)
+        task_images = self._images_from_files(task_files)
 
         all_messages: list[gr.ChatMessage] = []
         accumulated_events: list[ChatMessageStreamDelta] = []
         streaming_msg_idx: int | None = None
 
         for event in self.agent.run(
-            task, images=task_files, stream=True, reset=self.reset_agent_memory, additional_args=None
+            task, images=task_images, stream=True, reset=self.reset_agent_memory, additional_args=None
         ):
             if isinstance(event, ActionStep | PlanningStep | FinalAnswerStep):
                 # Remove streaming message if present

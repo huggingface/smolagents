@@ -24,6 +24,7 @@ from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
     create_agent_gradio_app_template,
+    encode_image_base64,
     get_source,
     instance_to_source,
     is_valid_name,
@@ -552,3 +553,22 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+def test_encode_image_base64_accepts_pil_image_and_file_path(tmp_path):
+    """GradioUI uploads pass file paths; encoding must accept both paths and PIL images."""
+    from pathlib import Path
+
+    from PIL import Image
+
+    image = Image.new("RGB", (4, 4), color=(255, 0, 0))
+    image_path = tmp_path / "upload.png"
+    image.save(image_path)
+
+    encoded_from_image = encode_image_base64(image)
+    encoded_from_str_path = encode_image_base64(str(image_path))
+    encoded_from_path_object = encode_image_base64(Path(image_path))
+
+    assert encoded_from_image == encoded_from_str_path == encoded_from_path_object
+    assert isinstance(encoded_from_image, str)
+    assert len(encoded_from_image) > 0
