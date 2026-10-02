@@ -1066,3 +1066,124 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class _VerboseEchoTool(Tool):
+    """Simple tool used by the SMOLAGENTS_VERBOSE tests."""
+
+    name = "verbose_echo_tool"
+    description = "Echo tool for verbose tests"
+    inputs = {"x": {"type": "string", "description": "Input string"}}
+    output_type = "string"
+
+    def forward(self, x: str) -> str:
+        return f"got: {x}"
+
+
+class _VerboseBoomTool(Tool):
+    """Tool that always raises, used to verify error logging in verbose mode."""
+
+    name = "verbose_boom_tool"
+    description = "Always-raises tool for verbose tests"
+    inputs = {"x": {"type": "string", "description": "Input string"}}
+    output_type = "string"
+
+    def forward(self, x: str) -> str:
+        raise ValueError(f"boom: {x}")
+
+
+class TestSmolagentsVerboseEnvVar:
+    """Tests for the SMOLAGENTS_VERBOSE environment variable (issue #2246)."""
+
+    def _clean_env(self, monkeypatch):
+        """Make sure the env var starts unset for a test."""
+        monkeypatch.delenv("SMOLAGENTS_VERBOSE", raising=False)
+
+    def test_no_logging_when_env_var_unset(self, monkeypatch, capsys):
+        self._clean_env(monkeypatch)
+        tool_instance = _VerboseEchoTool()
+        result = tool_instance(x="hi")
+        assert result == "got: hi"
+        captured = capsys.readouterr()
+        assert "smolagents.verbose" not in captured.err
+        assert captured.err == ""
+
+    def test_no_logging_when_env_var_empty_string(self, monkeypatch, capsys):
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("SMOLAGENTS_VERBOSE", "")
+        tool_instance = _VerboseEchoTool()
+        tool_instance(x="hi")
+        captured = capsys.readouterr()
+        assert "smolagents.verbose" not in captured.err
+
+    @pytest.mark.parametrize("truthy_value", ["1", "true", "TRUE", "True", "yes", "YES", "on", "On"])
+    def test_logs_inputs_and_outputs_when_enabled(self, monkeypatch, capsys, truthy_value):
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("SMOLAGENTS_VERBOSE", truthy_value)
+        tool_instance = _VerboseEchoTool()
+        result = tool_instance(x="hello")
+        assert result == "got: hello"
+        captured = capsys.readouterr()
+        assert "[smolagents.verbose] Tool call: verbose_echo_tool" in captured.err
+        assert "[smolagents.verbose]   inputs:" in captured.err
+        assert "'x': 'hello'" in captured.err
+        assert "[smolagents.verbose]   output:" in captured.err
+        assert "'got: hello'" in captured.err
+        assert "smolagents.verbose" not in captured.out
+
+    @pytest.mark.parametrize("falsy_value", ["0", "false", "no", "off", "random_string"])
+    def test_non_truthy_values_do_not_enable_logging(self, monkeypatch, capsys, falsy_value):
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("SMOLAGENTS_VERBOSE", falsy_value)
+        tool_instance = _VerboseEchoTool()
+        tool_instance(x="hi")
+        captured = capsys.readouterr()
+        assert "smolagents.verbose" not in captured.err
+
+    def test_exceptions_are_logged_in_verbose_mode(self, monkeypatch, capsys):
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("SMOLAGENTS_VERBOSE", "1")
+        tool_instance = _VerboseBoomTool()
+        with pytest.raises(ValueError, match="boom: kaboom"):
+            tool_instance(x="kaboom")
+        captured = capsys.readouterr()
+        assert "Tool call: verbose_boom_tool" in captured.err
+        assert "raised: ValueError" in captured.err
+        assert "boom: kaboom" in captured.err
+
+    def test_exceptions_are_not_logged_when_disabled(self, monkeypatch, capsys):
+        self._clean_env(monkeypatch)
+        tool_instance = _VerboseBoomTool()
+        with pytest.raises(ValueError):
+            tool_instance(x="kaboom")
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_long_outputs_are_truncated(self, monkeypatch, capsys):
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("SMOLAGENTS_VERBOSE", "1")
+
+        class LongOutputTool(Tool):
+            name = "long_output_tool"
+            description = "Returns a very long string"
+            inputs = {}
+            output_type = "string"
+
+            def forward(self) -> str:
+                return "x" * 10_000
+
+        tool_instance = LongOutputTool()
+        tool_instance()
+        captured = capsys.readouterr()
+        assert "<truncated" in captured.err
+        assert "x" * 10_000 not in captured.err
+
+    def test_logging_with_dict_kwargs(self, monkeypatch, capsys):
+        """When the tool is called with a single dict (kwargs-style), it should still be logged."""
+        self._clean_env(monkeypatch)
+        monkeypatch.setenv("SMOLAGENTS_VERBOSE", "1")
+        tool_instance = _VerboseEchoTool()
+        tool_instance({"x": "via-dict"})
+        captured = capsys.readouterr()
+        assert "'x': 'via-dict'" in captured.err
+        assert "output:" in captured.err
