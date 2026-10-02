@@ -373,7 +373,9 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
+            # Normalize string content to list format before merging
+            if isinstance(message.content, str):
+                message.content = [{"type": "text", "text": message.content}]
             if flatten_messages_as_text:
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
             else:
