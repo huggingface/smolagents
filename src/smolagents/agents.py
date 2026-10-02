@@ -54,6 +54,7 @@ from .memory import (
     FinalAnswerStep,
     MemoryStep,
     PlanningStep,
+    SummaryStep,
     SystemPromptStep,
     TaskStep,
     Timing,
@@ -298,6 +299,7 @@ class MultiStepAgent(ABC):
         prompt_templates: PromptTemplates | None = None,
         instructions: str | None = None,
         max_steps: int = 20,
+        max_steps_before_summary: int | None = None,
         add_base_tools: bool = False,
         verbosity_level: LogLevel = LogLevel.INFO,
         managed_agents: list | None = None,
@@ -340,7 +342,7 @@ class MultiStepAgent(ABC):
         self._validate_tools_and_managed_agents(tools, managed_agents)
 
         self.task: str | None = None
-        self.memory = AgentMemory(self.system_prompt)
+        self.memory = AgentMemory(self.system_prompt, max_steps_before_summary=max_steps_before_summary)
 
         if logger is None:
             self.logger = AgentLogger(level=verbosity_level)
@@ -545,6 +547,9 @@ You have been provided with these additional arguments, that you can access dire
         while not returned_final_answer and self.step_number <= max_steps:
             if self.interrupt_switch:
                 raise AgentError("Agent interrupted.", self.logger)
+
+            # Summarize older steps if memory is growing too large
+            self.memory.summarize_if_needed(self.model)
 
             # Run a planning step if scheduled
             if self.planning_interval is not None and (
