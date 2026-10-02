@@ -233,6 +233,8 @@ class TestDockerExecutorUnit:
         """Test that cleanup properly stops and removes the container"""
         logger = MagicMock()
         with (
+            patch("smolagents.remote_executors.atexit.register"),
+            patch("smolagents.remote_executors.atexit.unregister"),
             patch("docker.from_env") as mock_docker_client,
             patch("requests.get") as mock_get,
             patch("requests.post") as mock_post,
@@ -259,6 +261,67 @@ class TestDockerExecutorUnit:
             # Verify container was stopped and removed
             mock_container.stop.assert_called_once()
             mock_container.remove.assert_called_once()
+
+    def test_cleanup_is_registered_for_process_exit(self):
+        """Test that Docker containers are cleaned up on normal interpreter exit."""
+        logger = MagicMock()
+        with (
+            patch("smolagents.remote_executors.atexit.register") as mock_register,
+            patch("smolagents.remote_executors.atexit.unregister") as mock_unregister,
+            patch("docker.from_env") as mock_docker_client,
+            patch("requests.get") as mock_get,
+            patch("requests.post") as mock_post,
+            patch("websocket.create_connection"),
+        ):
+            mock_container = MagicMock()
+            mock_container.status = "running"
+            mock_container.short_id = "test123"
+
+            mock_docker_client.return_value.containers.run.return_value = mock_container
+            mock_docker_client.return_value.images.get.return_value = MagicMock()
+
+            mock_get.return_value.status_code = 200
+            mock_post.return_value.status_code = 201
+            mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
+
+            executor = DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+
+            mock_register.assert_called_once_with(executor.cleanup)
+
+            executor.cleanup()
+
+            mock_unregister.assert_called_once_with(executor.cleanup)
+
+    def test_cleanup_is_idempotent(self):
+        """Test that repeated cleanup does not stop/remove the same container twice."""
+        logger = MagicMock()
+        with (
+            patch("smolagents.remote_executors.atexit.register"),
+            patch("smolagents.remote_executors.atexit.unregister") as mock_unregister,
+            patch("docker.from_env") as mock_docker_client,
+            patch("requests.get") as mock_get,
+            patch("requests.post") as mock_post,
+            patch("websocket.create_connection"),
+        ):
+            mock_container = MagicMock()
+            mock_container.status = "running"
+            mock_container.short_id = "test123"
+
+            mock_docker_client.return_value.containers.run.return_value = mock_container
+            mock_docker_client.return_value.images.get.return_value = MagicMock()
+
+            mock_get.return_value.status_code = 200
+            mock_post.return_value.status_code = 201
+            mock_post.return_value.json.return_value = {"id": "test-kernel-id"}
+
+            executor = DockerExecutor(additional_imports=[], logger=logger, build_new_image=False)
+
+            executor.cleanup()
+            executor.cleanup()
+
+            mock_container.stop.assert_called_once()
+            mock_container.remove.assert_called_once()
+            mock_unregister.assert_called_once_with(executor.cleanup)
 
 
 class CommonDockerExecutorIntegration:
