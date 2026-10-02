@@ -468,6 +468,37 @@ class TestTool:
             GetWeatherTool3()
         assert "Nullable" in str(e)
 
+    def test_tool_explicit_nullable_false_does_not_raise(self):
+        """Test that setting nullable: False on a required parameter does not raise an error.
+
+        Regression test for https://github.com/huggingface/smolagents/issues/1142
+        """
+
+        class SearchTool(Tool):
+            name = "search_tool"
+            description = "A search tool that requires a display_name parameter"
+            inputs = {
+                "display_name": {
+                    "type": "string",
+                    "description": "Name of credential to use for searching",
+                    "nullable": False,
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Optional search query",
+                    "nullable": True,
+                },
+            }
+            output_type = "string"
+
+            def forward(self, display_name: str, query: str | None = None) -> str:
+                return f"Searched for {query} using {display_name}"
+
+        # This should NOT raise an AssertionError
+        tool_instance = SearchTool()
+        assert tool_instance.inputs["display_name"]["nullable"] is False
+        assert tool_instance.inputs["query"]["nullable"] is True
+
     def test_tool_default_parameters_is_nullable(self):
         @tool
         def get_weather(location: str, celsius: bool = False) -> str:
