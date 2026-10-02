@@ -559,6 +559,45 @@ class TestAgent:
         agent = ToolCallingAgent(tools=[], model=FakeCodeModel(), add_base_tools=True)
         assert len(agent.tools) == 4  # added final_answer tool + search + visit_webpage
 
+    def test_user_tool_colliding_with_base_tool_name_raises(self):
+        # Regression test for https://github.com/huggingface/smolagents/issues/2885:
+        # a user tool whose name collides with a base tool must not be silently overwritten.
+        colliding_tool = PythonInterpreterTool()
+        colliding_tool.name = "web_search"
+        with pytest.raises(ValueError) as e:
+            CodeAgent(tools=[colliding_tool], model=FakeCodeModel(), add_base_tools=True)
+        assert "Tool name collision with base tools" in str(e)
+        assert "web_search" in str(e)
+
+        colliding_tool.name = "visit_webpage"
+        with pytest.raises(ValueError) as e:
+            CodeAgent(tools=[colliding_tool], model=FakeCodeModel(), add_base_tools=True)
+        assert "Tool name collision with base tools" in str(e)
+        assert "visit_webpage" in str(e)
+
+        # python_interpreter is only added as a base tool for ToolCallingAgent,
+        # so it must raise there...
+        colliding_tool.name = "python_interpreter"
+        with pytest.raises(ValueError) as e:
+            ToolCallingAgent(tools=[colliding_tool], model=FakeCodeModel(), add_base_tools=True)
+        assert "Tool name collision with base tools" in str(e)
+        assert "python_interpreter" in str(e)
+
+        # ...but must be allowed for CodeAgent, where no such base tool is added.
+        agent = CodeAgent(tools=[colliding_tool], model=FakeCodeModel(), add_base_tools=True)
+        assert agent.tools["python_interpreter"] is colliding_tool
+
+        # No collision: user tools survive alongside base tools.
+        user_tool = PythonInterpreterTool()
+        user_tool.name = "my_custom_tool"
+        agent = CodeAgent(tools=[user_tool], model=FakeCodeModel(), add_base_tools=True)
+        assert agent.tools["my_custom_tool"] is user_tool
+        assert isinstance(agent.tools["web_search"], DuckDuckGoSearchTool)
+
+        # Without add_base_tools, collisions are impossible: no error is raised.
+        agent = CodeAgent(tools=[colliding_tool], model=FakeCodeModel(), add_base_tools=False)
+        assert agent.tools["python_interpreter"] is colliding_tool
+
     def test_function_persistence_across_steps(self):
         agent = CodeAgent(
             tools=[],

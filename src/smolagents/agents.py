@@ -392,13 +392,20 @@ class MultiStepAgent(ABC):
         )
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
-            self.tools.update(
-                {
-                    name: cls()
-                    for name, cls in TOOL_MAPPING.items()
-                    if name != "python_interpreter" or self.__class__.__name__ == "ToolCallingAgent"
-                }
-            )
+            base_tools = {
+                name: cls()
+                for name, cls in TOOL_MAPPING.items()
+                if name != "python_interpreter" or self.__class__.__name__ == "ToolCallingAgent"
+            }
+            colliding_names = sorted(set(self.tools) & set(base_tools))
+            if colliding_names:
+                raise ValueError(
+                    "Tool name collision with base tools: "
+                    f"{colliding_names}. Each tool must have a unique name! "
+                    "Rename your tool to avoid clashing with the names of the base tools "
+                    f"({', '.join(sorted(TOOL_MAPPING))})."
+                )
+            self.tools.update(base_tools)
         self.tools.setdefault("final_answer", FinalAnswerTool())
 
     def _validate_tools_and_managed_agents(self, tools, managed_agents):
