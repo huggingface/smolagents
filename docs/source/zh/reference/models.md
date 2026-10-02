@@ -13,10 +13,10 @@ Smolagents 是一个实验性 API，其可能会随时发生更改。由于 API 
 您可以自由创建和使用自己的模型为智能体提供支持。
 
 您可以使用任何 `model` 可调用对象作为智能体的模型，只要满足以下条件：
-1. 它遵循[消息格式](./chat_templating)（`List[Dict[str, str]]`），将其作为输入 `messages`，并返回一个 `str`。
+1. 它遵循消息格式（`List[Dict[str, str]]`），将其作为输入 `messages`，并返回一个 `str`。
 2. 它在生成的序列到达 `stop_sequences` 参数中指定的内容之前停止生成输出。
 
-要定义您的 LLM，可以创建一个 `custom_model` 方法，该方法接受一个 [messages](./chat_templating) 列表，并返回一个包含 `.content` 属性的对象，其中包含生成的文本。此可调用对象还需要接受一个 `stop_sequences` 参数，用于指示何时停止生成。
+要定义您的 LLM，可以创建一个 `custom_model` 方法，该方法接受一个 messages 列表，并返回一个包含 `.content` 属性的对象，其中包含生成的文本。此可调用对象还需要接受一个 `stop_sequences` 参数，用于指示何时停止生成。
 
 ```python
 from huggingface_hub import login, InferenceClient
