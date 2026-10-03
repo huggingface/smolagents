@@ -182,8 +182,9 @@ class Tool(BaseTool):
             if "required" in input_content:
                 raise ValueError(
                     f"Input '{input_name}' has unexpected key 'required': 'required' is not valid "
-                    "inside an individual input spec. To make an input optional, give its argument "
-                    "a default value in forward() (this sets 'nullable': True)."
+                    "inside an individual input spec. Remove it: inputs are required by default. "
+                    "To make an input optional, set 'nullable': True in the input spec and give "
+                    "its argument a default value in forward()."
                 )
             # Get input_types as a list, whether from a string or list
             if isinstance(input_content["type"], str):

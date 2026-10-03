@@ -159,7 +159,6 @@ class TestTool:
             ),
         ],
     )
-
     def test_tool_to_code_prompt_output_format(self, tool_fixture, expected_output, request):
         """Test that to_code_prompt generates properly formatted and indented output."""
         tool = request.getfixturevalue(tool_fixture)
@@ -187,7 +186,6 @@ class TestTool:
             ),
         ],
     )
-
     def test_tool_to_tool_calling_prompt_output_format(self, tool_fixture, expected_output, request):
         """Test that to_tool_calling_prompt generates properly formatted output."""
         tool = request.getfixturevalue(tool_fixture)
