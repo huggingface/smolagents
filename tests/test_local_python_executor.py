@@ -1802,6 +1802,538 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert not isinstance(result, bool)
         assert str(result) == "a == b"
 
+    def test_function_decorator(self):
+        code = dedent("""
+            def double_result(func):
+                def wrapper(*args, **kwargs):
+                    return func(*args, **kwargs) * 2
+                return wrapper
+
+            @double_result
+            def add(a, b):
+                return a + b
+
+            result = add(3, 4)
+        """)
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert result == 14
+        assert state["result"] == 14
+
+    def test_stacked_function_decorators(self):
+        code = dedent("""
+            def add_one(func):
+                def wrapper(*args, **kwargs):
+                    return func(*args, **kwargs) + 1
+                return wrapper
+
+            def double_result(func):
+                def wrapper(*args, **kwargs):
+                    return func(*args, **kwargs) * 2
+                return wrapper
+
+            @add_one
+            @double_result
+            def compute(x):
+                return x
+
+            result1 = compute(5)
+
+            @double_result
+            @add_one
+            def compute2(x):
+                return x
+
+            result2 = compute2(5)
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        # add_one(double_result(5)) -> (5 * 2) + 1 = 11
+        assert state["result1"] == 11
+        # double_result(add_one(5)) -> (5 + 1) * 2 = 12
+        assert state["result2"] == 12
+
+    def test_decorator_with_arguments(self):
+        code = dedent("""
+            def repeat(n):
+                def decorator(func):
+                    def wrapper(*args, **kwargs):
+                        res = []
+                        for _ in range(n):
+                            res.append(func(*args, **kwargs))
+                        return res
+                    return wrapper
+                return decorator
+
+            @repeat(3)
+            def greet(name):
+                return f"Hello, {name}!"
+
+            result = greet("Alice")
+        """)
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert result == ["Hello, Alice!", "Hello, Alice!", "Hello, Alice!"]
+
+    def test_class_method_decorators(self):
+        code = dedent("""
+            class Circle:
+                def __init__(self, radius):
+                    self._radius = radius
+
+                @property
+                def radius(self):
+                    return self._radius
+
+                @staticmethod
+                def unit_circle_name():
+                    return "Unit Circle"
+
+                @classmethod
+                def default_radius(cls):
+                    return 1.0
+
+            c = Circle(5.0)
+            rad = c.radius
+            static_res = Circle.unit_circle_name()
+            cls_res = Circle.default_radius()
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["rad"] == 5.0
+        assert state["static_res"] == "Unit Circle"
+        assert state["cls_res"] == 1.0
+
+    def test_class_decorator(self):
+        code = dedent("""
+            def add_tag(tag):
+                def decorator(cls):
+                    cls.tag = tag
+                    return cls
+                return decorator
+
+            @add_tag("v1")
+            class Service:
+                def run(self):
+                    return "running"
+
+            s = Service()
+            tag = s.tag
+            status = s.run()
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["tag"] == "v1"
+        assert state["status"] == "running"
+
+    def test_undefined_decorator_raises(self):
+        code = dedent("""
+            @non_existent_decorator
+            def foo():
+                return 42
+        """)
+        with pytest.raises(InterpreterError, match="The variable `non_existent_decorator` is not defined"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    def test_decorator_evaluation_and_application_order(self):
+        code = dedent("""
+            events = []
+            def tracker(tag):
+                events.append(f"eval_{tag}")
+                def dec(func):
+                    events.append(f"apply_{tag}")
+                    return func
+                return dec
+
+            @tracker("A")
+            @tracker("B")
+            def f():
+                pass
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        # PEP 318: decorator expressions evaluated top-to-bottom, applied bottom-to-top
+        assert state["events"] == ["eval_A", "eval_B", "apply_B", "apply_A"]
+
+    def test_property_setter(self):
+        code = dedent("""
+            class Box:
+                def __init__(self, val):
+                    self._val = val
+
+                @property
+                def val(self):
+                    return self._val
+
+                @val.setter
+                def val(self, new_val):
+                    self._val = new_val
+
+            b = Box(10)
+            initial_val = b.val
+            b.val = 20
+            updated_val = b.val
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["initial_val"] == 10
+        assert state["updated_val"] == 20
+
+    def test_classmethod_uses_cls(self):
+        code = dedent("""
+            class Factory:
+                tag = "created_by_factory"
+
+                @classmethod
+                def build(cls):
+                    return f"Instance with {cls.tag}"
+
+            res = Factory.build()
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["res"] == "Instance with created_by_factory"
+
+    def test_stacked_class_decorators(self):
+        code = dedent("""
+            events = []
+            def class_tracker(tag):
+                events.append(f"eval_{tag}")
+                def dec(cls):
+                    events.append(f"apply_{tag}")
+                    setattr(cls, tag, True)
+                    return cls
+                return dec
+
+            @class_tracker("A")
+            @class_tracker("B")
+            class Item:
+                pass
+
+            item = Item()
+            has_a = hasattr(item, "A")
+            has_b = hasattr(item, "B")
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["events"] == ["eval_A", "eval_B", "apply_B", "apply_A"]
+        assert state["has_a"] is True
+        assert state["has_b"] is True
+
+    def test_decorator_exception_propagation(self):
+        code = dedent("""
+            def bad_decorator(func):
+                raise ValueError("Decorator exploded")
+
+            @bad_decorator
+            def foo():
+                return 1
+        """)
+        with pytest.raises(InterpreterError, match="Decorator exploded"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    def test_triple_stacked_decorators(self):
+        code = dedent("""
+            def add(val):
+                def dec(fn):
+                    def wrapper(x):
+                        return fn(x) + val
+                    return wrapper
+                return dec
+
+            @add(1)
+            @add(2)
+            @add(3)
+            def base(x):
+                return x * 10
+
+            res = base(2)
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        # Order: base(2) = 20 -> +3 = 23 -> +2 = 25 -> +1 = 26
+        assert state["res"] == 26
+
+    def test_inner_function_decorator(self):
+        code = dedent("""
+            def outer_calc(factor):
+                def multiplier(fn):
+                    def wrapper(val):
+                        return fn(val) * factor
+                    return wrapper
+
+                @multiplier
+                def inner_step(n):
+                    return n + 5
+
+                return inner_step(10)
+
+            res = outer_calc(3)
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        # (10 + 5) * 3 = 45
+        assert state["res"] == 45
+
+    def test_recursive_memoized_function(self):
+        code = dedent("""
+            def memoize(fn):
+                cache = {}
+                def wrapper(n):
+                    if n in cache:
+                        return cache[n]
+                    res = fn(n)
+                    cache[n] = res
+                    return res
+                return wrapper
+
+            @memoize
+            def fib(n):
+                if n <= 1:
+                    return n
+                return fib(n - 1) + fib(n - 2)
+
+            res = fib(10)
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["res"] == 55
+
+    def test_instance_method_decorator(self):
+        code = dedent("""
+            def check_positive(fn):
+                def wrapper(self, amount):
+                    if amount <= 0:
+                        return "INVALID"
+                    return fn(self, amount)
+                return wrapper
+
+            class BankAccount:
+                def __init__(self, balance):
+                    self.balance = balance
+
+                @check_positive
+                def deposit(self, amount):
+                    self.balance = self.balance + amount
+                    return self.balance
+
+            acct = BankAccount(100)
+            r1 = acct.deposit(-50)
+            r2 = acct.deposit(50)
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["r1"] == "INVALID"
+        assert state["r2"] == 150
+
+    def test_subclass_inherited_property_and_methods(self):
+        code = dedent("""
+            class Animal:
+                def __init__(self, name):
+                    self._name = name
+
+                @property
+                def name(self):
+                    return self._name
+
+                @classmethod
+                def kingdom(cls):
+                    return "Animalia"
+
+            class Dog(Animal):
+                @property
+                def full_name(self):
+                    return f"{self.name} the dog"
+
+            d = Dog("Rex")
+            p1 = d.name
+            p2 = d.full_name
+            k = Dog.kingdom()
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["p1"] == "Rex"
+        assert state["p2"] == "Rex the dog"
+        assert state["k"] == "Animalia"
+
+    def test_undefined_class_decorator_raises(self):
+        code = dedent("""
+            @undefined_class_dec
+            class Foo:
+                pass
+        """)
+        with pytest.raises(InterpreterError, match="The variable `undefined_class_dec` is not defined"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    def test_decorator_complex_expression_args(self):
+        code = dedent("""
+            def scale(factor):
+                def dec(fn):
+                    def wrapper(x):
+                        return fn(x) * factor
+                    return wrapper
+                return dec
+
+            base_scale = 2
+            @scale(base_scale * 3 + 4)
+            def get_num(x):
+                return x
+
+            res = get_num(5)
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["res"] == 50
+
+    def test_class_decorator_evaluation_before_body(self):
+        code = dedent("""
+            events = []
+            def track(tag):
+                events.append(f"eval_{tag}")
+                def dec(cls):
+                    events.append(f"apply_{tag}")
+                    return cls
+                return dec
+
+            @track("A")
+            class Item:
+                _ = events.append("body")
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        # PEP 3129: decorator evaluated before class body executes
+        assert state["events"] == ["eval_A", "body", "apply_A"]
+
+    def test_instance_method_as_decorator(self):
+        code = dedent("""
+            class Router:
+                def __init__(self):
+                    self.routes = {}
+
+                def route(self, path):
+                    def decorator(func):
+                        self.routes[path] = func
+                        return func
+                    return decorator
+
+            app = Router()
+
+            @app.route("/index")
+            def index():
+                return "Home"
+
+            res = app.routes["/index"]()
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["res"] == "Home"
+
+    def test_dataclass_decorator(self):
+        code = dedent("""
+            from dataclasses import dataclass
+
+            @dataclass
+            class Point:
+                x: int
+                y: int
+
+            p = Point(3, 4)
+            res_x = p.x
+            res_y = p.y
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, authorized_imports=["dataclasses"], state=state)
+        assert state["res_x"] == 3
+        assert state["res_y"] == 4
+
+    def test_function_decorator_forbidden_builtin(self):
+        import builtins
+
+        code = dedent("""
+            @unauthorized_builtin
+            def foo():
+                pass
+        """)
+        with pytest.raises(InterpreterError, match="Invoking a builtin function that has not been explicitly added"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"unauthorized_builtin": builtins.dir})
+
+    def test_class_decorator_forbidden_builtin(self):
+        import builtins
+
+        code = dedent("""
+            @unauthorized_builtin
+            class Foo:
+                pass
+        """)
+        with pytest.raises(InterpreterError, match="Invoking a builtin function that has not been explicitly added"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"unauthorized_builtin": builtins.dir})
+
+    def test_function_decorator_forbidden_dunder(self):
+        def __disallowed_dunder__(func):
+            return func
+
+        code = dedent("""
+            @forbidden_dunder
+            def foo():
+                pass
+        """)
+        with pytest.raises(InterpreterError, match="Forbidden call to dunder function"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"forbidden_dunder": __disallowed_dunder__})
+
+    def test_class_decorator_forbidden_dunder(self):
+        def __disallowed_dunder__(cls):
+            return cls
+
+        code = dedent("""
+            @forbidden_dunder
+            class Foo:
+                pass
+        """)
+        with pytest.raises(InterpreterError, match="Forbidden call to dunder function"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"forbidden_dunder": __disallowed_dunder__})
+
+    def test_decorator_forbidden_builtin_type(self):
+        import builtins
+
+        code = dedent("""
+            @unauthorized_type
+            def foo():
+                pass
+        """)
+        with pytest.raises(InterpreterError, match="Invoking a builtin function that has not been explicitly added"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"unauthorized_type": builtins.bytearray})
+
+    def test_dunder_guard_with_callsite_name_when_func_has_no_name(self):
+        class CallableNoName:
+            def __call__(self, *args):
+                return "should_not_reach"
+
+        code = dedent("""
+            class Target:
+                def __init__(self):
+                    self.__subclasses__ = evil_callable
+
+            t = Target()
+            t.__subclasses__()
+        """)
+        with pytest.raises(InterpreterError, match="Forbidden call to dunder function: __subclasses__"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"evil_callable": CallableNoName()})
+
+    def test_class_method_does_not_pollute_outer_custom_tools(self):
+        code = dedent("""
+            class Service:
+                @property
+                def prop_method(self):
+                    return 1
+
+                def regular_method(self):
+                    return 2
+        """)
+        custom_tools = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, custom_tools=custom_tools)
+        assert "prop_method" not in custom_tools
+        assert "regular_method" not in custom_tools
+
 
 class TestEvaluateBoolop:
     @pytest.mark.parametrize("a", [1, 0])
@@ -2435,6 +2967,24 @@ class TestLocalPythonExecutor:
         executor.send_tools({})
         result = executor(code).output
         assert result is expected_result
+
+    def test_local_python_executor_decorator(self):
+        code = dedent("""
+            def double(func):
+                def wrapper(*args, **kwargs):
+                    return func(*args, **kwargs) * 2
+                return wrapper
+
+            @double
+            def get_val():
+                return 10
+
+            final_answer(get_val())
+        """)
+        executor = LocalPythonExecutor([])
+        executor.send_tools({"final_answer": FinalAnswerTool()})
+        result = executor(code).output
+        assert result == 20
 
 
 class TestLocalPythonExecutorSecurity:
