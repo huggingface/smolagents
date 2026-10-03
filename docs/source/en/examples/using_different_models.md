@@ -78,6 +78,36 @@ model = OpenAIModel(
 )
 ```
 
+## Using Hubris Models
+
+[Hubris](https://hubris.pw) is an OpenAI-compatible gateway that serves models from Anthropic, OpenAI, Google,
+DeepSeek, Moonshot and xAI behind a single API key. It is aimed at users in Russia, where several of those
+vendors are not directly reachable.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then, [get a Hubris API key](https://hubris.pw/keys) and set it in your code:
+```python
+HUBRIS_API_KEY = <YOUR-HUBRIS-API-KEY>
+```
+
+Model IDs carry a vendor prefix and are resolved exactly, so pass the full ID. The catalogue is public, so you
+can browse the available IDs without a key at [api.hubris.pw/v1/models](https://api.hubris.pw/v1/models):
+```python
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    # Any model ID from the Hubris catalogue
+    model_id="openai/gpt-5.6-luna",
+    # Hubris API base URL
+    api_base="https://api.hubris.pw/v1",
+    api_key=HUBRIS_API_KEY,
+)
+```
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
