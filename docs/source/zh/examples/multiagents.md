@@ -41,7 +41,7 @@ login()
 中的`InferenceClientModel`类来调用
 [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking)模型。
 
-_Note:_ 基于多参数和部署模型的 Inference API 可能在没有预先通知的情况下更新或替换模型。了解更多信息，请参阅[这里](https://huggingface.co/docs/api-inference/supported-models)。
+_Note:_ 基于多参数和部署模型的 Inference API 可能在没有预先通知的情况下更新或替换模型。了解更多信息，请参阅[这里](https://huggingface.co/docs/inference-providers/index)。
 
 ```py
 model_id = "Qwen/Qwen3-Next-80B-A3B-Thinking"

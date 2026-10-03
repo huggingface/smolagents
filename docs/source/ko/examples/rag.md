@@ -40,7 +40,7 @@ RAG는 기본 대규모 언어 모델이나 미세 조정된 모델을 사용하
 
 이 접근 방식은 다음과 같은 Agentic RAG 기술을 자연스럽게 구현합니다.
 - **가상 문서 임베딩(HyDE)**: 사용자 쿼리를 직접 사용하는 대신, 에이전트가 검색에 최적화된 쿼리를 생성합니다 ([논문 참조](https://huggingface.co/papers/2212.10496))
-- **자가 쿼리 정제**: 에이전트가 초기 결과를 분석하고 정제된 쿼리로 후속 검색을 수행할 수 있습니다 ([기술 참조](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/))
+- **자가 쿼리 정제**: 에이전트가 초기 결과를 분석하고 정제된 쿼리로 후속 검색을 수행할 수 있습니다 ([기술 참조](https://developers.llamaindex.ai/python/framework/module_guides/evaluating/))
 
 ## Agentic RAG 시스템 구축하기[[building-an-agentic-rag-system]]
 
