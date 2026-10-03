@@ -78,6 +78,29 @@ model = OpenAIModel(
 )
 ```
 
+## Using PZERO Models
+
+[PZERO](https://pzero.studio/agents) exposes an OpenAI-compatible API. Use [`OpenAIModel`] with the `/v1` root URL (not `/v1/chat/completions`) and pass catalog model ids as-is — do not prefix them with `openai/` on this class (that prefix is for [`LiteLLMModel`]).
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then set your API key and initialize the model:
+```python
+import os
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    model_id="deepseek-v4-flash",
+    api_base="https://api.pzero.studio/v1",
+    api_key=os.environ["PZERO_API_KEY"],
+)
+```
+
+List available model ids with `GET https://api.pzero.studio/v1/models` (no key required).
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
