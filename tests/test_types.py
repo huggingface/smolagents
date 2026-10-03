@@ -116,3 +116,28 @@ class AgentTextTests(unittest.TestCase):
 
         self.assertEqual(string, agent_type.to_string())
         self.assertEqual(string, agent_type.to_raw())
+
+
+class AgentAudioSamplerateTests:
+    def test_accepts_samplerate(self, monkeypatch):
+        """
+        Regression test: ``AgentAudio(value, samplerate=...)`` must not raise.
+
+        ``AgentAudio`` subclasses ``str`` and previously had no ``__new__``, so the
+        extra ``samplerate`` argument was forwarded to ``str.__new__`` and raised
+        ``TypeError: 'samplerate' is an invalid keyword argument for str()``.
+        """
+        import sys
+        import types
+
+        import smolagents.agent_types as agent_types
+
+        monkeypatch.setattr(agent_types, "_is_package_available", lambda pkg: True)
+        fake_torch = types.ModuleType("torch")
+        fake_torch.Tensor = type("Tensor", (), {})
+        monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+        audio = AgentAudio("some/path.wav", samplerate=24_000)
+
+        assert audio.samplerate == 24_000
+        assert audio._path == "some/path.wav"
