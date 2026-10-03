@@ -19,6 +19,7 @@ import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
+    BilibiliHotTool,
     DuckDuckGoSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
@@ -252,3 +253,143 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+class TestBilibiliHotTool:
+    """Tests for the BilibiliHotTool."""
+
+    ENDPOINT = "https://api.bilibili.com/x/web-interface/popular"
+
+    @staticmethod
+    def _make_item(
+        title="Test Video Title",
+        bvid="BV1abc123456",
+        short_link="https://b23.tv/abc",
+        up_name="TestUP",
+        tname="TestCategory",
+        view=7809000,
+        danmaku=11900,
+        like=71200,
+    ):
+        return {
+            "title": title,
+            "bvid": bvid,
+            "short_link_v2": short_link,
+            "owner": {"mid": 1, "name": up_name, "face": "https://example.com/face.jpg"},
+            "tname": tname,
+            "stat": {"view": view, "danmaku": danmaku, "like": like},
+        }
+
+    def _patch_response(self, mock_get, payload, status_code=200, raise_for_status=None):
+        mock_response = mock_get.return_value
+        mock_response.status_code = status_code
+        mock_response.raise_for_status = raise_for_status or (lambda: None)
+        mock_response.json.return_value = payload
+
+    def test_bilibili_hot_success(self):
+        payload = {
+            "code": 0,
+            "message": "OK",
+            "data": {"list": [self._make_item(), self._make_item(title="Second Video", up_name="UP2")]},
+        }
+        tool = BilibiliHotTool(rate_limit=None)
+        with patch("requests.get") as mock_get:
+            self._patch_response(mock_get, payload)
+            result = tool(limit=5)
+
+        assert "## Bilibili 热门视频 Top 2" in result
+        assert "[Test Video Title](https://b23.tv/abc) [TestCategory]" in result
+        assert "UP主: TestUP" in result
+        assert "播放: 780.9万" in result
+        assert "弹幕: 1.2万" in result
+        assert "点赞: 7.1万" in result
+        assert "[Second Video]" in result
+        assert "UP主: UP2" in result
+
+        # Verify call kwargs: User-Agent + params
+        call_kwargs = mock_get.call_args.kwargs
+        assert call_kwargs["params"] == {"ps": 5, "pn": 1}
+        assert "User-Agent" in call_kwargs["headers"]
+
+    def test_bilibili_hot_network_error(self):
+        import requests as _requests
+
+        tool = BilibiliHotTool(rate_limit=None)
+        with patch("requests.get", side_effect=_requests.exceptions.ConnectionError("boom")):
+            result = tool(limit=5)
+        assert "Error fetching Bilibili popular videos" in result
+
+    def test_bilibili_hot_timeout(self):
+        import requests as _requests
+
+        tool = BilibiliHotTool(rate_limit=None)
+        with patch("requests.get", side_effect=_requests.exceptions.Timeout):
+            result = tool(limit=5)
+        assert result == "Error: request to Bilibili timed out. Please try again later."
+
+    def test_bilibili_hot_http_error(self):
+        import requests as _requests
+
+        tool = BilibiliHotTool(rate_limit=None)
+        with patch("requests.get") as mock_get:
+            self._patch_response(
+                mock_get,
+                payload=None,
+                status_code=412,
+                raise_for_status=lambda: (_ for _ in ()).throw(
+                    _requests.exceptions.HTTPError("412 Precondition Failed")
+                ),
+            )
+            result = tool(limit=5)
+        assert "HTTP 412" in result
+
+    def test_bilibili_hot_invalid_response(self):
+        tool = BilibiliHotTool(rate_limit=None)
+        with patch("requests.get") as mock_get:
+            self._patch_response(mock_get, {"code": -352, "message": "风控", "data": None})
+            result = tool(limit=5)
+        assert "code=-352" in result
+        assert "风控" in result
+
+    def test_bilibili_hot_empty_list(self):
+        tool = BilibiliHotTool(rate_limit=None)
+        with patch("requests.get") as mock_get:
+            self._patch_response(mock_get, {"code": 0, "message": "OK", "data": {"list": []}})
+            result = tool(limit=5)
+        assert result == "No trending videos found on Bilibili right now."
+
+    def test_bilibili_hot_limit_clamp(self):
+        payload = {"code": 0, "message": "OK", "data": {"list": [self._make_item()]}}
+        tool = BilibiliHotTool(rate_limit=None)
+
+        # limit=0 clamps to MIN_LIMIT=1
+        with patch("requests.get") as mock_get:
+            self._patch_response(mock_get, payload)
+            tool(limit=0)
+        assert mock_get.call_args.kwargs["params"]["ps"] == 1
+
+        # limit=999 clamps to MAX_LIMIT=50
+        with patch("requests.get") as mock_get:
+            self._patch_response(mock_get, payload)
+            tool(limit=999)
+        assert mock_get.call_args.kwargs["params"]["ps"] == 50
+
+        # limit=None defaults to DEFAULT_LIMIT=10
+        with patch("requests.get") as mock_get:
+            self._patch_response(mock_get, payload)
+            tool()
+        assert mock_get.call_args.kwargs["params"]["ps"] == 10
+
+    def test_bilibili_hot_rate_limit(self):
+        import time
+
+        payload = {"code": 0, "message": "OK", "data": {"list": [self._make_item()]}}
+        tool = BilibiliHotTool(rate_limit=10.0)  # 10 qps → 0.1s interval
+        with patch("requests.get") as mock_get:
+            self._patch_response(mock_get, payload)
+            start = time.time()
+            tool(limit=1)
+            tool(limit=1)
+            elapsed = time.time() - start
+        # 第二次调用应至少 sleep 0.1s
+        assert elapsed >= 0.08, f"rate limit not enforced: elapsed={elapsed:.3f}s"
