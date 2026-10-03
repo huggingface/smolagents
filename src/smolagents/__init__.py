@@ -28,5 +28,6 @@ from .monitoring import *
 from .remote_executors import *
 from .serialization import *
 from .tools import *
+from .taskmarket import *
 from .utils import *
 from .cli import *
