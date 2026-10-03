@@ -630,6 +630,33 @@ simple_set = {
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert result == 2
 
+    def test_for_else(self):
+        # the else clause runs when the loop completes without break
+        code = "flag = 'no'\nfor i in range(3):\n    flag = 'looping'\nelse:\n    flag = 'else-ran'\nflag"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == "else-ran"
+
+        # the else clause still runs when the body ends with continue
+        code = "flag = 'no'\nfor i in range(3):\n    continue\nelse:\n    flag = 'else-ran'\nflag"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == "else-ran"
+
+        # break skips the else clause
+        code = "flag = 'no'\nfor i in range(3):\n    if i == 1:\n        break\n    flag = 'looping'\nelse:\n    flag = 'else-ran'\nflag"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == "looping"
+
+    def test_while_else(self):
+        # the else clause runs when the loop completes without break
+        code = "flag = 'no'\ni = 0\nwhile i < 3:\n    i += 1\nelse:\n    flag = 'else-ran'\nflag"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == "else-ran"
+
+        # break skips the else clause
+        code = "flag = 'no'\ni = 0\nwhile i < 5:\n    i += 1\n    if i == 2:\n        break\nelse:\n    flag = 'else-ran'\nflag"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == "no"
+
     def test_call_int(self):
         code = "import math\nstr(math.ceil(149))"
         result, _ = evaluate_python_code(code, {"str": lambda x: str(x)}, state={})
