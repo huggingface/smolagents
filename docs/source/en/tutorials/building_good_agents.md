@@ -254,13 +254,13 @@ Observation:
 Found 6 pages:
 [Stanislaus Ulam 1979 interview](https://ahf.nuclearmuseum.org/voices/oral-histories/stanislaus-ulams-interview-1979/)
 
-[Ulam discusses Manhattan Project](https://ahf.nuclearmuseum.org/manhattan-project/ulam-manhattan-project/)
+[Ulam discusses Manhattan Project](https://ahf.nuclearmuseum.org/ahf/history/manhattan-project/)
 
 (truncated)
 
 Thought: I will read the first 2 pages to know more.
 {{code_block_opening_tag}}
-for url in ["https://ahf.nuclearmuseum.org/voices/oral-histories/stanislaus-ulams-interview-1979/", "https://ahf.nuclearmuseum.org/manhattan-project/ulam-manhattan-project/"]:
+for url in ["https://ahf.nuclearmuseum.org/voices/oral-histories/stanislaus-ulams-interview-1979/", "https://ahf.nuclearmuseum.org/ahf/history/manhattan-project/"]:
     whole_page = visit_webpage(url)
     print(whole_page)
     print("\n" + "="*80 + "\n")  # Print separator between pages
