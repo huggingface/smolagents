@@ -12,7 +12,7 @@
 
 ✨ **단순함**: 에이전트 로직이 약 천 줄의 코드로 구현되어 있습니다. 코드 위에 불필요한 복잡한 구조를 추가하지 않고 단순하게 만들었습니다!
 
-🧑‍💻 **코드 에이전트의 완전한 지원**: [`CodeAgent`](reference/agents#smolagents.CodeAgent)는 도구 호출이나 계산 수행을 위해 직접 코드를 작성합니다 ("코드 작성용 에이전트"와는 반대 개념). 이를 통해 함수 중첩, 루프, 조건문 등을 자연스럽게 조합할 수 있습니다. 보안을 위해 [E2B](https://e2b.dev/)나 Docker를 통한 [샌드박스 환경 실행](tutorials/secure_code_execution)을 지원합니다.
+🧑‍💻 **코드 에이전트의 완전한 지원**: [`CodeAgent`](reference/agents#smolagents.CodeAgent)는 도구 호출이나 계산 수행을 위해 직접 코드를 작성합니다 ("코드 작성용 에이전트"와는 반대 개념). 이를 통해 함수 중첩, 루프, 조건문 등을 자연스럽게 조합할 수 있습니다. 보안을 위해 [E2B](https://e2b.dev/)나 Docker를 통한 [샌드박스 환경 실행](../en/tutorials/secure_code_execution)을 지원합니다.
 
 📡 **기본 도구 호출 에이전트 지원**: CodeAgent 외에도 [`ToolCallingAgent`](reference/agents#smolagents.ToolCallingAgent)는 일반적인 JSON/텍스트 기반 도구 호출 방식이 필요한 경우를 위해 지원됩니다.
 
@@ -100,7 +100,7 @@ model = TransformersModel(model_id="meta-llama/Llama-2-7b-chat-hf")
 - [설치 가이드](installation)에서 다양한 모델과 도구로 smolagents를 설정하는 방법을 알아보세요
 - 더 고급 기능은 [안내서](guided_tour)를 확인하세요
 - [커스텀 도구 구축](tutorials/tools)에 대해 알아보세요
-- [안전한 코드 실행](tutorials/secure_code_execution)을 살펴보세요
+- [안전한 코드 실행](../en/tutorials/secure_code_execution)을 살펴보세요
 - [멀티 에이전트 시스템](tutorials/building_good_agents) 생성 방법을 확인하세요
 
 <div class="mt-10">
