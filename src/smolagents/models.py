@@ -178,8 +178,8 @@ def _coerce_tool_call(tool_call: Any) -> ChatMessageToolCall:
         fn_obj = tool_call.function
         arguments = getattr(fn_obj, "arguments", "") or ""
         name = getattr(fn_obj, "name", "") or ""
-        tool_id = getattr(tool_call, "id", "") or ""
-        tool_type = getattr(tool_call, "type", "function") or "function"
+        tool_id = getattr(tool_call, "id", None) or f"call_{uuid.uuid4().hex[:8]}"
+        tool_type = getattr(tool_call, "type", None) or "function"
         return ChatMessageToolCall(
             function=ChatMessageToolCallFunction(
                 arguments=arguments,
@@ -206,13 +206,16 @@ def _coerce_tool_call(tool_call: Any) -> ChatMessageToolCall:
         fn_name = getattr(fn, "name", "") or ""
         fn_args = getattr(fn, "arguments", "") or ""
 
+    call_id = (tool_call_dict.get("id") if isinstance(tool_call_dict, dict) else getattr(tool_call, "id", None)) or f"call_{uuid.uuid4().hex[:8]}"
+    call_type = (tool_call_dict.get("type") if isinstance(tool_call_dict, dict) else getattr(tool_call, "type", None)) or "function"
+
     return ChatMessageToolCall(
         function=ChatMessageToolCallFunction(
             arguments=fn_args,
             name=fn_name,
         ),
-        id=tool_call_dict.get("id", "") or "" if isinstance(tool_call_dict, dict) else "",
-        type=tool_call_dict.get("type", "function") or "function" if isinstance(tool_call_dict, dict) else "function",
+        id=call_id,
+        type=call_type,
     )
 
 
