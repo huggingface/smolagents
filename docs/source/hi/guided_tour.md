@@ -291,25 +291,25 @@ Microsoft के फ्रेमवर्क [Autogen](https://huggingface.co/pa
 
 आप `smolagents` का उपयोग करके आसानी से श्रेणीबद्ध मल्टी-एजेंट सिस्टम्स बना सकते हैं।  
 
-ऐसा करने के लिए, एजेंट को [`ManagedAgent`] ऑब्जेक्ट में समाहित करें। यह ऑब्जेक्ट `agent`, `name`, और एक `description` जैसे तर्कों की आवश्यकता होती है, जो फिर मैनेजर एजेंट की सिस्टम प्रॉम्प्ट में एम्बेड किया जाता है  
+ऐसा करने के लिए, बस यह सुनिश्चित करें कि आपके एजेंट में `name` और `description` एट्रिब्यूट्स हों, जो फिर मैनेजर एजेंट के सिस्टम प्रॉम्प्ट में एम्बेड किए जाते हैं ताकि उसे पता चले कि इस प्रबंधित एजेंट को कैसे कॉल करना है, जैसा कि हम टूल्स के लिए भी करते हैं।
+फिर आप मैनेजर एजेंट के इनिशियलाइज़ेशन पर `managed_agents` पैरामीटर में इस प्रबंधित एजेंट को पास कर सकते हैं।
 
-यहां एक एजेंट बनाने का उदाहरण दिया गया है जो हमारे [`WebSearchTool`] का उपयोग करके एक विशिष्ट वेब खोज एजेंट को प्रबंधित करता है।
+यहां एक एजेंट बनाने का उदाहरण दिया गया है जो हमारे [`WebSearchTool`] का उपयोग करके एक विशिष्ट वेब खोज एजेंट को प्रबंधित करता है:
 
 ```py
-from smolagents import CodeAgent, InferenceClientModel, WebSearchTool, ManagedAgent
+from smolagents import CodeAgent, InferenceClientModel, WebSearchTool
 
 model = InferenceClientModel()
 
-web_agent = CodeAgent(tools=[WebSearchTool()], model=model)
-
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
-    name="web_search",
-    description="Runs web searches for you. Give it your query as an argument."
+web_agent = CodeAgent(
+    tools=[WebSearchTool()],
+    model=model,
+    name="web_search_agent",
+    description="Runs web searches for you. Give it your query as an argument.",
 )
 
 manager_agent = CodeAgent(
-    tools=[], model=model, managed_agents=[managed_web_agent]
+    tools=[], model=model, managed_agents=[web_agent]
 )
 
 manager_agent.run("Who is the CEO of Hugging Face?")
