@@ -5,7 +5,7 @@ on:
     paths:
       - 'docs/source/**'
       - 'assets/**'
-      - '.github/workflows/doc-pr-build.yml'
+      - '.github/workflows/build_pr_documentation.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
