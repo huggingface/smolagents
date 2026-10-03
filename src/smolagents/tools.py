@@ -978,12 +978,14 @@ class ToolCollection:
                 This option should only be set to `True` if you trust the MCP server,
                 and understand the risks associated with running remote code on your local machine.
                 If set to `False`, loading tools from MCP will fail.
-            structured_output (`bool`, *optional*, defaults to `False`):
+            structured_output (`bool`, *optional*, defaults to `None`):
                 Whether to enable structured output features for MCP tools. If True, enables:
                 - Support for outputSchema in MCP tools
                 - Structured content handling (structuredContent from MCP responses)
                 - JSON parsing fallback for structured data
                 If False, uses the original simple text-only behavior for backwards compatibility.
+                If left unset (`None`), it currently behaves like `False` but emits a `FutureWarning`,
+                as the default will change to `True` in version 1.25.
 
         Returns:
             ToolCollection: A tool collection instance.
