@@ -192,7 +192,7 @@ def load_model(
     api_key: str | None = None,
     provider: str | None = None,
 ) -> Model:
-    if model_type == "OpenAIModel":
+    if model_type in ("OpenAIModel", "OpenAIServerModel"):
         return OpenAIModel(
             api_key=api_key or os.getenv("FIREWORKS_API_KEY"),
             api_base=api_base or "https://api.fireworks.ai/inference/v1",
