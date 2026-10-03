@@ -1,0 +1,42 @@
+- title: 起步
+  sections:
+  - local: index
+    title: 🤗 Agents
+  - local: guided_tour
+    title: 导览
+- title: Tutorials
+  sections:
+  - local: tutorials/building_good_agents
+    title: ✨ 构建好用的 agents
+  - local: tutorials/inspect_runs
+    title: 📊 监控 Agent 的运行
+  - local: tutorials/tools
+    title: 🛠️ 工具 - 深度指南
+  - local: tutorials/secure_code_execution
+    title: 🛡️ 使用 E2B 保护你的代码执行
+  - local: tutorials/memory
+    title: 📚 管理 Agent 的记忆
+- title: Conceptual guides
+  sections:
+  - local: conceptual_guides/intro_agents
+    title: 🤖 Agent 化系统介绍
+  - local: conceptual_guides/react
+    title: 🤔 多步骤 Agent 是如何工作的？
+- title: Examples
+  sections:
+  - local: examples/text_to_sql
+    title: 自我修正 Text-to-SQL
+  - local: examples/rag
+    title: 借助 agentic RAG 掌控知识库
+  - local: examples/multiagents
+    title: 编排 multi-agent 系统
+  - local: examples/web_browser
+    title: 基于视觉模型构建能够浏览网页的agent
+- title: Reference
+  sections:
+  - local: reference/agents
+    title: Agent-related objects
+  - local: reference/models
+    title: Model-related objects
+  - local: reference/tools
+    title: Tool-related objects

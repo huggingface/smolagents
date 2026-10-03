@@ -1,0 +1,27 @@
+name: Build documentation
+
+on:
+  push:
+    branches:
+      - main
+      - doc-builder*
+      - v*-release
+      - use_templates
+    paths:
+      - 'docs/source/**'
+      - 'assets/**'
+      - '.github/workflows/doc-build.yml'
+      - 'pyproject.toml'
+
+jobs:
+   build:
+    uses: huggingface/doc-builder/.github/workflows/build_main_documentation.yml@61704e23fa97c0502ce5355c489c6bec4194bff1  # main
+    with:
+      commit_sha: ${{ github.sha }}
+      package: smolagents
+      languages: en hi ko zh
+      notebook_folder: smolagents_doc
+      # additional_args: --not_python_module # use this arg if repository is documentation only
+    secrets:
+      token: ${{ secrets.HUGGINGFACE_PUSH }}
+      hf_token: ${{ secrets.HF_DOC_BUILD_PUSH }}

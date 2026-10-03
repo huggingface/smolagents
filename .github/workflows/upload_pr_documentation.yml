@@ -1,0 +1,16 @@
+name: Upload PR Documentation
+
+on:
+  workflow_run:
+    workflows: ["Build PR Documentation"]
+    types:
+      - completed
+
+jobs:
+  build:
+    uses: huggingface/doc-builder/.github/workflows/upload_pr_documentation.yml@61704e23fa97c0502ce5355c489c6bec4194bff1  # main
+    with:
+      package_name: smolagents
+    secrets:
+      hf_token: ${{ secrets.HF_DOC_BUILD_PUSH }}
+      comment_bot_token: ${{ secrets.COMMENT_BOT_TOKEN }}
