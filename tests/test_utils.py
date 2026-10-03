@@ -29,6 +29,7 @@ from smolagents.utils import (
     is_valid_name,
     parse_code_blobs,
     parse_json_blob,
+    sanitize_for_rich,
 )
 
 
@@ -552,3 +553,94 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+# ---------------------------------------------------------------------------
+# sanitize_for_rich
+# ---------------------------------------------------------------------------
+def _reference_sanitize(value):
+    """The pre-fast-path implementation: always builds a list and joins it, which
+    always yields a plain ``str``. Used as the equivalence oracle in the tests below."""
+    if value is None:
+        s = ""
+    elif isinstance(value, str):
+        s = value
+    elif isinstance(value, (bytes, bytearray, memoryview)):
+        s = bytes(value).decode("utf-8", errors="replace")
+    else:
+        s = str(value)
+    out = []
+    for ch in s:
+        code = ord(ch)
+        if ch in ("\n", "\t", "\r"):
+            out.append(ch)
+        elif code < 32 or code == 127:
+            out.append(f"\\x{code:02x}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        "",
+        "hello world",
+        "multi\nline\ttext\r\n",
+        "unicode: café — ✓ 日本語",
+        "brackets [bold]x[/bold]",
+        b"raw bytes \x00\x01\x1f\x7f end",
+        bytearray(b"\x02ab"),
+        "ctrl \x00\x07\x1b\x7f mixed",
+        "vtab\x0b formfeed\x0c",
+        12345,
+        3.14,
+        "\x00" * 5,
+        "a" * 200,
+    ],
+)
+def test_sanitize_for_rich_matches_reference(value):
+    """Output must be byte-identical to the list-build-and-join reference."""
+    assert sanitize_for_rich(value) == _reference_sanitize(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        "",
+        "plain control-free text",
+        "brackets [bold]x[/bold]",
+        "ctrl \x07 needs escaping",
+        b"bytes in",
+        12345,
+    ],
+)
+def test_sanitize_for_rich_always_returns_plain_str(value):
+    """Regression: the return value must always be an *exact* ``str`` (not a subclass).
+
+    The fast path returns ``str(s)`` rather than ``s`` so that a ``str`` subclass
+    passed in as arbitrary tool-log payload is normalized exactly like the slow
+    path's ``"".join(...)`` would. Callers hand the result to Rich ``Text(...)``,
+    and a subclass with overridden methods (e.g. ``translate``) could otherwise
+    behave differently from a plain ``str``.
+    """
+    result = sanitize_for_rich(value)
+    assert type(result) is str
+
+
+def test_sanitize_for_rich_normalizes_str_subclass():
+    """A control-free ``str`` subclass must come back as a plain ``str`` with equal
+    content, so its overridden methods can never reach Rich."""
+
+    class Weird(str):
+        def translate(self, *args, **kwargs):
+            raise ValueError("subclass translate must never be invoked by Rich")
+
+    payload = Weird("control-free subclass payload")
+    result = sanitize_for_rich(payload)
+    assert type(result) is str
+    assert result == "control-free subclass payload"
+    # The plain-str result routes through the built-in translate, never the override.
+    assert result.translate({0x07: None}) == "control-free subclass payload"
