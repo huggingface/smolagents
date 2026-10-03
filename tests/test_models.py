@@ -26,6 +26,7 @@ from smolagents.models import (
     AzureOpenAIModel,
     ChatMessage,
     ChatMessageToolCall,
+    _coerce_tool_call,
     InferenceClientModel,
     LiteLLMModel,
     LiteLLMRouterModel,
@@ -47,6 +48,47 @@ from .utils.markers import require_run_all
 
 
 class TestModel:
+    def test_coerce_tool_call_variations(self):
+        """Test _coerce_tool_call handles dicts, custom objects, and missing keys without crashing or ID collision."""
+        # 1. Minimal dicts missing 'id' get distinct synthetic IDs
+        d1 = {"function": {"name": "first", "arguments": "{}"}}
+        d2 = {"function": {"name": "second", "arguments": "{}"}}
+        tc1 = _coerce_tool_call(d1)
+        tc2 = _coerce_tool_call(d2)
+        assert isinstance(tc1, ChatMessageToolCall)
+        assert tc1.function.name == "first"
+        assert tc1.type == "function"
+        assert tc1.id.startswith("call_")
+        assert tc2.id.startswith("call_")
+        assert tc1.id != tc2.id  # Distinct synthetic IDs avoid collision in parallel_calls
+
+        # 2. Custom object with function attribute and provided ID is preserved
+        class CustomToolCall:
+            def __init__(self, call_id="call_abc123"):
+                self.id = call_id
+                self.type = "function"
+                self.function = type("Fn", (), {"name": "calculator", "arguments": '{"expr": "2+2"}'})()
+
+        tc_obj = _coerce_tool_call(CustomToolCall())
+        assert isinstance(tc_obj, ChatMessageToolCall)
+        assert tc_obj.function.name == "calculator"
+        assert tc_obj.function.arguments == '{"expr": "2+2"}'
+        assert tc_obj.id == "call_abc123"
+        assert tc_obj.type == "function"
+
+        # 3. Custom object with missing ID gets distinct synthetic ID
+        class CustomToolCallNoId:
+            def __init__(self):
+                self.id = None
+                self.function = type("Fn", (), {"name": "search", "arguments": "{}"})()
+
+        tc_no_id = _coerce_tool_call(CustomToolCallNoId())
+        assert tc_no_id.id.startswith("call_")
+
+        # 4. Already ChatMessageToolCall instance
+        tc3 = _coerce_tool_call(tc_obj)
+        assert tc3 is tc_obj
+
     def test_prepare_completion_kwargs_parameter_precedence(self):
         """Test that self.kwargs have highest precedence and REMOVE_PARAMETER works correctly"""
         from smolagents.models import REMOVE_PARAMETER
