@@ -946,6 +946,26 @@ except ValueError as e:
         )
         assert state["exception_message"] == "An error occurred"
 
+    def test_lookup_errors_can_be_caught(self):
+        code = """
+d = {"a": 1}
+try:
+    d["b"]
+except KeyError:
+    key_error = True
+try:
+    [1, 2][5]
+except IndexError:
+    index_error = True
+try:
+    del d["b"]
+except KeyError:
+    del_error = True
+"""
+        state = {}
+        evaluate_python_code(code, state=state)
+        assert state["key_error"] and state["index_error"] and state["del_error"]
+
     def test_print(self):
         code = "print(min([1, 2, 3]))"
         state = {}
@@ -2051,7 +2071,7 @@ class TestEvaluateSubscript:
     )
     def test_evaluate_subscript_error(self, subscript, state, expected_error_message):
         subscript_ast = ast.parse(subscript).body[0].value
-        with pytest.raises(InterpreterError, match="Could not index") as exception_info:
+        with pytest.raises((KeyError, IndexError, TypeError), match="Could not index") as exception_info:
             _ = evaluate_subscript(subscript_ast, state, {}, {}, [])
         assert expected_error_message in str(exception_info.value)
 
@@ -2059,7 +2079,7 @@ class TestEvaluateSubscript:
         "subscriptable_class, expectation",
         [
             (True, 20),
-            (False, InterpreterError("TypeError: 'Custom' object is not subscriptable")),
+            (False, TypeError("TypeError: 'Custom' object is not subscriptable")),
         ],
     )
     def test_evaluate_subscript_with_custom_class(self, subscriptable_class, expectation):

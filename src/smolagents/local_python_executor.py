@@ -935,7 +935,7 @@ def evaluate_subscript(
             close_matches = difflib.get_close_matches(index, list(value.keys()))
             if len(close_matches) > 0:
                 error_message += f". Maybe you meant one of these indexes instead: {str(close_matches)}"
-        raise InterpreterError(error_message) from e
+        raise type(e)(error_message) from e
 
 
 def evaluate_name(
@@ -1408,7 +1408,7 @@ def evaluate_delete(
             try:
                 del obj[index]
             except (TypeError, KeyError, IndexError) as e:
-                raise InterpreterError(f"Cannot delete index/key: {str(e)}")
+                raise type(e)(f"Cannot delete index/key: {str(e)}") from e
         else:
             raise InterpreterError(f"Deletion of {type(target).__name__} targets is not supported")
 
