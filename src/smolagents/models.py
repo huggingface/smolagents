@@ -206,8 +206,12 @@ def _coerce_tool_call(tool_call: Any) -> ChatMessageToolCall:
         fn_name = getattr(fn, "name", "") or ""
         fn_args = getattr(fn, "arguments", "") or ""
 
-    call_id = (tool_call_dict.get("id") if isinstance(tool_call_dict, dict) else getattr(tool_call, "id", None)) or f"call_{uuid.uuid4().hex[:8]}"
-    call_type = (tool_call_dict.get("type") if isinstance(tool_call_dict, dict) else getattr(tool_call, "type", None)) or "function"
+    call_id = (
+        tool_call_dict.get("id") if isinstance(tool_call_dict, dict) else getattr(tool_call, "id", None)
+    ) or f"call_{uuid.uuid4().hex[:8]}"
+    call_type = (
+        tool_call_dict.get("type") if isinstance(tool_call_dict, dict) else getattr(tool_call, "type", None)
+    ) or "function"
 
     return ChatMessageToolCall(
         function=ChatMessageToolCallFunction(
