@@ -23,6 +23,7 @@ from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
+from threading import Event
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
@@ -2095,6 +2096,8 @@ class TestToolCallingAgent:
             (["duplicate", "duplicate"], ["duplicate", "call_1"]),
             (["call_1", "call_1"], ["call_1", "call_1_1"]),
             (["", "call_0"], ["call_0_1", "call_0"]),
+            (["", "call_0", "call_0_1"], ["call_0_2", "call_0", "call_0_1"]),
+            (["a", "a", "call_1", "call_1_1"], ["a", "call_1_2", "call_1", "call_1_1"]),
             (["z", "a"], ["z", "a"]),
         ],
     )
@@ -2113,13 +2116,53 @@ class TestToolCallingAgent:
 
         events = list(agent.process_tool_calls(chat_message, memory_step))
 
-        assert sorted(event.output for event in events if isinstance(event, ToolOutput)) == [
-            "Processed: value1",
-            "Processed: value2",
-        ]
+        expected_observations = [f"Processed: value{index + 1}" for index in range(len(tool_call_ids))]
+        assert sorted(event.output for event in events if isinstance(event, ToolOutput)) == sorted(
+            expected_observations
+        )
         assert [tool_call.id for tool_call in chat_message.tool_calls] == expected_ids
         assert [tool_call.id for tool_call in memory_step.tool_calls] == expected_ids
-        assert memory_step.observations == "Processed: value1\nProcessed: value2"
+        assert memory_step.observations == "\n".join(expected_observations)
+
+    def test_process_tool_calls_preserves_model_order_when_completion_order_differs(self):
+        second_output_received = Event()
+
+        @tool
+        def ordered_tool(value: str) -> str:
+            """Return a value, delaying the first call until the second output is received.
+
+            Args:
+                value: The value to return.
+            """
+            if value == "first":
+                assert second_output_received.wait(timeout=5), "the second call did not execute in parallel"
+            return value
+
+        tool_calls = [
+            ChatMessageToolCall(
+                id=tool_call_id,
+                type="function",
+                function=ChatMessageToolCallFunction(name="ordered_tool", arguments={"value": value}),
+            )
+            for tool_call_id, value in [("z", "first"), ("a", "second")]
+        ]
+        chat_message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=tool_calls)
+        memory_step = ActionStep(step_number=10, timing="mock_timing", model_output="")
+        agent = ToolCallingAgent(tools=[ordered_tool], model=MagicMock(), max_tool_threads=2)
+        outputs = []
+
+        try:
+            for event in agent.process_tool_calls(chat_message, memory_step):
+                if isinstance(event, ToolOutput):
+                    outputs.append(event)
+                    if event.output == "second":
+                        second_output_received.set()
+        finally:
+            second_output_received.set()
+
+        assert [(output.id, output.output) for output in outputs] == [("a", "second"), ("z", "first")]
+        assert [tool_call.id for tool_call in memory_step.tool_calls] == ["z", "a"]
+        assert memory_step.observations == "first\nsecond"
 
 
 class TestCodeAgent:
