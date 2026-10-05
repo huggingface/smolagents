@@ -623,6 +623,10 @@ class Model:
                 print(
                     f"For security reasons, we do not export the `{attribute_name}` attribute of your model. Please export it manually."
                 )
+            # The dict above starts with **self.kwargs, so a token/api_key passed
+            # as a kwarg would otherwise be leaked into the serialized dict.
+            # Strip such keys instead of only warning about them.
+            model_dictionary.pop(attribute_name, None)
         return model_dictionary
 
     @classmethod
