@@ -598,6 +598,50 @@ class TestAgent:
         agent = CodeAgent(tools=[colliding_tool], model=FakeCodeModel(), add_base_tools=False)
         assert agent.tools["python_interpreter"] is colliding_tool
 
+    def test_managed_agent_colliding_with_base_tool_name_raises(self):
+        # Managed agents share the executor namespace with tools
+        # ({**self.tools, **self.managed_agents}), so a managed agent named like a base
+        # tool must raise as well instead of shadowing it.
+        managed_agent = CodeAgent(
+            tools=[], model=FakeCodeModel(), name="web_search", description="A managed agent"
+        )
+        with pytest.raises(ValueError) as e:
+            CodeAgent(
+                tools=[], model=FakeCodeModel(), managed_agents=[managed_agent], add_base_tools=True
+            )
+        assert "Tool name collision with base tools" in str(e)
+        assert "web_search" in str(e)
+        assert "add_base_tools=False" in str(e)
+
+        # A managed agent whose name does not collide is fine.
+        ok_agent = CodeAgent(
+            tools=[], model=FakeCodeModel(), name="my_managed_agent", description="A managed agent"
+        )
+        agent = CodeAgent(
+            tools=[], model=FakeCodeModel(), managed_agents=[ok_agent], add_base_tools=True
+        )
+        assert agent.managed_agents["my_managed_agent"] is ok_agent
+        assert isinstance(agent.tools["web_search"], DuckDuckGoSearchTool)
+
+    def test_collision_check_runs_before_base_tool_instantiation(self):
+        # Instantiating base tools requires their optional dependencies; a collision
+        # must raise the clear ValueError even when a dependency is missing.
+        class BrokenDependencyTool(PythonInterpreterTool):
+            name = "web_search"
+
+            def __init__(self):
+                raise ImportError("No module named 'missing_optional_dependency'")
+
+        colliding_tool = PythonInterpreterTool()
+        colliding_tool.name = "web_search"
+        with patch(
+            "smolagents.agents.TOOL_MAPPING",
+            {"web_search": BrokenDependencyTool},
+        ):
+            with pytest.raises(ValueError) as e:
+                CodeAgent(tools=[colliding_tool], model=FakeCodeModel(), add_base_tools=True)
+        assert "Tool name collision with base tools" in str(e)
+
     def test_function_persistence_across_steps(self):
         agent = CodeAgent(
             tools=[],
