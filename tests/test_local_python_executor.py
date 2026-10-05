@@ -378,6 +378,29 @@ for result in search_results:
         assert result == 9
         self.assertDictEqualNoPrint(state, {"x": 3, "y": 6, "_operations_count": {"counter": 4}})
 
+    def test_evaluate_binop_matmult(self):
+        code = dedent("""\
+            import numpy as np
+            A = np.array([[1, 2], [3, 4]])
+            B = np.array([[5, 6], [7, 8]])
+            A @ B
+        """)
+        state = {}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result.tolist() == [[19, 22], [43, 50]]
+
+    def test_evaluate_augassign_matmult(self):
+        code = dedent("""\
+            import numpy as np
+            A = np.array([[1, 2], [3, 4]])
+            B = np.array([[5, 6], [7, 8]])
+            A @= B
+            A
+        """)
+        state = {}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result.tolist() == [[19, 22], [43, 50]]
+
     def test_recursive_function(self):
         code = """
 def recur_fibo(n):
