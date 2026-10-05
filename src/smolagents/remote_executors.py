@@ -262,13 +262,18 @@ locals().update(vars_dict)
                 if not ALLOW_PICKLE:
                     # Safe ONLY mode - NO pickle fallback, raise error if can't serialize
                     json_safe = _to_json_safe(obj)  # Will raise SerializationError if fails
-                    return "safe:" + json.dumps(json_safe)
+                    try:
+                        return "safe:" + json.dumps(json_safe)
+                    except (TypeError, ValueError) as e:
+                        raise SerializationError(
+                            f"Cannot safely serialize object of type {type(obj).__name__}: {e}"
+                        ) from e
                 else:
                     # Try safe first, fallback to pickle if allowed
                     try:
                         json_safe = _to_json_safe(obj)
                         return "safe:" + json.dumps(json_safe)
-                    except SerializationError:
+                    except (SerializationError, TypeError, ValueError):
                         # Fallback to pickle
                         try:
                             return "pickle:" + base64.b64encode(pickle.dumps(obj)).decode()
