@@ -1421,6 +1421,72 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert result == 1
         assert is_final_answer is True
 
+    def test_keyerror_in_try_is_caught_by_except_keyerror(self):
+        """KeyError raised from a dict lookup inside try must be caught by `except KeyError`.
+
+        Regression test for the interpreter wrapping KeyError in InterpreterError
+        (via `raise ... from e`), which previously made `except KeyError:` never match.
+        """
+        code = dedent("""
+            d = {"a": 1}
+            try:
+                x = d["b"]
+                result = "not caught"
+            except KeyError as e:
+                result = "caught"
+            result
+        """)
+        result, _ = evaluate_python_code(code, state={})
+        assert result == "caught"
+
+    def test_indexerror_in_try_is_caught_by_except_indexerror(self):
+        """IndexError raised from a list lookup inside try must be caught by `except IndexError`."""
+        code = dedent("""
+            lst = [1, 2, 3]
+            try:
+                x = lst[5]
+                result = "not caught"
+            except IndexError as e:
+                result = "caught"
+            result
+        """)
+        result, _ = evaluate_python_code(code, state={})
+        assert result == "caught"
+
+    def test_keyerror_from_delete_in_try_is_caught_by_except_keyerror(self):
+        """KeyError raised from `del d[missing]` inside try must be caught by `except KeyError`."""
+        code = dedent("""
+            d = {"a": 1}
+            try:
+                del d["missing"]
+                result = "not caught"
+            except KeyError:
+                result = "caught"
+            result
+        """)
+        result, _ = evaluate_python_code(code, state={})
+        assert result == "caught"
+
+    def test_keyerror_handler_binds_original_exception(self):
+        """`except KeyError as e:` must bind the original KeyError instance, not the wrapper."""
+        code = dedent("""
+            d = {"a": 1}
+            try:
+                x = d["b"]
+            except KeyError as e:
+                result = e
+            result
+        """)
+        result, _ = evaluate_python_code(code, state={})
+        assert isinstance(result, KeyError)
+
+    def test_uncaught_lookup_error_still_raises_interpreter_error(self):
+        """Outside a matching try/except, lookup failures keep surfacing as InterpreterError."""
+        code = "d = {'a': 1}\nresult = d['b']"
+        with pytest.raises(InterpreterError, match="Could not index"):
+            evaluate_python_code(code, state={})
+
+
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
             eval("1 + 1")
