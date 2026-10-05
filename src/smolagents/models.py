@@ -329,6 +329,24 @@ def get_tool_json_schema(tool: Tool) -> dict:
     }
 
 
+def _flatten_text_content(content: list[dict]) -> str:
+    """Concatenate the text blocks of a message content into a single string for flatten mode.
+
+    Text blocks are joined with ``"\n"`` so words from adjacent blocks never run together,
+    which matches how consecutive same-role messages are merged in the non-flatten path.
+    Unknown block types are rejected instead of being silently dropped, and an empty
+    content list yields an empty string.
+    """
+    parts = []
+    for element in content:
+        if not isinstance(element, dict) or element.get("type") != "text":
+            raise ValueError(
+                f"Cannot flatten non-text block of type {element.get('type')!r} in flatten mode."
+            )
+        parts.append(element.get("text", ""))
+    return "\n".join(parts)
+
+
 def get_clean_message_list(
     message_list: list[ChatMessage | dict],
     role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
@@ -375,7 +393,9 @@ def get_clean_message_list(
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
             assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
-                output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
+                flattened = _flatten_text_content(message.content)
+                if flattened:
+                    output_message_list[-1]["content"] += "\n" + flattened
             else:
                 for el in message.content:
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
@@ -385,14 +405,7 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                # Concatenate text blocks only: an empty content list, or a first
-                # block that is not text (e.g. an image/audio block), must not
-                # crash with IndexError/KeyError in flatten mode.
-                content = "".join(
-                    element.get("text", "")
-                    for element in message.content
-                    if isinstance(element, dict) and element.get("type") == "text"
-                )
+                content = _flatten_text_content(message.content)
             else:
                 content = message.content
             output_message_list.append(
@@ -604,11 +617,9 @@ class Model:
         """
         Converts the model into a JSON-compatible dictionary.
         """
-        dangerous_attributes = ["token", "api_key"]
         model_dictionary = {
-            key: value
-            for key, value in {**self.kwargs, "model_id": self.model_id}.items()
-            if key not in dangerous_attributes
+            **self.kwargs,
+            "model_id": self.model_id,
         }
         for attribute in [
             "custom_role_conversion",
@@ -626,6 +637,7 @@ class Model:
             if hasattr(self, attribute):
                 model_dictionary[attribute] = getattr(self, attribute)
 
+        dangerous_attributes = ["token", "api_key"]
         for attribute_name in dangerous_attributes:
             if hasattr(self, attribute_name):
                 print(
