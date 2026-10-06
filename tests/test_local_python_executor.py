@@ -1664,6 +1664,21 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert result == expected_result
 
     @pytest.mark.parametrize(
+        "code, undefined_name",
+        [
+            ("x += 1", "x"),
+            ("s += 'abc'", "s"),
+            ("total = 0\nfor v in [1, 2, 3]:\n    totla += v", "totla"),
+            ("def f():\n    n += 1\n    return n\nf()", "n"),
+        ],
+    )
+    def test_evaluate_augassign_undefined_name_raises(self, code, undefined_name):
+        state = {}
+        with pytest.raises(InterpreterError, match=f"The variable `{undefined_name}` is not defined"):
+            evaluate_python_code(code, {}, state=state)
+        assert undefined_name not in state
+
+    @pytest.mark.parametrize(
         "operator, expected_result",
         [
             ("+=", 7),
