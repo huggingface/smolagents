@@ -1822,6 +1822,14 @@ class TestEvaluateBoolop:
         result = evaluate_boolop(boolop_ast, state, {}, {}, [])
         assert result == (a or b or c)
 
+    @pytest.mark.parametrize("expr", ["cached or array", "False or array", "True and array"])
+    def test_evaluate_boolop_does_not_truth_test_final_operand(self, expr):
+        array = np.array([1, 2])
+        boolop_ast = ast.parse(expr).body[0].value
+        state = {"cached": None, "array": array}
+        result = evaluate_boolop(boolop_ast, state, {}, {}, [])
+        assert result is array
+
 
 class TestEvaluateDelete:
     @pytest.mark.parametrize(
