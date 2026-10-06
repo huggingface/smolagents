@@ -971,6 +971,29 @@ class TestRunResult:
 
 
 class TestMultiStepAgent:
+    def test_planning_step_with_structured_model_response(self):
+        class StructuredPlanModel(Model):
+            def __init__(self):
+                super().__init__()
+
+            def generate(self, messages, **kwargs):
+                if kwargs.get("stop_sequences") == ["<end_plan>"]:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content=[{"type": "text", "text": "Step 1: perform analysis."}],
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content='Thought: done\n<code>\nfinal_answer("ok")\n</code>',
+                )
+
+        agent = CodeAgent(model=StructuredPlanModel(), tools=[], max_steps=1, planning_interval=1, verbosity_level=0)
+        agent.run("test task")
+
+        plan_step = next(s for s in agent.memory.steps if isinstance(s, PlanningStep))
+        assert "Step 1: perform analysis." in plan_step.plan
+        assert "{'type': 'text'" not in plan_step.plan
+
     def test_instantiation_disables_logging_to_terminal(self):
         fake_model = MagicMock()
         agent = DummyMultiStepAgent(tools=[], model=fake_model)
