@@ -129,3 +129,22 @@ def test_multiple_servers(echo_server_script: str):
         assert tools[1].name == "echo_tool"
         assert tools[0].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
         assert tools[1].forward(**{"text": "Hello, world!"}) == "Echo: Hello, world!"
+
+
+def test_disconnect_clears_cached_tools():
+    class Adapter:
+        def __init__(self):
+            self.exit_calls = 0
+
+        def __exit__(self, *args):
+            self.exit_calls += 1
+
+    mcp_client = object.__new__(MCPClient)
+    mcp_client._adapter = Adapter()
+    mcp_client._tools = [object()]
+
+    mcp_client.disconnect()
+
+    assert mcp_client._adapter.exit_calls == 1
+    with pytest.raises(ValueError, match="Couldn't retrieve tools"):
+        mcp_client.get_tools()

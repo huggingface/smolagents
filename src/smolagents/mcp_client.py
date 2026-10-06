@@ -133,6 +133,7 @@ class MCPClient:
     ):
         """Disconnect from the MCP server"""
         self._adapter.__exit__(exc_type, exc_value, exc_traceback)
+        self._tools = None
 
     def get_tools(self) -> list[Tool]:
         """The SmolAgents tools available from the MCP server.
