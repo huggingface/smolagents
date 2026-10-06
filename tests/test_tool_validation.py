@@ -96,6 +96,34 @@ class InvalidToolRequiredParams(Tool):
         return input
 
 
+class InvalidToolPositionalOnlyParams(Tool):
+    name = "invalid_tool"
+    description = "Tool with required positional-only params"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, required_param, /, optional_param=1):
+        super().__init__()
+        self.param = required_param
+
+    def forward(self, input: str) -> str:
+        return input
+
+
+class InvalidToolKeywordOnlyParams(Tool):
+    name = "invalid_tool"
+    description = "Tool with required keyword-only params"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, *, required_param):
+        super().__init__()
+        self.param = required_param
+
+    def forward(self, input: str) -> str:
+        return input
+
+
 class InvalidToolNonLiteralDefaultParam(Tool):
     name = "invalid_tool"
     description = "Tool with non-literal default parameter value"
@@ -132,6 +160,14 @@ class InvalidToolUndefinedNames(Tool):
         (
             InvalidToolNonLiteralDefaultParam,
             "Parameters in __init__ must have literal default values, found non-literal defaults",
+        ),
+        (
+            InvalidToolPositionalOnlyParams,
+            "Parameters in __init__ must have default values, found required parameters",
+        ),
+        (
+            InvalidToolKeywordOnlyParams,
+            "Parameters in __init__ must have default values, found required parameters",
         ),
         (InvalidToolUndefinedNames, "Name 'UNDEFINED_VARIABLE' is undefined"),
     ],
