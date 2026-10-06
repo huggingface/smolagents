@@ -946,6 +946,40 @@ except ValueError as e:
         )
         assert state["exception_message"] == "An error occurred"
 
+    def test_bare_raise_in_except(self):
+        code = """
+try:
+    try:
+        raise KeyError("missing")
+    except KeyError:
+        try:
+            raise ValueError("inner")
+        except ValueError:
+            pass
+        raise
+except KeyError as e:
+    result = "KeyError: " + str(e)
+except ValueError as e:
+    result = "ValueError: " + str(e)
+"""
+        state = {}
+        evaluate_python_code(code, {"str": str}, state=state)
+        assert state["result"] == "KeyError: 'missing'"
+
+    def test_bare_raise_without_active_exception(self):
+        code = """
+try:
+    raise
+except RuntimeError as e:
+    result = str(e)
+"""
+        state = {}
+        evaluate_python_code(code, {"str": str}, state=state)
+        assert state["result"] == "No active exception to reraise"
+
+        with pytest.raises(InterpreterError, match="RuntimeError: No active exception to reraise"):
+            evaluate_python_code("raise")
+
     def test_print(self):
         code = "print(min([1, 2, 3]))"
         state = {}
