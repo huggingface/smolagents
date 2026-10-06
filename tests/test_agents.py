@@ -2626,3 +2626,57 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class FakeStreamingModel(Model):
+    """Offline stand-in: always returns one code blob, so no network is needed."""
+
+    model_id = "fake-streaming-model"
+
+    def generate(self, messages, stop_sequences=None, **kwargs):
+        return ChatMessage(
+            role="assistant",
+            content="Thought: compute.\n<code>\nprint(1 + 1)\n</code>",
+            token_usage=TokenUsage(input_tokens=10, output_tokens=10),
+        )
+
+
+def test_stream_can_be_closed_early_without_generator_exit():
+    """Closing a streaming run early must not raise 'generator ignored GeneratorExit'.
+
+    Regression test for #2703: `_run_stream` yielded inside a `finally` block.
+    When the caller closes the generator (explicitly via `gen.close()`, a `break`,
+    or GC), Python injects `GeneratorExit` at the suspension point; yielding again
+    from the `finally` during finalization raises `RuntimeError`. The fix moves the
+    final `yield action_step` outside the `finally` block.
+    """
+    agent = CodeAgent(tools=[], model=FakeStreamingModel(), verbosity_level=0)
+    gen = agent.run("Add one and one.", stream=True)
+
+    # Consume one event; the generator is now suspended inside the run loop.
+    next(gen)
+    # Closing early must not raise RuntimeError ("generator ignored GeneratorExit").
+    gen.close()
+
+
+def test_stream_generator_close_via_break_is_safe():
+    """Breaking out of the consumption loop must not raise either."""
+    agent = CodeAgent(tools=[], model=FakeStreamingModel(), verbosity_level=0)
+    gen = agent.run("Add one and one.", stream=True)
+
+    for _ in gen:
+        break  # early exit -> generator finalized with GeneratorExit
+
+
+def test_stream_step_counter_in_sync_after_early_break():
+    """After consuming one step and breaking, step_number must reflect the consumed step."""
+    agent = CodeAgent(tools=[], model=FakeStreamingModel(), verbosity_level=0)
+    gen = agent.run("Add one and one.", stream=True)
+
+    for _ in gen:
+        break
+
+    # The counter is bumped before yielding, so early termination leaves the
+    # agent state consistent with the steps actually consumed.
+    assert agent.step_number == 2
+    assert len(agent.memory.steps) == 1
