@@ -58,6 +58,46 @@ There's another way to build a tool. In the [guided_tour](../guided_tour), we im
 
 In this case, you can build your tool by subclassing [`Tool`] as described above.
 
+### Handle tool failures and recovery
+
+The way a custom tool reports a failure affects what the agent can do next. Raise an exception when the tool did not produce a valid result; the agent records the exception and exposes it to the model as an error observation. The model can then correct its input, retry the tool, or choose another tool.
+
+- For invalid or incomplete user-provided input, raise `ValueError` or `TypeError` with a specific correction. Include the accepted values or format when possible.
+- For a temporary dependency failure, catch the known low-level exception and raise a new exception with context, preserving the original exception with `from` for debugging. The model-facing observation uses the outer exception's type and message plus generic retry guidance; the cause chain is not a retryability signal.
+- For a permanent or unsafe failure, raise an exception that says the operation cannot be completed and what alternative is safe. The agent loop does not classify exceptions as retryable or fatal, so use `max_steps` to bound repeated tool calls. `final_answer_checks` runs only after the model proposes a final answer; a failed check consumes another agent step and validates answer acceptance rather than bounding tool retries.
+
+Returning an error message as a normal string is different: it is treated as a successful tool result. Use that pattern only when the error is intentionally part of the tool's data contract.
+
+```python
+from smolagents import Tool
+
+
+class CatalogTool(Tool):
+    name = "catalog_lookup"
+    description = "Look up a product in a small catalog."
+    inputs = {
+        "product": {"type": "string", "description": "The product name."},
+    }
+    output_type = "string"
+
+    def __init__(self):
+        self.catalog = {"tea": "in stock"}
+
+    def forward(self, product: str):
+        if not product.strip():
+            raise ValueError("Provide a non-empty product name.")
+        if product == "service-unavailable":
+            try:
+                raise TimeoutError("catalog service did not respond")
+            except TimeoutError as exc:
+                raise RuntimeError("The catalog is temporarily unavailable; retry later.") from exc
+        if product not in self.catalog:
+            raise ValueError(f"Unknown product {product!r}; ask for a product in the catalog.")
+        return self.catalog[product]
+```
+
+This keeps recoverable input errors actionable, makes temporary failures distinguishable from invalid input, and avoids reporting a failed operation as a successful result.
+
 ### Share your tool to the Hub
 
 You can share your custom tool to the Hub as a Space repository by calling [`~Tool.push_to_hub`] on the tool. Make sure you've created a repository for it on the Hub and are using a token with read access.
