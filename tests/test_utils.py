@@ -27,6 +27,7 @@ from smolagents.utils import (
     get_source,
     instance_to_source,
     is_valid_name,
+    make_json_serializable,
     parse_code_blobs,
     parse_json_blob,
 )
@@ -469,6 +470,19 @@ def test_parse_json_blob_with_valid_json(raw_json, expected_data, expected_blob)
 
     assert data == expected_data
     assert blob == expected_blob
+
+
+def test_make_json_serializable_preserves_json_looking_strings():
+    """A string value that happens to look like a JSON object/array (e.g. a tool
+    argument that is itself JSON text) must not be silently reinterpreted as a
+    dict/list - make_json_serializable should preserve the original type."""
+    obj = {"content": '{"key": "value"}', "path": "out.json", "items": "[1, 2, 3]"}
+
+    result = make_json_serializable(obj)
+
+    assert result == obj
+    assert isinstance(result["content"], str)
+    assert isinstance(result["items"], str)
 
 
 @pytest.mark.parametrize(
