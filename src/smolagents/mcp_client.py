@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 class MCPClient:
-    """Manages the connection to an MCP server and make its tools available to SmolAgents.
+    """Manages the connection to an MCP server and makes its tools available to SmolAgents.
 
     Note: tools can only be accessed after the connection has been started with the
         `connect()` method, done during the init. If you don't use the context manager
