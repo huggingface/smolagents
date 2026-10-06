@@ -805,6 +805,69 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+
+def test_get_clean_message_list_flatten_same_role_multiple_blocks():
+    """Consecutive same-role messages with multiple text blocks must keep every block."""
+    messages = [
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "a"}]),
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "b"}, {"type": "text", "text": "c"}]),
+    ]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 1
+    assert result[0]["role"] == "user"
+    assert result[0]["content"] == "a\nb\nc"
+
+
+def test_get_clean_message_list_flatten_same_role_empty_content():
+    """A same-role message with empty content must not raise IndexError."""
+    messages = [
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "a"}]),
+        ChatMessage(role=MessageRole.USER, content=[]),
+    ]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 1
+    assert result[0]["content"] == "a"
+
+
+def test_get_clean_message_list_flatten_empty_content():
+    """A single message with empty content flattens to an empty string."""
+    messages = [ChatMessage(role=MessageRole.USER, content=[])]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 1
+    assert result[0]["content"] == ""
+
+
+def test_get_clean_message_list_flatten_joins_blocks_with_newline():
+    """Adjacent text blocks in one message must be joined with a newline, not run together."""
+    messages = [
+        ChatMessage(
+            role=MessageRole.USER,
+            content=[{"type": "text", "text": "hello"}, {"type": "text", "text": "world"}],
+        )
+    ]
+    result = get_clean_message_list(messages, flatten_messages_as_text=True)
+    assert len(result) == 1
+    assert result[0]["content"] == "hello\nworld"
+
+
+def test_get_clean_message_list_flatten_rejects_non_text_blocks():
+    """Non-text blocks must be rejected in flatten mode instead of silently dropped."""
+    messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "audio", "audio": b"x"}])]
+    with pytest.raises(ValueError):
+        get_clean_message_list(messages, flatten_messages_as_text=True)
+
+
+def test_get_clean_message_list_flatten_keeps_non_flatten_behavior():
+    """Without flattening, message content lists must be preserved as-is."""
+    messages = [
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "a"}]),
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "b"}]),
+    ]
+    result = get_clean_message_list(messages)
+    assert len(result) == 1
+    assert result[0]["content"] == [{"type": "text", "text": "a\nb"}]
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
