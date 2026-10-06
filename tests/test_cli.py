@@ -1,3 +1,6 @@
+import importlib.machinery
+import sys
+import types
 from unittest.mock import patch
 
 import pytest
@@ -85,28 +88,34 @@ def test_cli_main(capsys):
 
 
 def test_vision_web_browser_main():
-    with patch("smolagents.vision_web_browser.helium"):
+    mock_helium = types.ModuleType("helium")
+    mock_helium.__spec__ = importlib.machinery.ModuleSpec("helium", None)
+    with (
+        patch.dict(sys.modules, {"helium": mock_helium}),
+        patch("smolagents.vision_web_browser._is_package_available", return_value=True),
+        patch("smolagents.vision_web_browser.initialize_driver"),
+    ):
         with patch("smolagents.vision_web_browser.load_model") as mock_load_model:
             mock_load_model.return_value = "mock_model"
             with patch("smolagents.vision_web_browser.CodeAgent") as mock_code_agent:
                 from smolagents.vision_web_browser import helium_instructions, run_webagent
 
                 run_webagent("test_prompt", "InferenceClientModel", "test_model_id", provider="hf-inference")
-    # load_model
-    assert len(mock_load_model.call_args_list) == 1
-    assert mock_load_model.call_args.args == ("InferenceClientModel", "test_model_id")
-    # CodeAgent
-    assert len(mock_code_agent.call_args_list) == 1
-    assert mock_code_agent.call_args.args == ()
-    assert len(mock_code_agent.call_args.kwargs["tools"]) == 4
-    assert mock_code_agent.call_args.kwargs["model"] == "mock_model"
-    assert mock_code_agent.call_args.kwargs["additional_authorized_imports"] == ["helium"]
-    # agent.python_executor
-    assert len(mock_code_agent.return_value.python_executor.call_args_list) == 1
-    assert mock_code_agent.return_value.python_executor.call_args.args == ("from helium import *",)
-    assert LocalPythonExecutor(["helium"])("from helium import *") == CodeOutput(
-        output=None, logs="", is_final_answer=False
-    )
-    # agent.run
-    assert len(mock_code_agent.return_value.run.call_args_list) == 1
-    assert mock_code_agent.return_value.run.call_args.args == ("test_prompt" + helium_instructions,)
+        # load_model
+        assert len(mock_load_model.call_args_list) == 1
+        assert mock_load_model.call_args.args == ("InferenceClientModel", "test_model_id")
+        # CodeAgent
+        assert len(mock_code_agent.call_args_list) == 1
+        assert mock_code_agent.call_args.args == ()
+        assert len(mock_code_agent.call_args.kwargs["tools"]) == 4
+        assert mock_code_agent.call_args.kwargs["model"] == "mock_model"
+        assert mock_code_agent.call_args.kwargs["additional_authorized_imports"] == ["helium"]
+        # agent.python_executor
+        assert len(mock_code_agent.return_value.python_executor.call_args_list) == 1
+        assert mock_code_agent.return_value.python_executor.call_args.args == ("from helium import *",)
+        assert LocalPythonExecutor(["helium"])("from helium import *") == CodeOutput(
+            output=None, logs="", is_final_answer=False
+        )
+        # agent.run
+        assert len(mock_code_agent.return_value.run.call_args_list) == 1
+        assert mock_code_agent.return_value.run.call_args.args == ("test_prompt" + helium_instructions,)

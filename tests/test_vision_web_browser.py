@@ -1,19 +1,38 @@
-"""Test XPath injection vulnerability fix in vision_web_browser.py"""
+"""Test vision_web_browser module, including lazy imports and XPath escaping."""
 
+import importlib
+import re
+import sys
 from unittest.mock import Mock, patch
 
 import pytest
 
-from smolagents.vision_web_browser import _escape_xpath_string, search_item_ctrl_f
+from smolagents.utils import _is_package_available
+from smolagents.vision_web_browser import (
+    _escape_xpath_string,
+    parse_arguments,
+    run_webagent,
+    search_item_ctrl_f,
+)
 
 
 @pytest.fixture
 def mock_driver():
-    """Mock Selenium WebDriver"""
+    """Mock Selenium WebDriver and selenium modules."""
     driver = Mock()
     driver.find_elements.return_value = [Mock()]  # Mock found elements
     driver.execute_script.return_value = None
-    return driver
+    mock_by = Mock()
+    mock_by.XPATH = "xpath"
+    modules = {
+        "selenium": Mock(),
+        "selenium.webdriver": Mock(),
+        "selenium.webdriver.common": Mock(),
+        "selenium.webdriver.common.by": Mock(By=mock_by),
+        "selenium.webdriver.common.keys": Mock(),
+    }
+    with patch.dict(sys.modules, modules):
+        yield driver
 
 
 class TestXPathEscaping:
@@ -130,3 +149,85 @@ class TestSearchItemCtrlF:
         with patch("smolagents.vision_web_browser.driver", mock_driver, create=True):
             with pytest.raises(Exception, match="Match n°3 not found"):
                 search_item_ctrl_f("test", nth_result=3)
+
+
+def test_import_vision_web_browser_without_vision_extra():
+    """Test that import smolagents.vision_web_browser succeeds even when helium and selenium are blocked from sys.modules."""
+    blocked_modules = {
+        "helium": None,
+        "selenium": None,
+        "selenium.webdriver": None,
+        "selenium.webdriver.common": None,
+        "selenium.webdriver.common.by": None,
+        "selenium.webdriver.common.keys": None,
+    }
+    with patch.dict(sys.modules, blocked_modules):
+        saved_module = sys.modules.pop("smolagents.vision_web_browser", None)
+        try:
+            mod = importlib.import_module("smolagents.vision_web_browser")
+            assert mod is not None
+            assert hasattr(mod, "run_webagent")
+            assert hasattr(mod, "parse_arguments")
+        finally:
+            if saved_module is not None:
+                sys.modules["smolagents.vision_web_browser"] = saved_module
+
+
+def test_run_webagent_missing_vision_extra_raises_helpful_error():
+    """Test that calling run_webagent("test", "InferenceClientModel", "test-model") without the vision extra raises ModuleNotFoundError with the exact helpful error message."""
+    expected_message = "Please install 'vision' extra to use the web agent: `pip install 'smolagents[vision]'`"
+    with patch("smolagents.vision_web_browser._is_package_available", return_value=False):
+        with pytest.raises(ModuleNotFoundError, match=re.escape(expected_message)) as exc_info:
+            run_webagent("test", "InferenceClientModel", "test-model")
+        assert str(exc_info.value) == expected_message
+
+    if not _is_package_available("helium") or not _is_package_available("selenium"):
+        with pytest.raises(ModuleNotFoundError, match=re.escape(expected_message)) as exc_info:
+            run_webagent("test", "InferenceClientModel", "test-model")
+        assert str(exc_info.value) == expected_message
+
+
+def test_run_webagent_missing_only_helium():
+    """Test when selenium is available but helium is missing."""
+    expected_message = "Please install 'vision' extra to use the web agent: `pip install 'smolagents[vision]'`"
+
+    def mock_is_pkg(pkg_name: str) -> bool:
+        if pkg_name == "selenium":
+            return True
+        if pkg_name == "helium":
+            return False
+        return False
+
+    with patch("smolagents.vision_web_browser._is_package_available", side_effect=mock_is_pkg):
+        with pytest.raises(ModuleNotFoundError, match=re.escape(expected_message)) as exc_info:
+            run_webagent("test", "InferenceClientModel", "test-model")
+        assert str(exc_info.value) == expected_message
+
+
+def test_run_webagent_missing_only_selenium():
+    """Test when helium is available but selenium is missing."""
+    expected_message = "Please install 'vision' extra to use the web agent: `pip install 'smolagents[vision]'`"
+
+    def mock_is_pkg(pkg_name: str) -> bool:
+        if pkg_name == "helium":
+            return True
+        if pkg_name == "selenium":
+            return False
+        return False
+
+    with patch("smolagents.vision_web_browser._is_package_available", side_effect=mock_is_pkg):
+        with pytest.raises(ModuleNotFoundError, match=re.escape(expected_message)) as exc_info:
+            run_webagent("test", "InferenceClientModel", "test-model")
+        assert str(exc_info.value) == expected_message
+
+
+def test_webagent_cli_help(capsys):
+    """Test that running --help through parse_arguments succeeds without error."""
+    with patch.object(sys, "argv", ["webagent", "--help"]):
+        with pytest.raises(SystemExit) as exc_info:
+            parse_arguments()
+        assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "Run a web browser automation script with a specified model." in captured.out
+    assert "--model-type" in captured.out
+    assert "--model-id" in captured.out
