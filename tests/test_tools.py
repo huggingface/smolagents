@@ -657,6 +657,26 @@ class TestTool:
         assert isinstance(union_type_return_tool_function, Tool)
         assert union_type_return_tool_function.output_type == "any"
 
+    def test_from_langchain_binds_positional_args_in_declaration_order(self):
+        # Regression test for a bug where Tool.from_langchain mapped every positional
+        # argument onto the first input key (next(iter(self.inputs))), so a multi-arg
+        # call overwrote one field and dropped the rest. A duck-typed fake tool keeps
+        # this test free of a real langchain dependency.
+        class FakeLangChainTool:
+            name = "add_pair"
+            description = "Add two numbers."
+            args = {"first": {"type": "integer"}, "second": {"type": "integer"}}
+
+            def run(self, tool_input):
+                return tool_input
+
+        wrapped = Tool.from_langchain(FakeLangChainTool())
+        # Positional args bind in declaration order, not all onto the first key.
+        assert wrapped.forward(3, 7) == {"first": 3, "second": 7}
+        # Keyword calls are unaffected, and positional/keyword can mix.
+        assert wrapped.forward(first=3, second=7) == {"first": 3, "second": 7}
+        assert wrapped.forward(3, second=7) == {"first": 3, "second": 7}
+
 
 class TestToolDecorator:
     def test_tool_decorator_source_extraction_with_multiple_decorators(self):
