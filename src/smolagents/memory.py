@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, Type
 
 from smolagents.models import ChatMessage, MessageRole, get_dict_from_nested_dataclasses
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
-from smolagents.utils import AgentError, make_json_serializable
+from smolagents.utils import AgentError, encode_image_base64, make_json_serializable
 
 
 if TYPE_CHECKING:
@@ -81,7 +81,7 @@ class ActionStep(MemoryStep):
             "model_output": self.model_output,
             "code_action": self.code_action,
             "observations": self.observations,
-            "observations_images": [image.tobytes() for image in self.observations_images]
+            "observations_images": [encode_image_base64(image) for image in self.observations_images]
             if self.observations_images
             else None,
             "action_output": make_json_serializable(self.action_output),
