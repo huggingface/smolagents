@@ -2088,6 +2088,41 @@ class TestToolCallingAgent:
                     for tool_call in test_case["tool_calls"]
                 ]
 
+    @pytest.mark.parametrize(
+        ("tool_call_ids", "expected_tool_call_ids"),
+        [
+            (["", ""], ["tool_call_0", "tool_call_1"]),
+            (["call_1", "call_1"], ["call_1", "call_1_1"]),
+        ],
+    )
+    def test_process_tool_calls_normalizes_missing_or_duplicate_ids(
+        self, tool_call_ids, expected_tool_call_ids, test_tool
+    ):
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock())
+        chat_message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id=tool_call_id,
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": value}),
+                )
+                for tool_call_id, value in zip(tool_call_ids, ["value1", "value2"])
+            ],
+        )
+        memory_step = ActionStep(step_number=10, timing="mock_timing", model_output="")
+
+        events = list(agent.process_tool_calls(chat_message, memory_step))
+        tool_calls = [event for event in events if isinstance(event, ToolCall)]
+        tool_outputs = [event for event in events if isinstance(event, ToolOutput)]
+
+        assert [tool_call.id for tool_call in tool_calls] == expected_tool_call_ids
+        assert [tool_call.id for tool_call in memory_step.tool_calls or []] == expected_tool_call_ids
+        assert sorted(tool_output.output for tool_output in tool_outputs) == ["Processed: value1", "Processed: value2"]
+        assert sorted(tool_output.id for tool_output in tool_outputs) == expected_tool_call_ids
+        assert memory_step.observations == "Processed: value1\nProcessed: value2"
+
 
 class TestCodeAgent:
     def test_code_agent_instructions(self):
