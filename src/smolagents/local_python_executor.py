@@ -450,12 +450,17 @@ def evaluate_while(
             try:
                 evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
             except BreakException:
+                # `break` skips the `else` clause (CPython semantics) / break 会跳过 else 子句（CPython 语义）
                 return None
             except ContinueException:
                 break
         iterations += 1
         if iterations > MAX_WHILE_ITERATIONS:
             raise InterpreterError(f"Maximum number of {MAX_WHILE_ITERATIONS} iterations in While loop exceeded")
+    # The `else` clause runs when the loop ends normally (test became false), even if the body never ran.
+    # 循环正常结束（条件变为假）时执行 else 子句，即使循环体一次也没执行过。
+    for node in while_loop.orelse:
+        evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
     return None
 
 
@@ -1032,6 +1037,7 @@ def evaluate_for(
 ) -> Any:
     result = None
     iterator = evaluate_ast(for_loop.iter, state, static_tools, custom_tools, authorized_imports)
+    exhausted = True  # whether the loop ran to completion without `break` / 循环是否未经 break 正常耗尽
     for counter in iterator:
         set_value(
             for_loop.target,
@@ -1047,9 +1053,20 @@ def evaluate_for(
                 if line_result is not None:
                     result = line_result
             except BreakException:
-                return result
+                # `break` skips the `else` clause (CPython semantics) / break 会跳过 else 子句（CPython 语义）
+                exhausted = False
+                break
             except ContinueException:
                 break
+        if not exhausted:
+            break
+    if exhausted:
+        # The `else` clause runs on normal exhaustion (including an empty iterator), not on `break`.
+        # else 子句在迭代正常耗尽时执行（包括空迭代器的情况），break 时不执行。
+        for node in for_loop.orelse:
+            line_result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
+            if line_result is not None:
+                result = line_result
     return result
 
 

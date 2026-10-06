@@ -371,6 +371,36 @@ for result in search_results:
         assert result == 2
         self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
 
+    def test_for_else_runs_on_completion(self):
+        # `else` runs when the loop exhausts its iterator without `break` (including an empty iterator).
+        # 循环在未经 break 正常耗尽迭代器时执行 else（包括空迭代器的情况）。
+        state = {}
+        evaluate_python_code(
+            "x = None\nfor i in range(3):\n    pass\nelse:\n    x = 'done'", {"range": range}, state=state
+        )
+        assert state["x"] == "done"
+
+        state = {}
+        evaluate_python_code("x = None\nfor i in []:\n    pass\nelse:\n    x = 'empty'", {}, state=state)
+        assert state["x"] == "empty"
+
+        # `continue` does not prevent the `else` clause / continue 不影响 else 子句执行
+        state = {}
+        evaluate_python_code(
+            "x = 0\nfor i in range(3):\n    continue\nelse:\n    x = 42", {"range": range}, state=state
+        )
+        assert state["x"] == 42
+
+    def test_for_else_skipped_on_break(self):
+        # `break` skips the `else` clause / break 会跳过 else 子句
+        state = {}
+        evaluate_python_code(
+            "x = None\nfor i in range(5):\n    if i == 2:\n        break\nelse:\n    x = 'done'",
+            {"range": range},
+            state=state,
+        )
+        assert state["x"] is None
+
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
@@ -667,6 +697,27 @@ simple_set = {
         )
         state = {}
         evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+    def test_while_else_runs_on_completion(self):
+        # `else` runs when the loop test becomes false (not via `break`), even if the body never ran.
+        # 循环条件变为假（而非 break 退出）时执行 else，即使循环体一次也没执行过。
+        state = {}
+        evaluate_python_code("x = None\ni = 0\nwhile i < 3:\n    i += 1\nelse:\n    x = 'done'", {}, state=state)
+        assert state["x"] == "done"
+
+        state = {}
+        evaluate_python_code("x = None\nwhile False:\n    pass\nelse:\n    x = 'no body'", {}, state=state)
+        assert state["x"] == "no body"
+
+    def test_while_else_skipped_on_break(self):
+        # `break` skips the `else` clause / break 会跳过 else 子句
+        state = {}
+        evaluate_python_code(
+            "x = None\ni = 0\nwhile i < 5:\n    if i == 2:\n        break\n    i += 1\nelse:\n    x = 'done'",
+            {},
+            state=state,
+        )
+        assert state["x"] is None
 
     def test_generator(self):
         code = "a = [1, 2, 3, 4, 5]; b = (i**2 for i in a); list(b)"
