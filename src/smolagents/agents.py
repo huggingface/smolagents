@@ -574,6 +574,7 @@ You have been provided with these additional arguments, that you can access dire
                 observations_images=images,
             )
             self.logger.log_rule(f"Step {self.step_number}", level=LogLevel.INFO)
+            closing = False
             try:
                 for output in self._step_stream(action_step):
                     # Yield all
@@ -591,6 +592,12 @@ You have been provided with these additional arguments, that you can access dire
                         returned_final_answer = True
                         action_step.is_final_answer = True
 
+            except GeneratorExit:
+                # The consumer stopped iterating and is closing us: the step is still finalized
+                # and recorded below, but we must not yield again while unwinding, otherwise
+                # Python raises RuntimeError("generator ignored GeneratorExit").
+                closing = True
+                raise
             except AgentGenerationError as e:
                 # Agent generation errors are not caused by a Model error but an implementation error: so we should raise them and exit.
                 raise e
@@ -600,8 +607,9 @@ You have been provided with these additional arguments, that you can access dire
             finally:
                 self._finalize_step(action_step)
                 self.memory.steps.append(action_step)
-                yield action_step
-                self.step_number += 1
+                if not closing:
+                    yield action_step
+                    self.step_number += 1
 
         if not returned_final_answer and self.step_number == max_steps + 1:
             final_answer = self._handle_max_steps_reached(task)
