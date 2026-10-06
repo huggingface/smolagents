@@ -755,6 +755,30 @@ def test_remove_content_after_stop_sequences_handles_none():
     assert removed_content is None
 
 
+def test_remove_content_after_stop_sequences_earliest():
+    """Test that the earliest occurrence of any stop sequence is used."""
+    content = "Hello <code> world END"
+    stop_sequences = ["<code>", "END", "###"]
+    removed_content = remove_content_after_stop_sequences(content, stop_sequences)
+    assert removed_content == "Hello "  # "<code>" at position 6
+
+
+def test_remove_content_after_stop_sequences_first_occurrence():
+    """Test that the first occurrence of a stop sequence is used (not last)."""
+    content = "END Hello END world"
+    stop_sequences = ["END"]
+    removed_content = remove_content_after_stop_sequences(content, stop_sequences)
+    assert removed_content == ""  # First "END" at position 0
+
+
+def test_remove_content_after_stop_sequences_no_match():
+    """Test that content is unchanged when no stop sequence matches."""
+    content = "Hello world"
+    stop_sequences = ["<code>", "END", "###"]
+    removed_content = remove_content_after_stop_sequences(content, stop_sequences)
+    assert removed_content == "Hello world"
+
+
 @pytest.mark.parametrize(
     "convert_images_to_image_urls, expected_clean_message",
     [
