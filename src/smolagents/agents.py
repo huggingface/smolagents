@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import importlib
+import importlib.metadata
 import json
 import os
 import tempfile
@@ -487,7 +488,7 @@ You have been provided with these additional arguments, that you can access dire
         )
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
 
-        if getattr(self, "python_executor", None):
+        if getattr(self, "python_executor", None) is not None:
             self.python_executor.send_variables(variables=self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
@@ -1513,7 +1514,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports (`list[str]`, *optional*): Additional authorized imports for the agent.
         planning_interval (`int`, *optional*): Interval at which the agent will run a planning step.
         executor ([`PythonExecutor`], *optional*): Custom Python code executor. If not provided, a default executor will be created based on `executor_type`.
-        executor_type (`Literal["local", "blaxel", "e2b", "modal", "docker"]`, default `"local"`): Type of code executor.
+        executor_type (`str`, default `"local"`): Built-in executor (`"local"`, `"blaxel"`, `"e2b"`, `"modal"`, `"docker"`) or an installed `smolagents.executors` entry point name.
         executor_kwargs (`dict`, *optional*): Additional arguments to pass to initialize the executor.
         max_print_outputs_length (`int`, *optional*): Maximum length of the print outputs.
         stream_outputs (`bool`, *optional*, default `False`): Whether to stream outputs during execution.
@@ -1532,7 +1533,7 @@ class CodeAgent(MultiStepAgent):
         additional_authorized_imports: list[str] | None = None,
         planning_interval: int | None = None,
         executor: PythonExecutor = None,
-        executor_type: Literal["local", "blaxel", "e2b", "modal", "docker"] = "local",
+        executor_type: str = "local",
         executor_kwargs: dict[str, Any] | None = None,
         max_print_outputs_length: int | None = None,
         stream_outputs: bool = False,
@@ -1582,7 +1583,7 @@ class CodeAgent(MultiStepAgent):
             )
         self.executor_type = executor_type
         self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
-        self.python_executor = executor or self.create_python_executor()
+        self.python_executor = executor if executor is not None else self.create_python_executor()
 
     def __enter__(self):
         return self
@@ -1596,26 +1597,41 @@ class CodeAgent(MultiStepAgent):
             self.python_executor.cleanup()
 
     def create_python_executor(self) -> PythonExecutor:
-        if self.executor_type not in {"local", "blaxel", "e2b", "modal", "docker"}:
-            raise ValueError(f"Unsupported executor type: {self.executor_type}")
-
         if self.executor_type == "local":
             return LocalPythonExecutor(
                 self.additional_authorized_imports,
                 **{"max_print_outputs_length": self.max_print_outputs_length} | self.executor_kwargs,
             )
-        else:
+        remote_executors = {
+            "blaxel": BlaxelExecutor,
+            "e2b": E2BExecutor,
+            "docker": DockerExecutor,
+            "modal": ModalExecutor,
+        }
+        if self.executor_type in remote_executors:
             if self.managed_agents:
                 raise Exception("Managed agents are not yet supported with remote code execution.")
-            remote_executors = {
-                "blaxel": BlaxelExecutor,
-                "e2b": E2BExecutor,
-                "docker": DockerExecutor,
-                "modal": ModalExecutor,
-            }
             return remote_executors[self.executor_type](
                 self.additional_authorized_imports, self.logger, **self.executor_kwargs
             )
+
+        entry_points = list(importlib.metadata.entry_points(group="smolagents.executors", name=self.executor_type))
+        if not entry_points:
+            raise ValueError(
+                f"Unsupported executor type: {self.executor_type}. "
+                "Install a package that registers this name in the 'smolagents.executors' entry point group."
+            )
+        if len(entry_points) > 1:
+            raise ValueError(
+                f"Multiple 'smolagents.executors' entry points named '{self.executor_type}' are installed."
+            )
+        factory = entry_points[0].load()
+        if not callable(factory):
+            raise TypeError(f"Executor entry point '{self.executor_type}' must be callable.")
+        executor = factory(self.additional_authorized_imports, self.logger, **self.executor_kwargs)
+        if not isinstance(executor, PythonExecutor):
+            raise TypeError(f"Executor entry point '{self.executor_type}' must return a PythonExecutor instance.")
+        return executor
 
     def initialize_system_prompt(self) -> str:
         system_prompt = populate_template(
