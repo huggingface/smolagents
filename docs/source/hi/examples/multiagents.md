@@ -2,9 +2,9 @@
 
 [[open-in-colab]]
 
-इस नोटबुक में हम एक **मल्टी-एजेंट वेब ब्राउज़र बनाएंगे: एक एजेंटिक सिस्टम जिसमें कई एजेंट वेब का उपयोग करके समस्याओं को हल करने के लिए सहयोग करते हैं!**
+इस नोटबुक में हम **मल्टी-एजेंट पदानुक्रमित सिस्टम्स (hierarchical systems) प्रदर्शित करते हैं: कैसे कई विशेषीकृत कार्यकर्ता एजेंट्स को एक मैनेजर एजेंट द्वारा जटिल कार्यों को हल करने के लिए समन्वित किया जा सकता है!**
 
-यह एक सरल संरचना होगी, जो प्रबंधित वेब खोज एजेंट को रैप करने के लिए `ManagedAgent` ऑब्जेक्ट का उपयोग करता है:
+यह एक सरल पदानुक्रमित संरचना होगी:
 
 ```
               +----------------+
@@ -112,7 +112,6 @@ from smolagents import (
     CodeAgent,
     ToolCallingAgent,
     InferenceClientModel,
-    ManagedAgent,
     WebSearchTool,
 )
 
@@ -122,20 +121,14 @@ web_agent = ToolCallingAgent(
     tools=[WebSearchTool(), visit_webpage],
     model=model,
     max_steps=10,
+    name="web_search_agent",
+    description="Runs web searches for you.",
 )
 ```
 
-फिर हम इस एजेंट को एक `ManagedAgent` में रैप करते हैं जो इसे इसके मैनेजर एजेंट द्वारा कॉल करने योग्य बनाएगा।
+ध्यान दें कि हमने इस एजेंट को `name` और `description` एट्रिब्यूट्स दिए हैं, जो इस एजेंट को इसके प्रबंधक एजेंट द्वारा कॉल करने योग्य बनाने के लिए अनिवार्य एट्रिब्यूट्स हैं।
 
-```py
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
-    name="search",
-    description="Runs web searches for you. Give it your query as an argument.",
-)
-```
-
-अंत में हम एक मैनेजर एजेंट बनाते हैं, और इनिशियलाइजेशन पर हम अपने मैनेज्ड एजेंट को इसके `managed_agents` आर्गुमेंट में पास करते हैं।
+फिर हम एक प्रबंधक (manager) एजेंट बनाते हैं, और इनिशियलाइज़ेशन पर हम अपने प्रबंधित एजेंट को इसके `managed_agents` आर्गुमेंट में पास करते हैं।
 
 चूंकि यह एजेंट योजना बनाने और सोचने का काम करता है, उन्नत तर्क लाभदायक होगा, इसलिए `CodeAgent` सबसे अच्छा विकल्प होगा।
 
@@ -145,7 +138,7 @@ managed_web_agent = ManagedAgent(
 manager_agent = CodeAgent(
     tools=[],
     model=model,
-    managed_agents=[managed_web_agent],
+    managed_agents=[web_agent],
     additional_authorized_imports=["time", "numpy", "pandas"],
 )
 ```
