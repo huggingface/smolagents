@@ -1643,6 +1643,25 @@ class TestMultiStepAgent:
 
 
 class TestToolCallingAgent:
+    def test_call_as_managed_agent_reports_max_steps_failure(self):
+        """The max-steps failure warning must apply to ToolCallingAgent too, not just CodeAgent."""
+        agent = ToolCallingAgent(tools=[], model=MagicMock())
+        agent.name = "sub_agent"
+        agent.run = MagicMock(return_value="best-effort guess")
+        # Simulate the memory state run() leaves behind when it exhausts max_steps
+        agent.memory.steps.append(
+            ActionStep(
+                step_number=1,
+                timing=Timing(start_time=0.0),
+                error=AgentMaxStepsError("Reached max steps.", agent.logger),
+            )
+        )
+
+        result = agent("Test request")
+
+        assert "did not reach a final answer" in result
+        assert "best-effort guess" in result
+
     def test_toolcalling_agent_instructions(self):
         agent = ToolCallingAgent(tools=[], model=MagicMock(), instructions="Test instructions")
         assert agent.instructions == "Test instructions"
@@ -2119,6 +2138,48 @@ class TestCodeAgent:
                 "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
             )
         assert result == expected_summary
+
+    def test_call_as_managed_agent_reports_max_steps_failure(self):
+        """Regression test: a sub-agent that exhausts max_steps must not report a silent, confident-looking answer."""
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModelNoReturn(),  # never calls final_answer, so it always exhausts max_steps
+            max_steps=2,
+        )
+        agent.name = "sub_agent"
+        agent.description = "A sub-agent for testing"
+
+        result = agent("Test request")
+
+        assert type(agent.memory.steps[-1].error) is AgentMaxStepsError
+        assert "did not reach a final answer" in result
+        assert "sub_agent" in result
+        # The (best-effort) answer must still be included, just clearly flagged as unreliable
+        assert "Here is the final answer from your managed agent 'sub_agent':" in result
+
+    def test_call_as_managed_agent_reports_empty_result(self):
+        """Regression test: a sub-agent returning an empty/None result must not look like a normal answer."""
+        agent = CodeAgent(tools=[], model=MagicMock())
+        agent.name = "sub_agent"
+        agent.run = MagicMock(return_value="")
+
+        result = agent("Test request")
+
+        assert "returned an empty result" in result
+        assert "sub_agent" in result
+
+    def test_call_as_managed_agent_success_has_no_failure_warning(self):
+        """A normal, successful call must render exactly as before: no warning text injected."""
+        agent = CodeAgent(tools=[], model=MagicMock())
+        agent.name = "sub_agent"
+        agent.run = MagicMock(return_value="Test output")
+
+        result = agent("Test request")
+
+        assert result == "Here is the final answer from your managed agent 'sub_agent':\nTest output"
+        assert "⚠️" not in result
+        assert "did not reach a final answer" not in result
+        assert "returned an empty result" not in result
 
     def test_code_agent_image_output(self):
         from PIL import Image

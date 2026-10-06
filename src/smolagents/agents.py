@@ -878,8 +878,23 @@ You have been provided with these additional arguments, that you can access dire
             report = result.output
         else:
             report = result
+        # A sub-agent that exhausts max_steps without calling final_answer, or that returns nothing
+        # useful, does not raise: run() falls back to a best-effort LLM-generated answer instead. Left
+        # unflagged, that best-effort text is indistinguishable from a genuine, confident final answer once
+        # it reaches the manager, so the manager can't tell task completion from task failure. Surface both
+        # cases explicitly so the manager model can decide whether to trust, retry, or escalate.
+        is_max_steps_error = bool(
+            self.memory.steps and isinstance(getattr(self.memory.steps[-1], "error", None), AgentMaxStepsError)
+        )
+        is_empty_result = report is None or (isinstance(report, str) and not report.strip())
         answer = populate_template(
-            self.prompt_templates["managed_agent"]["report"], variables=dict(name=self.name, final_answer=report)
+            self.prompt_templates["managed_agent"]["report"],
+            variables=dict(
+                name=self.name,
+                final_answer=report,
+                is_max_steps_error=is_max_steps_error,
+                is_empty_result=is_empty_result,
+            ),
         )
         if self.provide_run_summary:
             answer += "\n\nFor more detail, find below a summary of this agent's work:\n<summary_of_work>\n"
