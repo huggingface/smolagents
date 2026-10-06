@@ -28,7 +28,7 @@ This example demonstrates advanced usage of the smolagents library, specifically
 ## Usage
 
 ### Basic Usage
-```python
+```bash
 python plan_customization.py
 ```
 
@@ -41,6 +41,7 @@ def interrupt_after_plan(memory_step, agent):
         # Display plan and get user input
         # Modify plan if requested
         # Continue or interrupt based on user choice
+        ...
 ```
 
 #### Agent Configuration

@@ -14,7 +14,7 @@
 
 아래 명령어를 실행해 필요한 의존성을 설치하세요:
 ```bash
-!pip install smolagents python-dotenv sqlalchemy --upgrade -q
+pip install smolagents python-dotenv sqlalchemy --upgrade -q
 ```
 
 추론 프로바이더를 호출하려면 환경 변수 `HF_TOKEN`에 유효한 토큰이 설정되어 있어야 합니다.

@@ -34,7 +34,7 @@ pip install 'smolagents[openai]'
 
 그다음, [Gemini API 키를 얻고](https://ai.google.dev/gemini-api/docs/api-key) 코드에서 설정합니다:
 ```python
-GEMINI_API_KEY = <YOUR-GEMINI-API-KEY>
+GEMINI_API_KEY = "<YOUR-GEMINI-API-KEY>"
 ```
 
 이제 `OpenAIModel` 클래스를 사용하고 `api_base` 매개변수를 Gemini API 베이스 URL로 설정하여
@@ -62,7 +62,7 @@ pip install 'smolagents[openai]'
 
 그다음, [OpenRouter API 키를 얻고](https://openrouter.ai/keys) 코드에서 설정합니다:
 ```python
-OPENROUTER_API_KEY = <YOUR-OPENROUTER-API-KEY>
+OPENROUTER_API_KEY = "<YOUR-OPENROUTER-API-KEY>"
 ```
 
 이제 `OpenAIModel` 클래스를 사용하여 OpenRouter에서 사용 가능한 모든 모델을 초기화할 수 있습니다:
@@ -92,7 +92,7 @@ pip install smolagents[litellm]
 
 그다음, [xAI API 키를 얻고](https://console.x.ai/) 코드에서 설정합니다:
 ```python
-XAI_API_KEY = <YOUR-XAI-API-KEY>
+XAI_API_KEY = "<YOUR-XAI-API-KEY>"
 ```
 
 이제 `LiteLLMModel` 클래스를 사용하여 Grok 모델을 초기화하고 해당되는 경우 `stop` 매개변수를 제거할 수 있습니다:

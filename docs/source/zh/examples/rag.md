@@ -20,7 +20,7 @@ Retrieval-Augmented-Generation (RAG) 是“使用大语言模型（LLM）来回�
 
 运行以下代码以安装所需的依赖包：
 ```bash
-!pip install smolagents pandas langchain langchain-community sentence-transformers rank_bm25 --upgrade -q
+pip install smolagents pandas langchain langchain-community sentence-transformers rank_bm25 --upgrade -q
 ```
 
 你需要一个有效的 token 作为环境变量 `HF_TOKEN` 来调用 Inference Providers。我们使用 python-dotenv 来加载它。

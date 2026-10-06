@@ -34,7 +34,7 @@ pip install 'smolagents[openai]'
 
 Then, [get a Gemini API key](https://ai.google.dev/gemini-api/docs/api-key) and set it in your code:
 ```python
-GEMINI_API_KEY = <YOUR-GEMINI-API-KEY>
+GEMINI_API_KEY = "<YOUR-GEMINI-API-KEY>"
 ```
 
 Now, you can initialize the Gemini model using the `OpenAIModel` class
@@ -62,7 +62,7 @@ pip install 'smolagents[openai]'
 
 Then, [get an OpenRouter API key](https://openrouter.ai/keys) and set it in your code:
 ```python
-OPENROUTER_API_KEY = <YOUR-OPENROUTER-API-KEY>
+OPENROUTER_API_KEY = "<YOUR-OPENROUTER-API-KEY>"
 ```
 
 Now, you can initialize any model available on OpenRouter using the `OpenAIModel` class:
@@ -92,7 +92,7 @@ pip install smolagents[litellm]
 
 Then, [get an xAI API key](https://console.x.ai/) and set it in your code:
 ```python
-XAI_API_KEY = <YOUR-XAI-API-KEY>
+XAI_API_KEY = "<YOUR-XAI-API-KEY>"
 ```
 
 Now, you can initialize Grok models using the `LiteLLMModel` class and remove the `stop` parameter if applicable:
