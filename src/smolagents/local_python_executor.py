@@ -1166,6 +1166,8 @@ def evaluate_try(
     try:
         for stmt in try_node.body:
             evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+    except (ReturnException, BreakException, ContinueException):
+        raise
     except Exception as e:
         matched = False
         for handler in try_node.handlers:
@@ -1251,6 +1253,23 @@ def evaluate_with(
     try:
         for stmt in with_node.body:
             evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+    except (ReturnException, BreakException, ContinueException) as control_flow_exc:
+        exc_info = (None, None, None)
+        exit_raised = False
+        for context in reversed(contexts):
+            try:
+                if exc_info[1] is not None:
+                    if context.__exit__(*exc_info):
+                        exc_info = (None, None, None)
+                else:
+                    context.__exit__(None, None, None)
+            except Exception as exit_exc:
+                exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)
+                exit_raised = True
+        if exc_info[1] is not None:
+            raise exc_info[1].with_traceback(exc_info[2])
+        if not exit_raised:
+            raise control_flow_exc
     except Exception as e:
         # exc_info tracks the active exception as we unwind (from innermost context manager)
         # Resetting it to (None, None, None) signals suppression to the remaining outer managers

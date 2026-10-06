@@ -1216,6 +1216,148 @@ with RaisingExit():
         with pytest.raises(InterpreterError, match="from __exit__"):
             evaluate_python_code(code, {}, state={})
 
+    def test_with_return_passes_none_to_exit(self):
+        """Test that a return statement inside a with block passes (None, None, None) to __exit__."""
+        code = """
+exit_args = []
+class CM:
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        exit_args.append((exc_type, exc_val))
+
+def func():
+    with CM():
+        return 42
+    return 99
+
+res = func()
+assert res == 42
+assert len(exit_args) == 1
+assert exit_args[0] == (None, None)
+"""
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    def test_with_return_sqlite_transaction_commits(self):
+        """Test that a normal return inside a with block commits a SQLite transaction (#2758)."""
+        import contextlib
+        import sqlite3
+
+        code = """
+def write():
+    with db:
+        db.execute("INSERT INTO t VALUES (1)")
+        return 42
+value = write()
+result = (value, db.execute("SELECT count(*) FROM t").fetchone()[0])
+"""
+        with contextlib.closing(sqlite3.connect(":memory:")) as connection:
+            connection.execute("CREATE TABLE t (value INTEGER)")
+            result, _ = evaluate_python_code(
+                code + "\nresult",
+                BASE_PYTHON_TOOLS,
+                state={"db": connection},
+                timeout_seconds=None,
+            )
+            assert result == (42, 1)
+
+    def test_with_suppress_does_not_swallow_return(self):
+        """Test that contextlib.suppress does not swallow return statements inside with blocks."""
+        code = """
+import contextlib
+
+def f():
+    with contextlib.suppress(Exception):
+        return 42
+    return 99
+
+res = f()
+assert res == 42
+"""
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["contextlib"])
+
+    def test_with_break_and_continue_pass_none_to_exit(self):
+        """Test that break and continue inside with blocks pass (None, None, None) to __exit__."""
+        code = """
+exit_calls = []
+class CM:
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        exit_calls.append(exc_type)
+
+res = []
+for i in range(5):
+    with CM():
+        if i == 1:
+            continue
+        if i == 3:
+            break
+        res.append(i)
+
+assert res == [0, 2]
+assert exit_calls == [None, None, None, None]
+"""
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    def test_try_except_does_not_catch_control_flow(self):
+        """Test that except Exception and bare except do not intercept return, break, or continue."""
+        code = """
+def test_ret():
+    try:
+        return 42
+    except Exception:
+        return 99
+
+def test_ret_bare():
+    try:
+        return 42
+    except:
+        return 99
+
+assert test_ret() == 42
+assert test_ret_bare() == 42
+
+res = []
+for i in range(4):
+    try:
+        if i == 2:
+            break
+        res.append(i)
+    except Exception:
+        res.append(99)
+
+assert res == [0, 1]
+"""
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    def test_with_nested_exit_exception_suppression_discards_return(self):
+        """Test that if an inner __exit__ raises during a pending return and an outer __exit__ suppresses it,
+        the pending return is discarded and execution continues after the with statement (CPython semantics).
+        """
+        code = """
+class Outer:
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        return True
+
+class Inner:
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        raise ValueError("exit")
+
+def f():
+    with Outer(), Inner():
+        return 42
+    return 99
+
+res = f()
+assert res == 99
+"""
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
     def test_default_arg_in_function(self):
         code = """
 def f(a, b=333, n=1000):
