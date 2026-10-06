@@ -88,7 +88,7 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 로컬 Python 인터프리터 대신 [E2B code executor](https://e2b.dev/docs#what-is-e2-b)나 Docker를 사용할 수도 있습니다. E2B의 경우, 먼저 [`E2B_API_KEY` 환경 변수를 설정](https://e2b.dev/dashboard?tab=keys)한 다음 에이전트 초기화 시 `executor_type="e2b"`를 전달하세요. Docker의 경우, 초기화 중에 `executor_type="docker"`를 전달하세요.
 
 > [!TIP]
-> 코드 실행에 대해 더 자세히 알아보려면 [이 튜토리얼](tutorials/secure_code_execution)을 확인하세요.
+> 코드 실행에 대해 더 자세히 알아보려면 [이 튜토리얼](../en/tutorials/secure_code_execution)을 확인하세요.
 
 ### ToolCallingAgent[[toolcallingagent]]
 
@@ -607,6 +607,6 @@ agent.from_hub("m-ric/my_agent", trust_remote_code=True)
 ```
 
 더 자세한 활용법을 원한다면 다음 튜토리얼들을 참고하세요:
-- [코드 에이전트가 작동하는 방법에 대한 설명](./tutorials/secure_code_execution)
+- [코드 에이전트가 작동하는 방법에 대한 설명](../en/tutorials/secure_code_execution)
 - [좋은 에이전트를 구축하는 방법에 대한 가이드](./tutorials/building_good_agents).
 - [도구 사용에 대한 상세 가이드](./tutorials/building_good_agents).
