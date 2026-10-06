@@ -173,20 +173,53 @@ def _coerce_tool_call(tool_call: Any) -> ChatMessageToolCall:
     if isinstance(tool_call, ChatMessageToolCall):
         return tool_call
 
+    # Support object-style access (e.g. OpenAI SDK / custom classes with function attr)
+    if hasattr(tool_call, "function") and hasattr(tool_call.function, "name"):
+        fn_obj = tool_call.function
+        arguments = getattr(fn_obj, "arguments", "") or ""
+        name = getattr(fn_obj, "name", "") or ""
+        tool_id = getattr(tool_call, "id", None) or f"call_{uuid.uuid4().hex[:8]}"
+        tool_type = getattr(tool_call, "type", None) or "function"
+        return ChatMessageToolCall(
+            function=ChatMessageToolCallFunction(
+                arguments=arguments,
+                name=name,
+            ),
+            id=tool_id,
+            type=tool_type,
+        )
+
     if isinstance(tool_call, dict):
         tool_call_dict = tool_call
-    elif hasattr(tool_call, "model_dump"):
+    elif hasattr(tool_call, "model_dump") and callable(tool_call.model_dump):
         tool_call_dict = tool_call.model_dump()
     elif hasattr(tool_call, "dict") and callable(tool_call.dict):
         tool_call_dict = tool_call.dict()
+    else:
+        tool_call_dict = getattr(tool_call, "__dict__", {})
+
+    fn = tool_call_dict.get("function", {}) if isinstance(tool_call_dict, dict) else {}
+    if isinstance(fn, dict):
+        fn_name = fn.get("name", "") or ""
+        fn_args = fn.get("arguments", "") or ""
+    else:
+        fn_name = getattr(fn, "name", "") or ""
+        fn_args = getattr(fn, "arguments", "") or ""
+
+    call_id = (
+        tool_call_dict.get("id") if isinstance(tool_call_dict, dict) else getattr(tool_call, "id", None)
+    ) or f"call_{uuid.uuid4().hex[:8]}"
+    call_type = (
+        tool_call_dict.get("type") if isinstance(tool_call_dict, dict) else getattr(tool_call, "type", None)
+    ) or "function"
 
     return ChatMessageToolCall(
         function=ChatMessageToolCallFunction(
-            arguments=tool_call_dict["function"]["arguments"],
-            name=tool_call_dict["function"]["name"],
+            arguments=fn_args,
+            name=fn_name,
         ),
-        id=tool_call_dict["id"],
-        type=tool_call_dict["type"],
+        id=call_id,
+        type=call_type,
     )
 
 
