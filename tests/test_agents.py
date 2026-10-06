@@ -1594,6 +1594,56 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_toolcalling_agent_configuration_roundtrip(self):
+        model = MagicMock()
+        model.to_dict.return_value = {}
+        agent = ToolCallingAgent(
+            tools=[],
+            model=model,
+            instructions="Always explain tool choices.",
+            provide_run_summary=True,
+            return_full_result=True,
+            stream_outputs=True,
+            max_tool_threads=3,
+        )
+        agent_dict = json.loads(json.dumps(agent.to_dict()))
+
+        restored_model = MagicMock()
+        with patch.dict(
+            "smolagents.models.MODEL_REGISTRY",
+            {"MagicMock": MagicMock(from_dict=MagicMock(return_value=restored_model))},
+        ):
+            restored_agent = ToolCallingAgent.from_dict(agent_dict)
+
+        assert restored_agent.instructions == "Always explain tool choices."
+        assert restored_agent.provide_run_summary is True
+        assert restored_agent.return_full_result is True
+        assert restored_agent.stream_outputs is True
+        assert restored_agent.max_tool_threads == 3
+
+    def test_code_agent_configuration_roundtrip(self):
+        model = MagicMock()
+        model.to_dict.return_value = {}
+        agent = CodeAgent(
+            tools=[],
+            model=model,
+            stream_outputs=True,
+            use_structured_outputs_internally=True,
+            code_block_tags=("<python>", "</python>"),
+        )
+        agent_dict = json.loads(json.dumps(agent.to_dict()))
+
+        restored_model = MagicMock()
+        with patch.dict(
+            "smolagents.models.MODEL_REGISTRY",
+            {"MagicMock": MagicMock(from_dict=MagicMock(return_value=restored_model))},
+        ):
+            restored_agent = CodeAgent.from_dict(agent_dict)
+
+        assert restored_agent.stream_outputs is True
+        assert restored_agent._use_structured_outputs_internally is True
+        assert restored_agent.code_block_tags == ("<python>", "</python>")
+
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
         agent_dict = {

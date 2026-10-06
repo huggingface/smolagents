@@ -1003,6 +1003,10 @@ You have been provided with these additional arguments, that you can access dire
             "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
+            "instructions": self.instructions,
+            "provide_run_summary": self.provide_run_summary,
+            "return_full_result": self.return_full_result,
+            "stream_outputs": self.stream_outputs,
             "requirements": sorted(requirements),
         }
         return agent_dict
@@ -1053,6 +1057,9 @@ You have been provided with these additional arguments, that you can access dire
             "planning_interval": agent_dict.get("planning_interval"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
+            "instructions": agent_dict.get("instructions"),
+            "provide_run_summary": agent_dict.get("provide_run_summary"),
+            "return_full_result": agent_dict.get("return_full_result"),
         }
         # Filter out None values to use defaults from __init__
         agent_args = {k: v for k, v in agent_args.items() if v is not None}
@@ -1272,6 +1279,19 @@ class ToolCallingAgent(MultiStepAgent):
             },
         )
         return system_prompt
+
+    def to_dict(self) -> dict[str, Any]:
+        agent_dict = super().to_dict()
+        agent_dict["max_tool_threads"] = self.max_tool_threads
+        return agent_dict
+
+    @classmethod
+    def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "ToolCallingAgent":
+        for parameter in ["stream_outputs", "max_tool_threads"]:
+            value = agent_dict.get(parameter)
+            if value is not None:
+                kwargs.setdefault(parameter, value)
+        return super().from_dict(agent_dict, **kwargs)
 
     def _step_stream(
         self, memory_step: ActionStep
@@ -1774,6 +1794,8 @@ class CodeAgent(MultiStepAgent):
         agent_dict["executor_type"] = self.executor_type
         agent_dict["executor_kwargs"] = self.executor_kwargs
         agent_dict["max_print_outputs_length"] = self.max_print_outputs_length
+        agent_dict["use_structured_outputs_internally"] = self._use_structured_outputs_internally
+        agent_dict["code_block_tags"] = self.code_block_tags
         return agent_dict
 
     @classmethod
@@ -1788,12 +1810,18 @@ class CodeAgent(MultiStepAgent):
             `CodeAgent`: Instance of the CodeAgent class.
         """
         # Add CodeAgent-specific parameters to kwargs
+        code_block_tags = agent_dict.get("code_block_tags")
+        if isinstance(code_block_tags, list):
+            code_block_tags = tuple(code_block_tags)
+
         code_agent_kwargs = {
             "additional_authorized_imports": agent_dict.get("authorized_imports"),
             "executor_type": agent_dict.get("executor_type"),
             "executor_kwargs": agent_dict.get("executor_kwargs"),
             "max_print_outputs_length": agent_dict.get("max_print_outputs_length"),
-            "code_block_tags": agent_dict.get("code_block_tags"),
+            "stream_outputs": agent_dict.get("stream_outputs"),
+            "use_structured_outputs_internally": agent_dict.get("use_structured_outputs_internally"),
+            "code_block_tags": code_block_tags,
         }
         # Filter out None values
         code_agent_kwargs = {k: v for k, v in code_agent_kwargs.items() if v is not None}
