@@ -14,7 +14,7 @@
 
 इसलिए यह सहज रूप से कुछ उन्नत RAG तकनीकों को प्राप्त कर लेना चाहिए!
 - सिमेंटिक खोज में सीधे यूजर क्वेरी का संदर्भ के रूप में उपयोग करने के बजाय, एजेंट स्वयं एक संदर्भ वाक्य तैयार करता है जो लक्षित डॉक्यूमेंट्स के करीब हो सकता है, जैसा कि [HyDE](https://huggingface.co/papers/2212.10496) में किया गया है।
-एजेंट जनरेट किए गए स्निपेट्स का उपयोग कर सकता है और आवश्यकता पड़ने पर पुनः-प्राप्ति कर सकता है, जैसा कि [Self-Query](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/) में किया गया है।
+एजेंट जनरेट किए गए स्निपेट्स का उपयोग कर सकता है और आवश्यकता पड़ने पर पुनः-प्राप्ति कर सकता है, जैसा कि [Self-Query](https://developers.llamaindex.ai/python/examples/evaluation/retryquery/) में किया गया है।
 
 चलिए इस सिस्टम को बनाते हैं। 🛠️
 
@@ -117,7 +117,7 @@ retriever_tool = RetrieverTool(docs_processed)
 - इसमें लंबा 128k कॉन्टेक्स्ट है, जो लंबे स्रोत दस्तावेजों को प्रोसेस करने में मददगार है
 - यह हर समय HF के Inference API पर मुफ्त में उपलब्ध है!
 
-_नोट:_ Inference API विभिन्न मानदंडों के आधार पर मॉडल होस्ट करता है, और डिप्लॉय किए गए मॉडल बिना पूर्व सूचना के अपडेट या बदले जा सकते हैं। इसके बारे में अधिक जानें [यहां](https://huggingface.co/docs/api-inference/supported-models) पढ़ें।
+_नोट:_ Inference API विभिन्न मानदंडों के आधार पर मॉडल होस्ट करता है, और डिप्लॉय किए गए मॉडल बिना पूर्व सूचना के अपडेट या बदले जा सकते हैं। इसके बारे में अधिक जानें [यहां](https://huggingface.co/docs/inference-providers/index) पढ़ें।
 
 ```py
 from smolagents import InferenceClientModel, CodeAgent
