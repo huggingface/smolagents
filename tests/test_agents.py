@@ -2626,3 +2626,134 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class TestPlanningStepTokenUsage:
+    """Regression tests for token accounting in MultiStepAgent._generate_planning_step.
+
+    The streaming planning branch accumulated its own token counts instead of
+    going through models.agglomerate_stream_deltas, and assigned input_tokens
+    rather than adding to it. Models that report prompt tokens on the first
+    delta only, which is what TransformersModel.generate_stream does, therefore
+    had that count overwritten with 0 by every later delta.
+    """
+
+    PROMPT_TOKENS = 1500
+    PLAN_CHUNKS = ["Step 1: think.", " Step 2: act.", " Done."]
+    CODE = "Thought: finish\n```py\nfinal_answer(42)\n```<end_code>"
+
+    @property
+    def code_chunks(self):
+        return [self.CODE[i : i + 12] for i in range(0, len(self.CODE), 12)]
+
+    def _make_model(self, usage_on_first_delta: bool):
+        from smolagents.models import ChatMessageStreamDelta
+
+        prompt_tokens = self.PROMPT_TOKENS
+        plan_chunks = self.PLAN_CHUNKS
+        code_chunks = self.code_chunks
+
+        class FakeStreamingModel(Model):
+            def __init__(self):
+                super().__init__()
+                self.calls = 0
+
+            def _deltas(self, chunks):
+                if usage_on_first_delta:
+                    # TransformersModel.generate_stream shape: prompt tokens on
+                    # the first delta, 0 on every delta after it.
+                    for index, text in enumerate(chunks):
+                        yield ChatMessageStreamDelta(
+                            content=text,
+                            tool_calls=None,
+                            token_usage=TokenUsage(
+                                input_tokens=prompt_tokens if index == 0 else 0,
+                                output_tokens=1,
+                            ),
+                        )
+                else:
+                    # OpenAIModel / LiteLLMModel / InferenceClientModel shape:
+                    # a single trailing usage-carrying delta.
+                    for text in chunks:
+                        yield ChatMessageStreamDelta(content=text, tool_calls=None, token_usage=None)
+                    yield ChatMessageStreamDelta(
+                        content="",
+                        tool_calls=None,
+                        token_usage=TokenUsage(input_tokens=prompt_tokens, output_tokens=len(chunks)),
+                    )
+
+            def generate_stream(self, messages, stop_sequences=None, **kwargs):
+                self.calls += 1
+                yield from self._deltas(plan_chunks if self.calls == 1 else code_chunks)
+
+            def generate(self, messages, stop_sequences=None, **kwargs):
+                raise AssertionError("this test must exercise the streaming path")
+
+        return FakeStreamingModel()
+
+    @pytest.mark.parametrize("usage_on_first_delta", [True, False])
+    def test_planning_step_accumulates_input_tokens(self, usage_on_first_delta):
+        agent = CodeAgent(
+            tools=[],
+            model=self._make_model(usage_on_first_delta),
+            planning_interval=1,
+            max_steps=1,
+            stream_outputs=True,
+            verbosity_level=-1,
+        )
+        result = agent.run("what is 6*7?", return_full_result=True)
+
+        planning_steps = [step for step in agent.memory.steps if isinstance(step, PlanningStep)]
+        action_steps = [step for step in agent.memory.steps if isinstance(step, ActionStep)]
+        assert len(planning_steps) == 1
+        assert len(action_steps) == 1
+
+        # The planning call consumed a full prompt, so its input tokens must be
+        # the prompt length, not 0, and must match what the action step reports
+        # for an identically sized prompt.
+        assert planning_steps[0].token_usage.input_tokens == self.PROMPT_TOKENS
+        assert action_steps[0].token_usage.input_tokens == self.PROMPT_TOKENS
+        assert planning_steps[0].token_usage.output_tokens == len(self.PLAN_CHUNKS)
+
+        assert result.token_usage.input_tokens == 2 * self.PROMPT_TOKENS
+        assert result.token_usage.output_tokens == len(self.PLAN_CHUNKS) + len(self.code_chunks)
+
+    def test_planning_step_counts_usage_only_deltas(self):
+        """A delta carrying usage but no content must still be counted."""
+        from smolagents.models import ChatMessageStreamDelta
+
+        class UsageOnlyDeltaModel(Model):
+            def __init__(self):
+                super().__init__()
+                self.calls = 0
+
+            def generate_stream(self, messages, stop_sequences=None, **kwargs):
+                self.calls += 1
+                chunks = ["Plan."] if self.calls == 1 else ["final_answer(42)"]
+                if self.calls != 1:
+                    chunks = ["Thought: finish\n```py\nfinal_answer(42)\n```<end_code>"]
+                for text in chunks:
+                    yield ChatMessageStreamDelta(content=text, tool_calls=None, token_usage=None)
+                # content is None, not "" - the usage must not be dropped.
+                yield ChatMessageStreamDelta(
+                    content=None,
+                    tool_calls=None,
+                    token_usage=TokenUsage(input_tokens=100, output_tokens=5),
+                )
+
+            def generate(self, messages, stop_sequences=None, **kwargs):
+                raise AssertionError("this test must exercise the streaming path")
+
+        agent = CodeAgent(
+            tools=[],
+            model=UsageOnlyDeltaModel(),
+            planning_interval=1,
+            max_steps=1,
+            stream_outputs=True,
+            verbosity_level=-1,
+        )
+        agent.run("what is 6*7?")
+
+        planning_steps = [step for step in agent.memory.steps if isinstance(step, PlanningStep)]
+        assert planning_steps[0].token_usage.input_tokens == 100
+        assert planning_steps[0].token_usage.output_tokens == 5
