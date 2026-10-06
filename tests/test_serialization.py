@@ -623,9 +623,47 @@ class TestNumpySupport:
             np.testing.assert_array_equal(result, arr)
             assert result.dtype == arr.dtype
 
-        # Complex dtypes need special handling - test separately
-        # Note: numpy complex arrays are not fully supported in safe mode
-        # as they require custom complex number serialization
+    def test_numpy_non_json_dtypes_pickle_fallback(self):
+        """Test that complex, datetime64, and byte-string numpy arrays fall back to pickle and roundtrip."""
+        pytest.importorskip("numpy")
+        import numpy as np
+
+        test_arrays = [
+            np.array([1 + 2j, 3 - 4j], dtype=np.complex128),
+            np.array([1 + 2j, 3 - 4j], dtype=np.complex64),
+            np.array(["2026-10-02", "2026-10-03"], dtype="datetime64[D]"),
+            np.array(["2026-10-02T12:00:00"], dtype="datetime64[s]"),
+            np.array([b"hello", b"world"], dtype="S5"),
+        ]
+
+        for arr in test_arrays:
+            # allow_pickle=True should successfully serialize using pickle fallback
+            serialized = SafeSerializer.dumps(arr, allow_pickle=True)
+            assert serialized.startswith("pickle:")
+
+            # Roundtrip verification: check dtype and value preservation
+            result = SafeSerializer.loads(serialized, allow_pickle=True)
+            np.testing.assert_array_equal(result, arr)
+            assert result.dtype == arr.dtype
+
+    def test_numpy_non_json_dtypes_safe_only_raises_serialization_error(self):
+        """Test that safe-only mode (allow_pickle=False) raises SerializationError without calling pickle."""
+        pytest.importorskip("numpy")
+        from unittest.mock import patch
+
+        import numpy as np
+
+        test_arrays = [
+            np.array([1 + 2j], dtype=np.complex128),
+            np.array(["2026-10-02"], dtype="datetime64[D]"),
+            np.array([b"abc"], dtype="S3"),
+        ]
+
+        for arr in test_arrays:
+            with patch("pickle.dumps") as mock_pickle:
+                with pytest.raises(SerializationError, match="Cannot safely serialize"):
+                    SafeSerializer.dumps(arr, allow_pickle=False)
+                mock_pickle.assert_not_called()
 
     def test_numpy_multidimensional(self):
         """Test multidimensional numpy arrays."""
