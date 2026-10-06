@@ -352,6 +352,13 @@ test_func(**None)
         evaluate_python_code(code, {"min": min, "print": print, "round": round}, state=state)
         assert state["vendor"] == {"revenue": 31000, "rent": 50312, "ratio": 0.62}
 
+    def test_evaluate_subscript_evaluates_value_before_index(self):
+        # Ensures container expression is evaluated before the index expression, matching CPython's order
+        code = "calls = []\ndef container():\n    calls.append('container')\n    return [10, 20, 30]\ndef index():\n    calls.append('index')\n    return 0\ncontainer()[index()]"
+        state = {}
+        evaluate_python_code(code, {}, state=state)
+        assert state["calls"] == ["container", "index"]
+
     def test_subscript_string_with_string_index_raises_appropriate_error(self):
         code = """
 search_results = "[{'title': 'Paris, Ville de Paris, France Weather Forecast | AccuWeather', 'href': 'https://www.accuweather.com/en/fr/paris/623/weather-forecast/623', 'body': 'Get the latest weather forecast for Paris, Ville de Paris, France , including hourly, daily, and 10-day outlooks. AccuWeather provides you with reliable and accurate information on temperature ...'}]"
