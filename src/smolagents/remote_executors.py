@@ -39,7 +39,7 @@ from .tools import Tool, get_tools_definition_code
 from .utils import AgentError
 
 
-__all__ = ["BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor"]
+__all__ = ["CodeOutput", "BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor", "RemotePythonExecutor"]
 
 
 try:
@@ -66,6 +66,7 @@ class RemotePythonExecutor(PythonExecutor):
     """
 
     FINAL_ANSWER_EXCEPTION = "FinalAnswerException"
+    FINAL_ANSWER_EXCEPTION_BASE = "BaseException"
 
     def __init__(
         self,
@@ -134,9 +135,36 @@ locals().update(vars_dict)
         """Run the code and determine if it is the final answer."""
         return self.run_code_raise_errors(code_action)
 
-    def install_packages(self, additional_imports: list[str]):
+    def install_packages(self, additional_imports: list[str]) -> list[str]:
+        """Install packages in the remote interpreter.
+
+        This default uses plain Python rather than IPython shell syntax, so it is
+        compatible with both notebook kernels and regular Python interpreters.
+        ``run_code_raise_errors`` must raise :class:`~smolagents.AgentError` if
+        the installation command fails. Packages installed to the user site are
+        added to the running interpreter's import path.
+        """
+
         if additional_imports:
-            code_output = self.run_code_raise_errors(f"!pip install {' '.join(additional_imports)}")
+            code = dedent(
+                f"""
+                import importlib
+                import os
+                import site
+                import subprocess
+                import sys
+
+                subprocess.run([sys.executable, "-m", "pip", "install", *{additional_imports!r}], check=True)
+
+                user_site = site.getusersitepackages()
+                if os.path.isdir(user_site) and user_site not in sys.path:
+                    system_sites = set(getattr(site, "getsitepackages", lambda: [])())
+                    indices = [index for index, path in enumerate(sys.path) if path in system_sites]
+                    sys.path.insert(min(indices) if indices else len(sys.path), user_site)
+                importlib.invalidate_caches()
+                """
+            )
+            code_output = self.run_code_raise_errors(code)
             self.logger.log(code_output.logs)
         return additional_imports
 
@@ -164,6 +192,7 @@ locals().update(vars_dict)
         # is extracted and sent to remote environments where external references don't exist
         # Capture settings via closure
         allow_pickle_setting = self.allow_pickle
+        final_answer_exception_base = self.FINAL_ANSWER_EXCEPTION_BASE
 
         def forward(self, *args, **kwargs) -> Any:
             import base64
@@ -288,6 +317,10 @@ locals().update(vars_dict)
         # Set __source__ with the actual values baked in (closures don't survive source extraction)
         source = inspect.getsource(forward)
         source = source.replace("ALLOW_PICKLE = allow_pickle_setting", f"ALLOW_PICKLE = {allow_pickle_setting}")
+        source = source.replace(
+            "class FinalAnswerException(BaseException):",
+            f"class FinalAnswerException({final_answer_exception_base}):",
+        )
         forward.__source__ = source
 
         # Rename the original forward method to _forward
@@ -304,7 +337,7 @@ locals().update(vars_dict)
         final_answer_tool.__class__ = _FinalAnswerTool
 
     @staticmethod
-    def _deserialize_final_answer(encoded_value: str, allow_pickle: bool = False) -> Any:
+    def deserialize_final_answer(encoded_value: str, allow_pickle: bool = False) -> Any:
         """Deserialize final answer with format detection.
 
         Accepts explicit prefix-based formats only:
@@ -330,6 +363,12 @@ locals().update(vars_dict)
             return pickle.loads(base64.b64decode(encoded_value[7:]))
         else:
             raise SerializationError("Unknown final answer format: expected 'safe:' or 'pickle:' prefix")
+
+    @staticmethod
+    def _deserialize_final_answer(encoded_value: str, allow_pickle: bool = False) -> Any:
+        """Backward-compatible alias for :meth:`deserialize_final_answer`."""
+
+        return RemotePythonExecutor.deserialize_final_answer(encoded_value, allow_pickle)
 
 
 class E2BExecutor(RemotePythonExecutor):
@@ -388,7 +427,7 @@ class E2BExecutor(RemotePythonExecutor):
         if execution.error:
             # Check if the error is a FinalAnswerException
             if execution.error.name == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                final_answer = self._deserialize_final_answer(execution.error.value, self.allow_pickle)
+                final_answer = self.deserialize_final_answer(execution.error.value, self.allow_pickle)
                 return CodeOutput(output=final_answer, logs=execution_logs, is_final_answer=True)
 
             # Construct error message
@@ -513,9 +552,7 @@ def _websocket_run_code_raise_errors(code: str, ws, logger, allow_pickle: bool =
                 result = msg_content["data"].get("text/plain", None)
             elif msg_type == "error":
                 if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
-                    result = RemotePythonExecutor._deserialize_final_answer(
-                        msg_content.get("evalue", ""), allow_pickle
-                    )
+                    result = RemotePythonExecutor.deserialize_final_answer(msg_content.get("evalue", ""), allow_pickle)
                     is_final_answer = True
                 else:
                     raise AgentError("\n".join(msg_content.get("traceback", [])), logger)
@@ -1028,15 +1065,15 @@ class BlaxelExecutor(RemotePythonExecutor):
                     time.sleep(interval / 1000)  # Convert to seconds
 
             if exit_code != 0:
-                self.logger.log_error(f"Failed to install packages (exit code {exit_code}): {logs}")
-                return []
+                raise AgentError(f"Failed to install packages (exit code {exit_code}): {logs}", self.logger)
 
             self.logger.log(f"Successfully installed packages: {', '.join(additional_imports)}", level=LogLevel.INFO)
             return additional_imports
 
+        except AgentError:
+            raise
         except Exception as e:
-            self.logger.log_error(f"Error installing packages: {e}")
-            return []
+            raise AgentError(f"Error installing packages: {e}", self.logger) from e
 
     def _delete_sandbox(self):
         """Delete sandbox using Blaxel's sync API and wait for completion."""

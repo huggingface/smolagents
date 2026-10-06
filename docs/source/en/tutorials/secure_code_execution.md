@@ -23,6 +23,17 @@ This is illustrated on the figure below, taken from [Executable Code Actions Eli
 
 This is why we put emphasis on proposing code agents, in this case python agents, which meant putting higher effort on building secure python interpreters.
 
+### Third-party Python executors
+
+The built-in executors cover common local and remote environments, but providers can
+also publish an executor as a separate package. Register the package under the
+`smolagents.executors` entry-point group and pass the entry-point name as
+`executor_type` to `CodeAgent`. See the [Python executor reference](../reference/python_executors)
+for the registration format and executor contract.
+
+Third-party executors are not automatically trusted or sandboxed. Review their source,
+dependencies, and execution environment before installing them.
+
 ### Local code execution??
 
 By default, the `CodeAgent` runs LLM-generated code in your environment.

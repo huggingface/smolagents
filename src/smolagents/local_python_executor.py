@@ -1675,6 +1675,14 @@ class CodeOutput:
 
 
 class PythonExecutor(ABC):
+    """Base interface for Python code executors.
+
+    Third-party executors must implement ``send_tools``, ``send_variables``, and
+    ``__call__``. ``cleanup`` is called by :class:`~smolagents.CodeAgent` when an
+    agent is cleaned up; the default implementation is a no-op for executors that
+    do not own external resources.
+    """
+
     @abstractmethod
     def send_tools(self, tools: dict[str, Tool]) -> None: ...
 
@@ -1683,6 +1691,15 @@ class PythonExecutor(ABC):
 
     @abstractmethod
     def __call__(self, code_action: str) -> CodeOutput: ...
+
+    def cleanup(self) -> None:
+        """Release executor resources.
+
+        Implementations that own resources should make this method idempotent and
+        safe to call after a partially failed initialization.
+        """
+
+        return None
 
 
 class LocalPythonExecutor(PythonExecutor):
@@ -1765,4 +1782,4 @@ class LocalPythonExecutor(PythonExecutor):
         self.static_tools = {**tools, **BASE_PYTHON_TOOLS.copy(), **self.additional_functions}
 
 
-__all__ = ["evaluate_python_code", "LocalPythonExecutor"]
+__all__ = ["evaluate_python_code", "CodeOutput", "LocalPythonExecutor", "PythonExecutor"]
