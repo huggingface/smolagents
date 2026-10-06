@@ -664,9 +664,10 @@ def evaluate_augassign(
 
     if isinstance(expression.op, ast.Add):
         if isinstance(current_value, list):
-            if not isinstance(value_to_add, list):
-                raise InterpreterError(f"Cannot add non-list value {value_to_add} to a list.")
-            current_value += value_to_add
+            try:
+                current_value += value_to_add
+            except TypeError as err:
+                raise InterpreterError(f"Cannot add non-iterable value {value_to_add} to a list: {err}") from err
         else:
             current_value += value_to_add
     elif isinstance(expression.op, ast.Sub):
