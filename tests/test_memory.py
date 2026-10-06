@@ -1,3 +1,5 @@
+import base64
+import io
 import json
 
 import pytest
@@ -111,6 +113,18 @@ def test_action_step_dict():
     assert action_step_dict["observations"] == "This is a nice observation"
 
     assert "observations_images" in action_step_dict
+    # The whole dict must be JSON-serializable, which used to fail because observations_images
+    # held raw bytes from PIL.Image.tobytes().
+    serialized = json.dumps(action_step_dict)
+    reloaded = json.loads(serialized)
+    assert len(reloaded["observations_images"]) == 1
+    image_entry = reloaded["observations_images"][0]
+    assert image_entry["mode"] == "RGB"
+    assert image_entry["size"] == [100, 100]
+    # The base64 payload must decode back to PNG bytes that PIL can reopen as the original image.
+    decoded = Image.open(io.BytesIO(base64.b64decode(image_entry["data"])))
+    assert decoded.mode == "RGB"
+    assert decoded.size == (100, 100)
 
     assert "action_output" in action_step_dict
     assert action_step_dict["action_output"] == "Output"
