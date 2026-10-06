@@ -72,6 +72,55 @@ class TestRemotePythonExecutor:
         assert isinstance(remote_scope["error"], ValueError)
         assert str(remote_scope["error"]) == "boom"
 
+    def test_send_variables_numpy_non_json_dtypes(self):
+        """Test send_variables with non-JSON numpy dtypes respect allow_pickle setting."""
+        pytest.importorskip("numpy")
+        import numpy as np
+
+        arr = np.array([1 + 2j], dtype=np.complex128)
+
+        # 1. allow_pickle=False raises SerializationError
+        executor_safe = RemotePythonExecutor(additional_imports=[], logger=MagicMock(), allow_pickle=False)
+        with pytest.raises(SerializationError, match="Cannot safely serialize"):
+            executor_safe.send_variables({"arr": arr})
+
+        # 2. allow_pickle=True falls back to pickle and generates valid deserializer code
+        executor_pickle = RemotePythonExecutor(additional_imports=[], logger=MagicMock(), allow_pickle=True)
+        executor_pickle.run_code_raise_errors = MagicMock()
+        executor_pickle.send_variables({"arr": arr})
+        assert executor_pickle.run_code_raise_errors.call_count == 1
+        sent_code = executor_pickle.run_code_raise_errors.call_args.args[0]
+
+        remote_scope = {}
+        exec(sent_code, remote_scope, remote_scope)
+        np.testing.assert_array_equal(remote_scope["arr"], arr)
+        assert remote_scope["arr"].dtype == arr.dtype
+
+    def test_patch_final_answer_numpy_non_json_dtypes(self):
+        """Test patched final_answer tool with non-JSON numpy arrays."""
+        pytest.importorskip("numpy")
+        import numpy as np
+
+        arr = np.array([1 + 2j], dtype=np.complex128)
+
+        # 1. allow_pickle=False raises SerializationError
+        tool_safe = FinalAnswerTool()
+        executor_safe = RemotePythonExecutor(additional_imports=[], logger=MagicMock(), allow_pickle=False)
+        executor_safe._patch_final_answer_with_exception(tool_safe)
+        with pytest.raises(Exception) as exc_info:
+            tool_safe(arr)
+        assert "SerializationError" in exc_info.value.__class__.__name__
+        assert "Cannot safely serialize" in str(exc_info.value)
+
+        # 2. allow_pickle=True succeeds and raises FinalAnswerException with pickle payload
+        tool_pickle = FinalAnswerTool()
+        executor_pickle = RemotePythonExecutor(additional_imports=[], logger=MagicMock(), allow_pickle=True)
+        executor_pickle._patch_final_answer_with_exception(tool_pickle)
+        with pytest.raises(BaseException) as exc_info:
+            tool_pickle(arr)
+        assert exc_info.value.__class__.__name__ == "FinalAnswerException"
+        assert exc_info.value.value.startswith("pickle:")
+
     def test_deserialize_final_answer_rejects_unprefixed_payload(self):
         with pytest.raises(SerializationError, match="Unknown final answer format"):
             RemotePythonExecutor._deserialize_final_answer("legacy-unprefixed-payload", allow_pickle=True)

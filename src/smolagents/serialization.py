@@ -267,13 +267,16 @@ class SafeSerializer:
         if not allow_pickle:
             # Safe ONLY mode - no pickle fallback
             json_safe = SafeSerializer.to_json_safe(obj)  # Raises SerializationError if fails
-            return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
+            try:
+                return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
+            except (TypeError, ValueError) as e:
+                raise SerializationError(f"Cannot safely serialize object of type {type(obj).__name__}: {e}") from e
         else:
             # Try safe first, fallback to pickle
             try:
                 json_safe = SafeSerializer.to_json_safe(obj)
                 return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
-            except SerializationError:
+            except (SerializationError, TypeError, ValueError):
                 # Warn about insecure pickle usage
                 import warnings
 
