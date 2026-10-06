@@ -65,6 +65,50 @@ class AgentAudioTests(unittest.TestCase):
         self.assertTrue(torch.allclose(tensor, agent_type.to_raw(), atol=1e-4))
         self.assertEqual(agent_type.to_string(), path)
 
+    def test_from_tensor_with_samplerate(self):
+        import soundfile as sf
+        import torch
+
+        tensor = torch.rand(12, dtype=torch.float64) - 0.5
+
+        # The documented second argument must reach `__init__`: an undefined
+        # `__new__` on a str subclass forwards it to `str.__new__`, which raises
+        # TypeError for both the keyword and the positional form.
+        audio = AgentAudio(tensor, samplerate=24_000)
+        self.assertEqual(audio.samplerate, 24_000)
+
+        positional = AgentAudio(tensor, 24_000)
+        self.assertEqual(positional.samplerate, 24_000)
+
+        # The requested rate must reach the serialized file, not just the attribute.
+        path = str(audio.to_string())
+        self.assertEqual(sf.info(path).samplerate, 24_000)
+
+    def test_from_tensor_default_samplerate_unchanged(self):
+        import soundfile as sf
+        import torch
+
+        tensor = torch.rand(12, dtype=torch.float64) - 0.5
+        audio = AgentAudio(tensor)
+
+        self.assertEqual(audio.samplerate, 16_000)
+        path = str(audio.to_string())
+        self.assertEqual(sf.info(path).samplerate, 16_000)
+
+    def test_from_string_with_samplerate(self):
+        import soundfile as sf
+        import torch
+
+        tensor = torch.rand(12, dtype=torch.float64) - 0.5
+        path = get_new_path(suffix=".wav")
+        sf.write(path, tensor, 16000)
+
+        # A str value must not trip str.__new__ either when a rate is passed.
+        audio = AgentAudio(path, samplerate=24_000)
+
+        self.assertEqual(audio.samplerate, 24_000)
+        self.assertEqual(audio.to_string(), path)
+
 
 @require_torch
 class TestAgentImage:
