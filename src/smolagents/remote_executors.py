@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import copy
 import inspect
 import json
 import pickle
@@ -36,7 +37,7 @@ from .local_python_executor import CodeOutput, PythonExecutor
 from .monitoring import LogLevel
 from .serialization import SafeSerializer, SerializationError
 from .tools import Tool, get_tools_definition_code
-from .utils import AgentError
+from .utils import AgentError, get_source
 
 
 __all__ = ["BlaxelExecutor", "E2BExecutor", "ModalExecutor", "DockerExecutor"]
@@ -93,7 +94,9 @@ class RemotePythonExecutor(PythonExecutor):
 
     def send_tools(self, tools: dict[str, Tool]):
         if "final_answer" in tools:
-            self._patch_final_answer_with_exception(tools["final_answer"])
+            final_answer_tool = copy.copy(tools["final_answer"])
+            self._patch_final_answer_with_exception(final_answer_tool)
+            tools = {**tools, "final_answer": final_answer_tool}
         # Install tool packages
         packages_to_install = {
             pkg
@@ -293,12 +296,14 @@ locals().update(vars_dict)
         # Rename the original forward method to _forward
         # - Get the original forward method function from the final_answer_tool instance
         original_forward_function = final_answer_tool.forward.__func__
-        # - Set the new _forward method function to the _FinalAnswerTool class
-        _FinalAnswerTool._forward = original_forward_function
-        # - Update the source code of the new forward method to match the original but with the new name
-        _FinalAnswerTool._forward.__source__ = inspect.getsource(original_forward_function).replace(
-            "def forward(", "def _forward("
-        )
+        
+        # - Wrap it rather than reusing the function object
+        def _forward(self, *args, **kwargs):
+            return original_forward_function(self, *args, **kwargs)
+
+        # - Give the wrapper the original method's source, renamed
+        _forward.__source__ = get_source(original_forward_function).replace("def forward(", "def _forward(", 1)
+        _FinalAnswerTool._forward = _forward
 
         # Set the new class as the class of the final_answer_tool instance
         final_answer_tool.__class__ = _FinalAnswerTool
