@@ -306,11 +306,17 @@ class CallbackRegistry:
                 Typically, includes the agent instance.
 
         Notes:
-            For backwards compatibility, callbacks with a single parameter signature
-            receive only the memory_step, while callbacks with multiple parameters
-            receive both the memory_step and any additional kwargs.
+            For backwards compatibility, callbacks whose signature cannot accept the
+            additional kwargs (e.g. single-argument callbacks or callbacks with a
+            flexible ``(step, *args)`` signature) receive only the memory_step, while
+            callbacks that accept them receive both the memory_step and the kwargs.
         """
         # For compatibility with old callbacks that only take the step as an argument
         for cls in memory_step.__class__.__mro__:
             for cb in self._callbacks.get(cls, []):
-                cb(memory_step) if len(inspect.signature(cb).parameters) == 1 else cb(memory_step, **kwargs)
+                try:
+                    inspect.signature(cb).bind(memory_step, **kwargs)
+                except TypeError:
+                    cb(memory_step)
+                else:
+                    cb(memory_step, **kwargs)
