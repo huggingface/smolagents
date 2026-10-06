@@ -2439,6 +2439,38 @@ class TestLocalPythonExecutor:
 
 class TestLocalPythonExecutorSecurity:
     @pytest.mark.parametrize(
+        "dunder_method",
+        ["__del__", "__getattribute__", "__getattr__", "__setattr__", "__delattr__"],
+    )
+    def test_vulnerability_via_host_triggered_class_dunder(self, dunder_method):
+        executor = LocalPythonExecutor([])
+        code = dedent(
+            f"""
+            class Unsafe:
+                def {dunder_method}(self):
+                    pass
+            """
+        )
+
+        with pytest.raises(InterpreterError, match=f"Forbidden dunder method definition: {dunder_method}"):
+            executor(code)
+
+    def test_vulnerability_via_host_triggered_class_dunder_alias(self):
+        executor = LocalPythonExecutor([])
+        code = dedent(
+            """
+            def cleanup(self):
+                pass
+
+            class Unsafe:
+                __del__ = cleanup
+            """
+        )
+
+        with pytest.raises(InterpreterError, match="Forbidden dunder method definition: __del__"):
+            executor(code)
+
+    @pytest.mark.parametrize(
         "additional_authorized_imports, expected_error",
         [([], InterpreterError("Import of os is not allowed")), (["os"], None)],
     )
