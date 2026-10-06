@@ -174,6 +174,18 @@ class Tool(BaseTool):
             assert "type" in input_content and "description" in input_content, (
                 f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
             )
+            # Catch a misplaced 'required' key: it belongs at the schema root (listing which
+            # inputs are mandatory), not inside an individual input's spec. When placed here it
+            # is deep-copied verbatim into the JSON schema sent to the model (see
+            # get_tool_json_schema), surfacing only as a cryptic downstream API error.
+            # See https://github.com/huggingface/smolagents/issues/1775
+            if "required" in input_content:
+                raise ValueError(
+                    f"Input '{input_name}' has unexpected key 'required': 'required' is not valid "
+                    "inside an individual input spec. Remove it: inputs are required by default. "
+                    "To make an input optional, set 'nullable': True in the input spec and give "
+                    "its argument a default value in forward()."
+                )
             # Get input_types as a list, whether from a string or list
             if isinstance(input_content["type"], str):
                 input_types = [input_content["type"]]
