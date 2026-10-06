@@ -2333,6 +2333,34 @@ def test_check_import_authorized(module: str, authorized_imports: list[str], exp
 
 class TestLocalPythonExecutor:
     @pytest.mark.parametrize(
+        "code, definition_kind",
+        [
+            (
+                "def double(fn):\n"
+                "    def wrapper(*a, **k):\n"
+                "        return fn(*a, **k) * 2\n"
+                "    return wrapper\n"
+                "@double\n"
+                "def value():\n"
+                "    return 21\n"
+                "value()",
+                "Function",
+            ),
+            ("class A:\n    @property\n    def v(self):\n        return 7\nA().v", "Function"),
+            ("@undefined_decorator\ndef f():\n    return 1\nf()", "Function"),
+            ("@undefined_decorator\nclass A:\n    pass\nA()", "Class"),
+        ],
+        ids=["user-defined", "property", "undefined-function", "undefined-class"],
+    )
+    def test_decorators_are_rejected(self, code, definition_kind):
+        executor = LocalPythonExecutor(additional_authorized_imports=[])
+        executor.send_tools({})
+        with pytest.raises(InterpreterError, match=f"{definition_kind} decorators are not supported"):
+            executor(code)
+        assert not {"value", "v", "f", "A"}.intersection(executor.custom_tools)
+        assert "A" not in executor.state
+
+    @pytest.mark.parametrize(
         "additional_authorized_imports, should_raise",
         [
             # Valid imports
