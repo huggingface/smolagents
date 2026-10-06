@@ -124,6 +124,9 @@ BASE_PYTHON_TOOLS = {
     "issubclass": issubclass,
     "type": type,
     "complex": complex,
+    "property": property,
+    "staticmethod": staticmethod,
+    "classmethod": classmethod,
 }
 
 # Non-exhaustive list of dangerous modules that should not be imported
@@ -526,14 +529,52 @@ def create_function(
     return new_func
 
 
+def apply_call(
+    func: Any,
+    args: list[Any],
+    kwargs: dict[str, Any],
+    static_tools: dict[str, Callable],
+    func_name: str | None = None,
+) -> Any:
+    is_builtin = inspect.isbuiltin(func) or isinstance(func, type)
+    if (
+        (inspect.getmodule(func) == builtins)
+        and is_builtin
+        and (func not in static_tools.values())
+        and (func not in ERRORS.values())
+    ):
+        name = func_name or getattr(func, "__name__", str(func))
+        raise InterpreterError(
+            f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({name})."
+        )
+    name = getattr(func, "__name__", None) or func_name
+    if (
+        name
+        and name.startswith("__")
+        and name.endswith("__")
+        and (name not in static_tools)
+        and (name not in ALLOWED_DUNDER_METHODS)
+    ):
+        raise InterpreterError(f"Forbidden call to dunder function: {name}")
+    return func(*args, **kwargs)
+
+
 def evaluate_function_def(
     func_def: ast.FunctionDef,
     state: dict[str, Any],
     static_tools: dict[str, Callable],
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
-) -> Callable:
-    custom_tools[func_def.name] = create_function(func_def, state, static_tools, custom_tools, authorized_imports)
+) -> Any:
+    # Evaluate decorator expressions top-to-bottom, apply bottom-to-top per PEP 318
+    func = create_function(func_def, state, static_tools, custom_tools, authorized_imports)
+    decorators = [
+        evaluate_ast(decorator_node, state, static_tools, custom_tools, authorized_imports)
+        for decorator_node in func_def.decorator_list
+    ]
+    for decorator in reversed(decorators):
+        func = apply_call(decorator, [func], {}, static_tools)
+    custom_tools[func_def.name] = func
     return custom_tools[func_def.name]
 
 
@@ -562,9 +603,16 @@ def evaluate_class_def(
     else:
         class_dict = {}
 
+    # Evaluate class decorators before class body per PEP 3129
+    decorators = [
+        evaluate_ast(decorator_node, state, static_tools, custom_tools, authorized_imports)
+        for decorator_node in class_def.decorator_list
+    ]
+
+    body_custom_tools = custom_tools.copy()
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
-            class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+            class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, body_custom_tools, authorized_imports)
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value:
                 value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
@@ -614,6 +662,8 @@ def evaluate_class_def(
             raise InterpreterError(f"Unsupported statement in class body: {stmt.__class__.__name__}")
 
     new_class = metaclass(class_name, tuple(bases), class_dict)
+    for decorator in reversed(decorators):
+        new_class = apply_call(decorator, [new_class], {}, static_tools)
     state[class_name] = new_class
     return new_class
 
@@ -903,19 +953,7 @@ def evaluate_call(
         state["_print_outputs"] += " ".join(map(str, args)) + "\n"
         return None
     else:  # Assume it's a callable object
-        if (inspect.getmodule(func) == builtins) and inspect.isbuiltin(func) and (func not in static_tools.values()):
-            raise InterpreterError(
-                f"Invoking a builtin function that has not been explicitly added as a tool is not allowed ({func_name})."
-            )
-        if (
-            hasattr(func, "__name__")
-            and func.__name__.startswith("__")
-            and func.__name__.endswith("__")
-            and (func.__name__ not in static_tools)
-            and (func.__name__ not in ALLOWED_DUNDER_METHODS)
-        ):
-            raise InterpreterError(f"Forbidden call to dunder function: {func.__name__}")
-        return func(*args, **kwargs)
+        return apply_call(func, args, kwargs, static_tools, func_name)
 
 
 def evaluate_subscript(
