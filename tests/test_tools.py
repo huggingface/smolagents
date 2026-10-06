@@ -657,6 +657,55 @@ class TestTool:
         assert isinstance(union_type_return_tool_function, Tool)
         assert union_type_return_tool_function.output_type == "any"
 
+    def test_from_space_single_element_output_does_not_raise(self, monkeypatch):
+        # Regression: SpaceToolWrapper.forward accessed output[1] whenever the space
+        # output was a tuple OR list, with no length guard — so a space whose single
+        # output is a one-element (or empty) list/tuple raised IndexError instead of
+        # returning the result.
+        import gradio_client
+
+        class _FakeClient:
+            _out = None
+
+            def __init__(self, space_id, hf_token=None):
+                pass
+
+            def view_api(self, return_format=None, print_info=True):
+                return {
+                    "named_endpoints": {
+                        "/predict": {
+                            "parameters": [
+                                {
+                                    "parameter_name": "prompt",
+                                    "type": {"type": "string"},
+                                    "python_type": {"description": "a prompt"},
+                                    "parameter_has_default": False,
+                                }
+                            ],
+                            "returns": [{"component": "Textbox"}],
+                        }
+                    }
+                }
+
+            def predict(self, *args, api_name=None, **kwargs):
+                return _FakeClient._out
+
+        monkeypatch.setattr(gradio_client, "Client", _FakeClient)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            space_tool = Tool.from_space("fake/space", name="space_tool", description="d")
+
+        # Single-element and empty list/tuple outputs must not raise IndexError.
+        _FakeClient._out = ["only-one"]
+        assert space_tool.forward("x") == "only-one"
+        _FakeClient._out = []
+        assert space_tool.forward("x") == []
+        # Existing behavior preserved: (result, seed) -> result, scalar passthrough.
+        _FakeClient._out = ("res", 42)
+        assert space_tool.forward("x") == "res"
+        _FakeClient._out = "hello"
+        assert space_tool.forward("x") == "hello"
+
 
 class TestToolDecorator:
     def test_tool_decorator_source_extraction_with_multiple_decorators(self):
