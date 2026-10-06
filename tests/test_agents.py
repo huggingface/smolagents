@@ -630,6 +630,18 @@ nested_answer()
         output = agent.run("Count to 3")
         assert output == "Correct!"
 
+    def test_code_agent_without_configured_tools_accepts_final_answer(self):
+        class FakeCodeModelFinalAnswer(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content='<code>\nfinal_answer("Correct!")\n</code>',
+                )
+
+        agent = CodeAgent(tools=[], model=FakeCodeModelFinalAnswer())
+
+        assert agent.run("Answer the task") == "Correct!"
+
     def test_transformers_toolcalling_agent(self):
         @tool
         def weather_api(location: str, celsius: str = "") -> str:
