@@ -645,13 +645,6 @@ def evaluate_augassign(
     def get_current_value(target: ast.AST) -> Any:
         if isinstance(target, ast.Name):
             return state.get(target.id, 0)
-        elif isinstance(target, ast.Subscript):
-            obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
-            key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
-            return obj[key]
-        elif isinstance(target, ast.Attribute):
-            obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
-            return getattr(obj, target.attr)
         elif isinstance(target, ast.Tuple):
             return tuple(get_current_value(elt) for elt in target.elts)
         elif isinstance(target, ast.List):
@@ -659,7 +652,18 @@ def evaluate_augassign(
         else:
             raise InterpreterError("AugAssign not supported for {type(target)} targets.")
 
-    current_value = get_current_value(expression.target)
+    target = expression.target
+    target_object = None
+    target_key = None
+    if isinstance(target, ast.Subscript):
+        target_object = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
+        target_key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
+        current_value = target_object[target_key]
+    elif isinstance(target, ast.Attribute):
+        target_object = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
+        current_value = getattr(target_object, target.attr)
+    else:
+        current_value = get_current_value(target)
     value_to_add = evaluate_ast(expression.value, state, static_tools, custom_tools, authorized_imports)
 
     if isinstance(expression.op, ast.Add):
@@ -694,15 +698,12 @@ def evaluate_augassign(
     else:
         raise InterpreterError(f"Operation {type(expression.op).__name__} is not supported.")
 
-    # Update the state: current_value has been updated in-place
-    set_value(
-        expression.target,
-        current_value,
-        state,
-        static_tools,
-        custom_tools,
-        authorized_imports,
-    )
+    if isinstance(target, ast.Subscript):
+        target_object[target_key] = current_value
+    elif isinstance(target, ast.Attribute):
+        setattr(target_object, target.attr, current_value)
+    else:
+        set_value(target, current_value, state, static_tools, custom_tools, authorized_imports)
 
     return current_value
 
