@@ -188,7 +188,11 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
 
 def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
     """Extract code from the LLM's output."""
-    pattern = rf"{code_block_tags[0]}(.*?){code_block_tags[1]}"
+    # For backtick fences, only the last closing fence counts: a ``` that appears
+    # inside the code body (e.g. a docstring or a nested fence) must not truncate
+    # the block. Custom tags (e.g. <code>) keep the previous first-match behavior.
+    quantifier = "*" if "`" in code_block_tags[1] else "*?"
+    pattern = code_block_tags[0] + "(." + quantifier + ")" + re.escape(code_block_tags[1])
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return "\n\n".join(match.strip() for match in matches)
