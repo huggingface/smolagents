@@ -20,7 +20,7 @@
 
 आवश्यक डिपेंडेंसी इंस्टॉल करने के लिए नीचे दी गई लाइन चलाएं।
 ```bash
-!pip install smolagents pandas langchain langchain-community sentence-transformers rank_bm25 --upgrade -q
+pip install smolagents pandas langchain langchain-community sentence-transformers rank_bm25 --upgrade -q
 ```
 HF Inference API को कॉल करने के लिए, आपको अपने एनवायरनमेंट वेरिएबल `HF_TOKEN` के रूप में एक वैध टोकन की आवश्यकता होगी।
 हम इसे लोड करने के लिए python-dotenv का उपयोग करते हैं।

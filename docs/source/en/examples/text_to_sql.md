@@ -14,7 +14,7 @@ Let’s build this agent! 💪
 
 Run the line below to install required dependencies:
 ```bash
-!pip install smolagents python-dotenv sqlalchemy --upgrade -q
+pip install smolagents python-dotenv sqlalchemy --upgrade -q
 ```
 To call Inference Providers, you will need a valid token as your environment variable `HF_TOKEN`.
 We use python-dotenv to load it.

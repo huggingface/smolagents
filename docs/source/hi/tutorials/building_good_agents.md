@@ -293,7 +293,7 @@ Thought: I need to get the populations for both cities and compare them: I will 
 Code:
 ```py
 for city in ["Guangzhou", "Shanghai"]:
-    print(f"Population {city}:", search(f"{city} population")
+    print(f"Population {city}:", search(f"{city} population"))
 ```<end_code>
 Observation:
 Population Guangzhou: ['Guangzhou has a population of 15 million inhabitants as of 2021.']
