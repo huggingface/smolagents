@@ -392,13 +392,26 @@ class MultiStepAgent(ABC):
         )
         self.tools = {tool.name: tool for tool in tools}
         if add_base_tools:
-            self.tools.update(
-                {
-                    name: cls()
-                    for name, cls in TOOL_MAPPING.items()
-                    if name != "python_interpreter" or self.__class__.__name__ == "ToolCallingAgent"
-                }
-            )
+            # Compute which base tools will be added from TOOL_MAPPING keys first, and
+            # check for collisions BEFORE instantiating them: instantiating base tools
+            # requires their optional dependencies, and a missing dependency must not
+            # mask the clear collision error.
+            base_tool_names = {
+                name
+                for name in TOOL_MAPPING
+                if name != "python_interpreter" or self.__class__.__name__ == "ToolCallingAgent"
+            }
+            # Managed agents share the executor namespace with tools
+            # ({**self.tools, **self.managed_agents}), so their names collide too.
+            colliding_names = sorted((set(self.tools) | set(self.managed_agents)) & base_tool_names)
+            if colliding_names:
+                raise ValueError(
+                    "Tool name collision with base tools: "
+                    f"{colliding_names}. Each tool must have a unique name! "
+                    "Rename your tool or managed agent to avoid clashing with the names of the base tools "
+                    f"({', '.join(sorted(TOOL_MAPPING))}), or pass add_base_tools=False."
+                )
+            self.tools.update({name: TOOL_MAPPING[name]() for name in base_tool_names})
         self.tools.setdefault("final_answer", FinalAnswerTool())
 
     def _validate_tools_and_managed_agents(self, tools, managed_agents):
