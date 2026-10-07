@@ -1303,7 +1303,9 @@ class LiteLLMModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-            ),
+            )
+            if getattr(response, "usage", None)
+            else None,
         )
 
     def generate_stream(
@@ -1585,7 +1587,9 @@ class InferenceClientModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-            ),
+            )
+            if getattr(response, "usage", None)
+            else None,
         )
 
     def generate_stream(
@@ -1789,7 +1793,9 @@ class OpenAIModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-            ),
+            )
+            if getattr(response, "usage", None)
+            else None,
         )
 
 
