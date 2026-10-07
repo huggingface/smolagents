@@ -414,7 +414,7 @@ class E2BExecutor(RemotePythonExecutor):
                 if img_data is not None:
                     decoded_bytes = base64.b64decode(img_data.encode("utf-8"))
                     return CodeOutput(
-                        output=PIL.Image.open(BytesIO(decoded_bytes)), logs=execution_logs, is_final_answer=False
+                        output=PIL.Image.open(BytesIO(decoded_bytes)).copy(), logs=execution_logs, is_final_answer=False
                     )
             # Handle other data formats
             for attribute_name in [
