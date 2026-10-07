@@ -1156,6 +1156,31 @@ def evaluate_dictcomp(
     )
 
 
+def _find_matching_exception(exc: BaseException, handler_type: Any) -> BaseException | None:
+    """Return the exception that matches a handler type, if any.
+
+    The interpreter wraps some built-in errors (e.g. ``KeyError`` from a failed
+    lookup) in an :class:`InterpreterError` via ``raise ... from e``. Without
+    unwrapping that wrapper, user code such as ``except KeyError:`` would never
+    match and the handler would silently not run, unlike plain Python. Returning
+    the matching exception itself also makes ``except KeyError as e:`` bind the
+    original ``KeyError`` instance to ``e``.
+
+    Only the interpreter's own ``InterpreterError`` wrapper is unwrapped. We
+    deliberately do *not* walk arbitrary user/tool exception chains: a tool
+    that does ``raise ValueError("tool failed") from KeyError(...)`` must
+    continue to be caught by ``except ValueError`` exactly as CPython does,
+    rather than being mis-attributed to a chained ``except KeyError``.
+    """
+    if isinstance(exc, handler_type):
+        return exc
+    if isinstance(exc, InterpreterError):
+        cause = exc.__cause__ if exc.__cause__ is not None else exc.__context__
+        if cause is not None and isinstance(cause, handler_type):
+            return cause
+    return None
+
+
 def evaluate_try(
     try_node: ast.Try,
     state: dict[str, Any],
@@ -1169,13 +1194,15 @@ def evaluate_try(
     except Exception as e:
         matched = False
         for handler in try_node.handlers:
-            if handler.type is None or isinstance(
-                e,
-                evaluate_ast(handler.type, state, static_tools, custom_tools, authorized_imports),
-            ):
+            if handler.type is None:
                 matched = True
+            else:
+                handler_type = evaluate_ast(handler.type, state, static_tools, custom_tools, authorized_imports)
+                matched_exc = _find_matching_exception(e, handler_type)
+                matched = matched_exc is not None
+            if matched:
                 if handler.name:
-                    state[handler.name] = e
+                    state[handler.name] = matched_exc if handler.type is not None else e
                 for stmt in handler.body:
                     evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
                 break
