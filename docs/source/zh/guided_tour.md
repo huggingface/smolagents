@@ -360,25 +360,25 @@ Out[20]: 'ByteDance/AnimateDiff-Lightning'
 
 您可以使用 `smolagents` 轻松构建分层多 agent 系统。
 
-为此，将 agent 封装在 [`ManagedAgent`] 对象中。此对象需要参数 `agent`、`name` 和 `description`，这些参数将嵌入到管理 agent 的系统提示中，以让它知道如何调用此托管 agent，就像我们对工具所做的那样。
+为此，只需确保您的 agent 具有 `name` 和 `description` 属性，这些属性将嵌入到管理 agent 的系统提示中，以让它知道如何调用此托管 agent，就像我们对工具所做的那样。
+然后在初始化管理 agent 时，通过 `managed_agents` 参数传入该托管 agent。
 
 以下是一个使用我们的 [`WebSearchTool`] 制作一个管理特定网页搜索 agent 的 agent 的示例：
 
 ```py
-from smolagents import CodeAgent, InferenceClientModel, WebSearchTool, ManagedAgent
+from smolagents import CodeAgent, InferenceClientModel, WebSearchTool
 
 model = InferenceClientModel()
 
-web_agent = CodeAgent(tools=[WebSearchTool()], model=model)
-
-managed_web_agent = ManagedAgent(
-    agent=web_agent,
-    name="web_search",
+web_agent = CodeAgent(
+    tools=[WebSearchTool()],
+    model=model,
+    name="web_search_agent",
     description="Runs web searches for you. Give it your query as an argument."
 )
 
 manager_agent = CodeAgent(
-    tools=[], model=model, managed_agents=[managed_web_agent]
+    tools=[], model=model, managed_agents=[web_agent]
 )
 
 manager_agent.run("Who is the CEO of Hugging Face?")
