@@ -101,7 +101,7 @@ BM25 检索方法是一个经典的检索方法，因为它的设置速度非常
 - `tools`：代理将能够调用的工具列表。
 - `model`：为代理提供动力的 LLM。
 
-我们的 `model` 必须是一个可调用对象，它接受一个消息的 list 作为输入，并返回文本。它还需要接受一个 stop_sequences 参数，指示何时停止生成。为了方便起见，我们直接使用包中提供的 `HfEngine` 类来获取调用 Hugging Face 的 Inference API 的 LLM 引擎。
+我们的 `model` 必须是一个可调用对象，它接受一个消息的 list 作为输入，并返回文本。它还需要接受一个 stop_sequences 参数，指示何时停止生成。为了方便起见，我们直接使用包中提供的 `InferenceClientModel` 类，通过 Hugging Face 的 Inference Providers 调用 LLM 模型。
 
 接着，我们将使用 [meta-llama/Llama-3.3-70B-Instruct](meta-llama/Llama-3.3-70B-Instruct) 作为 llm 引
 擎，因为：
