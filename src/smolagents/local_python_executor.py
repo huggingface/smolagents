@@ -935,7 +935,17 @@ def evaluate_subscript(
             close_matches = difflib.get_close_matches(index, list(value.keys()))
             if len(close_matches) > 0:
                 error_message += f". Maybe you meant one of these indexes instead: {str(close_matches)}"
-        raise InterpreterError(error_message) from e
+        _add_note(e, error_message)
+        raise
+
+
+def _add_note(e: BaseException, note: str) -> None:
+    """Attach `note` to `e` (`BaseException.add_note` on Python 3.11+), keeping `e` itself unchanged so
+    agent code can still catch it and read its original `args`."""
+    if hasattr(e, "add_note"):
+        e.add_note(note)
+    else:
+        e.__notes__ = [*getattr(e, "__notes__", []), note]
 
 
 def evaluate_name(
@@ -1408,7 +1418,8 @@ def evaluate_delete(
             try:
                 del obj[index]
             except (TypeError, KeyError, IndexError) as e:
-                raise InterpreterError(f"Cannot delete index/key: {str(e)}")
+                _add_note(e, f"Cannot delete index/key: {str(e)}")
+                raise
         else:
             raise InterpreterError(f"Deletion of {type(target).__name__} targets is not supported")
 
@@ -1656,8 +1667,10 @@ def evaluate_python_code(
             state["_print_outputs"].value = truncate_content(
                 str(state["_print_outputs"]), max_length=max_print_outputs_length
             )
+            notes = "".join(f"\n{note}" for note in getattr(e, "__notes__", []))
             raise InterpreterError(
                 f"Code execution failed at line '{ast.get_source_segment(code, node)}' due to: {type(e).__name__}: {e}"
+                f"{notes}"
             )
 
     # Apply timeout if specified
