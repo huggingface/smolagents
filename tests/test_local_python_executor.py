@@ -325,6 +325,23 @@ test_func(**None)
         assert result == [3, 5]
         self.assertDictEqualNoPrint(state, {"x": 3, "test_list": [3, 5], "_operations_count": {"counter": 5}})
 
+    def test_evaluate_starred_in_displays(self):
+        # Starred elements are unpacked in list/tuple/set literals, like CPython.
+        result, _ = evaluate_python_code("test_list = [1, 2, *[3, 4]]", {}, state={})
+        assert result == [1, 2, 3, 4]
+
+        result, _ = evaluate_python_code("test_tuple = (1, 2, *(3, 4))", {}, state={})
+        assert result == (1, 2, 3, 4)
+
+        result, _ = evaluate_python_code("test_set = {1, 2, *[3, 4]}", {}, state={})
+        assert result == {1, 2, 3, 4}
+
+        result, _ = evaluate_python_code("test_list = [*[1, 2], *[3, 4]]", {}, state={})
+        assert result == [1, 2, 3, 4]
+
+        result, _ = evaluate_python_code("test_list = [*[]]", {}, state={})
+        assert result == []
+
     def test_evaluate_name(self):
         code = "y = x"
         state = {"x": 3}
