@@ -334,6 +334,7 @@ def get_clean_message_list(
     role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
     convert_images_to_image_urls: bool = False,
     flatten_messages_as_text: bool = False,
+    encode_images: bool = True,
 ) -> list[dict[str, Any]]:
     """
     Creates a list of messages to give as input to the LLM. These messages are dictionaries and chat template compatible with transformers LLM chat template.
@@ -344,6 +345,7 @@ def get_clean_message_list(
         role_conversions (`dict[MessageRole, MessageRole]`, *optional* ): Mapping to convert roles.
         convert_images_to_image_urls (`bool`, default `False`): Whether to convert images to image URLs.
         flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
+        encode_images (`bool`, default `True`): Whether to encode image inputs as base64 strings.
     """
     output_message_list: list[dict[str, Any]] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
@@ -362,6 +364,8 @@ def get_clean_message_list(
                 assert isinstance(element, dict), "Error: this element should be a dict:" + str(element)
                 if element["type"] == "image":
                     assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
+                    if not encode_images:
+                        continue
                     if convert_images_to_image_urls:
                         element.update(
                             {
@@ -508,6 +512,7 @@ class Model:
         custom_role_conversions: dict[str, str] | None = None,
         convert_images_to_image_urls: bool = False,
         tool_choice: str | dict | None = "required",  # Configurable tool_choice parameter
+        encode_images: bool = True,
         **kwargs,
     ) -> dict[str, Any]:
         """
@@ -525,6 +530,7 @@ class Model:
             role_conversions=custom_role_conversions or tool_role_conversions,
             convert_images_to_image_urls=convert_images_to_image_urls,
             flatten_messages_as_text=flatten_messages_as_text,
+            encode_images=encode_images,
         )
         # Start with messages
         completion_kwargs = {
@@ -1010,6 +1016,7 @@ class TransformersModel(Model):
             stop_sequences=stop_sequences,
             tools_to_call_from=tools_to_call_from,
             tool_choice=None,
+            encode_images=not hasattr(self, "processor"),
             **kwargs,
         )
 
@@ -1024,17 +1031,45 @@ class TransformersModel(Model):
             or self.kwargs.get("max_tokens")
             or 1024
         )
-        prompt_tensor = (self.processor if hasattr(self, "processor") else self.tokenizer).apply_chat_template(
-            messages,
-            tools=tools,
-            return_tensors="pt",
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            **self.apply_chat_template_kwargs,
-        )
+        if hasattr(self, "processor"):
+            images = [
+                element["image"]
+                for message in messages
+                for element in message.get("content", [])
+                if element.get("type") == "image"
+            ]
+            apply_chat_template_kwargs = {
+                "tools": tools,
+                "add_generation_prompt": True,
+                **self.apply_chat_template_kwargs,
+                "tokenize": False,
+            }
+            prompt = self.processor.apply_chat_template(
+                messages,
+                **apply_chat_template_kwargs,
+            )
+            prompt_tensor = self.processor(
+                text=prompt,
+                images=images or None,
+                return_tensors="pt",
+            )
+        else:
+            prompt_tensor = self.tokenizer.apply_chat_template(
+                messages,
+                tools=tools,
+                return_tensors="pt",
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                **self.apply_chat_template_kwargs,
+            )
         prompt_tensor = prompt_tensor.to(self.model.device)  # type: ignore
-        if hasattr(prompt_tensor, "input_ids"):
+        generation_inputs = {}
+        if hasattr(prompt_tensor, "items"):
+            generation_inputs = {key: value for key, value in prompt_tensor.items() if key != "input_ids"}
+        if isinstance(prompt_tensor, dict):
+            prompt_tensor = prompt_tensor["input_ids"]
+        elif hasattr(prompt_tensor, "input_ids"):
             prompt_tensor = prompt_tensor["input_ids"]
 
         model_tokenizer = self.processor.tokenizer if hasattr(self, "processor") else self.tokenizer
@@ -1046,6 +1081,7 @@ class TransformersModel(Model):
             inputs=prompt_tensor,
             use_cache=True,
             stopping_criteria=stopping_criteria,
+            **generation_inputs,
             **completion_kwargs,
         )
 
