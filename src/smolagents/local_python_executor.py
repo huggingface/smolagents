@@ -148,8 +148,9 @@ DANGEROUS_FUNCTIONS = [
     "builtins.locals",
     "builtins.__import__",
     "os.popen",
-    "os.system",
+    "os.system",  # os.system resolves to the `posix` module on Linux/macOS
     "posix.system",
+    "nt.system",  # ...and to the `nt` module on Windows, where __module__ == "nt" (GH-2232)
 ]
 
 
