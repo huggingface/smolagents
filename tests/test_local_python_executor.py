@@ -386,7 +386,7 @@ for result in search_results:
             A @ B
         """)
         state = {}
-        result, _ = evaluate_python_code(code, {}, state=state)
+        result, _ = evaluate_python_code(code, {}, state=state, authorized_imports=["numpy"])
         assert result.tolist() == [[19, 22], [43, 50]]
 
     def test_evaluate_augassign_matmult(self):
@@ -398,7 +398,7 @@ for result in search_results:
             A
         """)
         state = {}
-        result, _ = evaluate_python_code(code, {}, state=state)
+        result, _ = evaluate_python_code(code, {}, state=state, authorized_imports=["numpy"])
         assert result.tolist() == [[19, 22], [43, 50]]
 
     def test_recursive_function(self):
