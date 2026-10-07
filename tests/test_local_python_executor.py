@@ -951,8 +951,9 @@ except ValueError as e:
 d = {"a": 1}
 try:
     d["b"]
-except KeyError:
+except KeyError as e:
     key_error = True
+    missing_key = e.args[0]
 try:
     [1, 2][5]
 except IndexError:
@@ -965,6 +966,11 @@ except KeyError:
         state = {}
         evaluate_python_code(code, state=state)
         assert state["key_error"] and state["index_error"] and state["del_error"]
+        assert state["missing_key"] == "b"
+
+    def test_uncaught_lookup_error_keeps_hint(self):
+        with pytest.raises(InterpreterError, match="Could not index"):
+            evaluate_python_code('d = {"a": 1}\nd["b"]', state={})
 
     def test_print(self):
         code = "print(min([1, 2, 3]))"
@@ -2071,9 +2077,11 @@ class TestEvaluateSubscript:
     )
     def test_evaluate_subscript_error(self, subscript, state, expected_error_message):
         subscript_ast = ast.parse(subscript).body[0].value
-        with pytest.raises((KeyError, IndexError, TypeError), match="Could not index") as exception_info:
+        with pytest.raises((KeyError, IndexError, TypeError)) as exception_info:
             _ = evaluate_subscript(subscript_ast, state, {}, {}, [])
-        assert expected_error_message in str(exception_info.value)
+        notes = "\n".join(getattr(exception_info.value, "__notes__", []))
+        assert "Could not index" in notes
+        assert expected_error_message in notes
 
     @pytest.mark.parametrize(
         "subscriptable_class, expectation",
@@ -2097,9 +2105,11 @@ class TestEvaluateSubscript:
         subscript = "obj[2]"
         subscript_ast = ast.parse(subscript).body[0].value
         if isinstance(expectation, Exception):
-            with pytest.raises(type(expectation), match="Could not index") as exception_info:
+            with pytest.raises(type(expectation)) as exception_info:
                 evaluate_subscript(subscript_ast, state, {}, {}, [])
-            assert "TypeError: 'Custom' object is not subscriptable" in str(exception_info.value)
+            notes = "\n".join(getattr(exception_info.value, "__notes__", []))
+            assert "Could not index" in notes
+            assert "TypeError: 'Custom' object is not subscriptable" in notes
         else:
             result = evaluate_subscript(subscript_ast, state, {}, {}, [])
             assert result == expectation
