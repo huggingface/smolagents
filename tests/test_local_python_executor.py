@@ -1486,6 +1486,28 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         with pytest.raises(InterpreterError, match="Could not index"):
             evaluate_python_code(code, state={})
 
+    def test_tool_chained_exception_not_caught_by_unrelated_handler(self):
+        """A tool's `raise ValueError from KeyError` must stay caught by `except ValueError`,
+        not be mis-attributed to a chained `except KeyError` (matches CPython)."""
+
+        def failing_tool():
+            try:
+                raise KeyError("internal")
+            except KeyError as exc:
+                raise ValueError("tool failed") from exc
+
+        code = dedent("""
+            try:
+                failing_tool()
+            except KeyError:
+                result = "key"
+            except ValueError:
+                result = "value"
+            result
+        """)
+        result, _ = evaluate_python_code(code, state={"failing_tool": failing_tool})
+        assert result == "value"
+
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
             eval("1 + 1")

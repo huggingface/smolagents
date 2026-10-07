@@ -1157,22 +1157,27 @@ def evaluate_dictcomp(
 
 
 def _find_matching_exception(exc: BaseException, handler_type: Any) -> BaseException | None:
-    """Return the exception in the chain that matches a handler type, if any.
+    """Return the exception that matches a handler type, if any.
 
     The interpreter wraps some built-in errors (e.g. ``KeyError`` from a failed
     lookup) in an :class:`InterpreterError` via ``raise ... from e``. Without
-    walking the chain, user code such as ``except KeyError:`` would never match
-    and the handler would silently not run, unlike plain Python. Returning the
-    matching exception itself also makes ``except KeyError as e:`` bind the
+    unwrapping that wrapper, user code such as ``except KeyError:`` would never
+    match and the handler would silently not run, unlike plain Python. Returning
+    the matching exception itself also makes ``except KeyError as e:`` bind the
     original ``KeyError`` instance to ``e``.
+
+    Only the interpreter's own ``InterpreterError`` wrapper is unwrapped. We
+    deliberately do *not* walk arbitrary user/tool exception chains: a tool
+    that does ``raise ValueError("tool failed") from KeyError(...)`` must
+    continue to be caught by ``except ValueError`` exactly as CPython does,
+    rather than being mis-attributed to a chained ``except KeyError``.
     """
-    seen: set[int] = set()
-    current: BaseException | None = exc
-    while current is not None and id(current) not in seen:
-        if isinstance(current, handler_type):
-            return current
-        seen.add(id(current))
-        current = current.__cause__ if current.__cause__ is not None else current.__context__
+    if isinstance(exc, handler_type):
+        return exc
+    if isinstance(exc, InterpreterError):
+        cause = exc.__cause__ if exc.__cause__ is not None else exc.__context__
+        if cause is not None and isinstance(cause, handler_type):
+            return cause
     return None
 
 
