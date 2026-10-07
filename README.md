@@ -24,6 +24,10 @@ limitations under the License.
     <a href="https://deepwiki.com/huggingface/smolagents"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
+<p align="center">
+    <b>English</b> · <a href="README.zh.md">中文</a>
+</p>
+
 <h3 align="center">
   <div style="display:flex;flex-direction:row;">
     <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/smolagents/smolagents.png" alt="Hugging Face mascot as James Bond" width=400px>
