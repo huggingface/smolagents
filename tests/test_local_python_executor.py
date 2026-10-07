@@ -1486,7 +1486,6 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         with pytest.raises(InterpreterError, match="Could not index"):
             evaluate_python_code(code, state={})
 
-
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
             eval("1 + 1")
