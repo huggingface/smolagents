@@ -147,6 +147,7 @@ DANGEROUS_FUNCTIONS = [
     "builtins.globals",
     "builtins.locals",
     "builtins.__import__",
+    "nt.system",
     "os.popen",
     "os.system",
     "posix.system",
