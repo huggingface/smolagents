@@ -16,6 +16,7 @@ import os
 import tempfile
 import unittest
 import uuid
+from io import BytesIO
 
 import PIL.Image
 
@@ -27,6 +28,33 @@ from .utils.markers import require_soundfile, require_torch
 def get_new_path(suffix="") -> str:
     directory = tempfile.mkdtemp()
     return os.path.join(directory, str(uuid.uuid4()) + suffix)
+
+
+def assert_images_equal(left, right):
+    assert left.mode == right.mode
+    assert left.size == right.size
+    assert left.info == right.info
+    assert left.getpalette() == right.getpalette()
+    assert left.tobytes() == right.tobytes()
+
+
+class TestAgentImagePillow:
+    def test_behaves_like_pil_image(self):
+        agent_image = AgentImage(PIL.Image.new("RGB", (3, 2), "red"))
+
+        assert agent_image.size == (3, 2)
+        assert agent_image.mode == "RGB"
+        assert agent_image.getpixel((0, 0)) == (255, 0, 0)
+
+        agent_image.putpixel((0, 0), (0, 255, 0))
+        assert agent_image.to_raw().getpixel((0, 0)) == (0, 255, 0)
+
+        output = BytesIO()
+        PIL.Image.Image.save(agent_image, output, format="PNG")
+        output.seek(0)
+        with PIL.Image.open(output) as saved_image:
+            assert saved_image.size == agent_image.size
+            assert saved_image.getpixel((0, 0)) == (0, 255, 0)
 
 
 @require_soundfile
@@ -90,7 +118,7 @@ class TestAgentImage:
         agent_type = AgentImage(path)
 
         assert path.samefile(agent_type.to_string())
-        assert image == agent_type.to_raw()
+        assert_images_equal(image, agent_type.to_raw())
 
         # Ensure the path remains even after the object deletion
         del agent_type
@@ -102,7 +130,7 @@ class TestAgentImage:
         agent_type = AgentImage(image)
 
         assert not path.samefile(agent_type.to_string())
-        assert image == agent_type.to_raw()
+        assert_images_equal(image, agent_type.to_raw())
 
         # Ensure the path remains even after the object deletion
         del agent_type
