@@ -29,6 +29,7 @@ from smolagents.utils import (
     is_valid_name,
     parse_code_blobs,
     parse_json_blob,
+    truncate_content,
 )
 
 
@@ -552,3 +553,22 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+@pytest.mark.parametrize("max_length", [0, 1, 4, 5, 9])
+def test_truncate_content_drops_content_when_over_limit(max_length):
+    """Content longer than max_length must not survive intact."""
+    content = "abcdefghij"
+    assert content not in truncate_content(content, max_length=max_length)
+
+
+def test_truncate_content_zero_max_length_keeps_no_content():
+    """max_length=0 must not return the whole string.
+
+    The tail slice ``content[-max_length // 2:]`` negates to ``content[0:]``
+    when max_length is 0, so nothing was actually truncated.
+    """
+    content = "abcdefghij"
+    result = truncate_content(content, max_length=0)
+    assert content not in result
+    # nothing is kept, so the output cannot depend on the input
+    assert result == truncate_content("zyxwvutsrq", max_length=0)
