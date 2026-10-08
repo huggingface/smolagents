@@ -56,3 +56,5 @@
       local: reference/tools
     - title: Built-in Tools
       local: reference/default_tools
+    - title: Camb AI Tools
+      local: reference/camb_tools
