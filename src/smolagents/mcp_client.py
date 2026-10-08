@@ -50,12 +50,14 @@ class MCPClient:
                 - "sse": Legacy HTTP+SSE transport (deprecated).
         adapter_kwargs (dict[str, Any], optional):
             Additional keyword arguments to be passed directly to `MCPAdapt`.
-        structured_output (bool, optional, defaults to False):
+        structured_output (bool, optional, defaults to None):
             Whether to enable structured output features for MCP tools. If True, enables:
             - Support for outputSchema in MCP tools
             - Structured content handling (structuredContent from MCP responses)
             - JSON parsing fallback for structured data
             If False, uses the original simple text-only behavior for backwards compatibility.
+            If left unset (None), it currently behaves like False but emits a FutureWarning,
+            as the default will change to True in version 1.25.
 
     Example:
         ```python
