@@ -93,6 +93,23 @@ def example_tool():
 
 
 @pytest.fixture
+def with_returns_doc():
+    @tool
+    def with_returns_doc(input: str) -> str:
+        """Tool with a returns section.
+
+        Args:
+            input: Input text
+
+        Returns:
+            str: The same string as the input
+        """
+        return input
+
+    return with_returns_doc
+
+
+@pytest.fixture
 def boolean_default_tool_class():
     class BooleanDefaultTool(Tool):
         name = "boolean_default_tool"
