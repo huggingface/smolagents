@@ -16,6 +16,8 @@
     title: 🛠️ Tools - in-depth guide
   - local: tutorials/secure_code_execution
     title: 🛡️ Secure code execution
+  - local: tutorials/vaultak_security
+    title: 🔒 Runtime security with Vaultak
   - local: tutorials/memory
     title: 📚 Manage your agent's memory
 - title: Conceptual guides
