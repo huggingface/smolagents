@@ -84,6 +84,36 @@ def test_cli_main(capsys):
     assert mock_code_agent.return_value.run.call_args.args == ("test_prompt",)
 
 
+@pytest.mark.parametrize("action_type, agent_class", [("code", "CodeAgent"), ("tool_calling", "ToolCallingAgent")])
+def test_cli_max_steps(action_type, agent_class):
+    with patch("smolagents.cli.load_model", return_value="mock_model"):
+        with patch(f"smolagents.cli.{agent_class}") as mock_agent:
+            from smolagents.cli import run_smolagent
+
+            run_smolagent(
+                "test_prompt", [], "InferenceClientModel", "test_model_id", action_type=action_type, max_steps=3
+            )
+    mock_agent.return_value.run.assert_called_once_with("test_prompt", max_steps=3)
+
+
+def test_cli_max_steps_defaults_to_agent_default():
+    with patch("smolagents.cli.load_model", return_value="mock_model"):
+        with patch("smolagents.cli.CodeAgent") as mock_code_agent:
+            from smolagents.cli import run_smolagent
+
+            run_smolagent("test_prompt", [], "InferenceClientModel", "test_model_id")
+    mock_code_agent.return_value.run.assert_called_once_with("test_prompt", max_steps=None)
+
+
+def test_cli_parse_arguments_max_steps():
+    from smolagents.cli import parse_arguments
+
+    with patch("sys.argv", ["smolagent", "test_prompt", "--max-steps", "5"]):
+        assert parse_arguments().max_steps == 5
+    with patch("sys.argv", ["smolagent", "test_prompt"]):
+        assert parse_arguments().max_steps is None
+
+
 def test_vision_web_browser_main():
     with patch("smolagents.vision_web_browser.helium"):
         with patch("smolagents.vision_web_browser.load_model") as mock_load_model:
