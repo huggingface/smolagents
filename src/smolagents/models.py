@@ -1176,7 +1176,7 @@ class ApiModel(Model):
             wait_seconds=RETRY_WAIT,
             exponential_base=RETRY_EXPONENTIAL_BASE,
             jitter=RETRY_JITTER,
-            retry_predicate=is_rate_limit_error,
+            retry_predicate=is_transient_error,
             reraise=True,
             before_sleep_logger=(logger, logging.INFO),
             after_logger=(logger, logging.INFO),
@@ -1189,6 +1189,36 @@ class ApiModel(Model):
     def _apply_rate_limit(self):
         """Apply rate limiting before making API calls."""
         self.rate_limiter.throttle()
+
+
+def is_transient_error(exception: BaseException) -> bool:
+    """Return True if the exception is a transient API error worth retrying."""
+    error_str = str(exception).lower()
+    return any(
+        signal in error_str
+        for signal in (
+            # Rate limits
+            "429",
+            "rate limit",
+            "too many requests",
+            "rate_limit",
+            # Transient server errors
+            "500",
+            "502",
+            "503",
+            "504",
+            "service unavailable",
+            "bad gateway",
+            "gateway timeout",
+            "internal server error",
+            # Connection failures
+            "connection error",
+            "connection reset",
+            "connection refused",
+            "timed out",
+            "timeout",
+        )
+    )
 
 
 def is_rate_limit_error(exception: BaseException) -> bool:
