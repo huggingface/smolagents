@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ast
+import re
 import time
 import types
 from contextlib import nullcontext as does_not_raise
@@ -644,6 +645,47 @@ simple_set = {
         code = "a, b = 0, 1\nb"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert result == 1
+
+    @pytest.mark.parametrize(
+        "code, expected",
+        [
+            ("a, *b = [1, 2, 3]\n(a, b)", (1, [2, 3])),
+            ("*a, b = [1, 2, 3]\n(a, b)", ([1, 2], 3)),
+            ("a, *b, c = [1, 2, 3, 4]\n(a, b, c)", (1, [2, 3], 4)),
+            ("a, *b = [1]\n(a, b)", (1, [])),
+            ("first, *rest = 'hello'\n(first, rest)", ("h", ["e", "l", "l", "o"])),
+            ("a, *b = (1, 2, 3)\nb", [2, 3]),
+            ("x = [1, 2, 3, 4]\na, *b, c = x\nb", [2, 3]),
+        ],
+    )
+    def test_starred_unpacking_assignment(self, code, expected):
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "code, expected",
+        [
+            ("a, b = 'hi'\n(a, b)", ("h", "i")),
+            ("[a, b] = [1, 2]\n(a, b)", (1, 2)),
+            ("a, (b, c) = 1, (2, 3)\n(a, b, c)", (1, 2, 3)),
+        ],
+    )
+    def test_iterable_unpacking_assignment(self, code, expected):
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "code, message",
+        [
+            ("a, b = [1]", "not enough values to unpack (expected 2, got 1)"),
+            ("a, b = [1, 2, 3]", "too many values to unpack (expected 2)"),
+            ("a, *b, c = [1]", "not enough values to unpack (expected at least 2, got 1)"),
+            ("a, b = 5", "cannot unpack non-iterable int object"),
+        ],
+    )
+    def test_unpacking_assignment_errors(self, code, message):
+        with pytest.raises(InterpreterError, match=re.escape(message)):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
 
     def test_while(self):
         code = "i = 0\nwhile i < 3:\n    i += 1\ni"
@@ -2407,7 +2449,7 @@ class TestLocalPythonExecutor:
     def test_evaluate_assign_error(self):
         code = "a, b = 1, 2, 3; a"
         executor = LocalPythonExecutor([])
-        with pytest.raises(InterpreterError, match=".*Cannot unpack tuple of wrong size"):
+        with pytest.raises(InterpreterError, match=re.escape("too many values to unpack (expected 2)")):
             executor(code)
 
     def test_function_def_recovers_source_code(self):
