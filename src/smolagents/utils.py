@@ -265,6 +265,20 @@ def truncate_content(content: str, max_length: int = MAX_LENGTH_TRUNCATE_CONTENT
         )
 
 
+def sanitize_tool_output(text: str) -> str:
+    """Sanitize tool output to prevent indirect prompt injection by escaping XML-like brackets.
+
+    Args:
+        text: Raw tool output string.
+
+    Returns:
+        Sanitized string with `<` and `>` escaped so they cannot be interpreted as structural tags.
+    """
+    if not isinstance(text, str):
+        text = str(text)
+    return text.replace("<", "\\<").replace(">", "\\>")
+
+
 class ImportFinder(ast.NodeVisitor):
     def __init__(self):
         self.packages = set()
