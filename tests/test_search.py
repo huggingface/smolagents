@@ -14,10 +14,32 @@
 # limitations under the License.
 
 
-from smolagents import DuckDuckGoSearchTool
+from smolagents import DuckDuckGoSearchTool, ExaSearchTool
 
 from .test_tools import ToolTesterMixin
 from .utils.markers import require_run_all
+
+
+class TestExaSearchTool(ToolTesterMixin):
+    def setup_method(self):
+        self.tool = ExaSearchTool()
+        self.tool.setup()
+
+    @require_run_all
+    def test_exact_match_arg(self):
+        result = self.tool("Agents")
+        assert isinstance(result, str)
+        assert "## Search Results" in result
+
+    @require_run_all
+    def test_filter_year(self):
+        result = self.tool("Hugging Face transformers", filter_year=2024)
+        assert isinstance(result, str)
+        assert "## Search Results" in result
+
+    @require_run_all
+    def test_agent_type_output(self):
+        super().test_agent_type_output()
 
 
 class TestDuckDuckGoSearchTool(ToolTesterMixin):
