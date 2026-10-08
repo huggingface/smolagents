@@ -1519,7 +1519,7 @@ class TestMultiStepAgent:
         mock_model_class.from_dict.return_value = mock_model_instance
 
         with patch.dict("smolagents.models.MODEL_REGISTRY", {"TransformersModel": mock_model_class}):
-            agent = DummyMultiStepAgent.from_dict(agent_dict)
+            agent = DummyMultiStepAgent.from_dict(agent_dict, trust_remote_code=True)
 
         # Verify the agent was created correctly
         assert agent.model == mock_model_instance
@@ -1540,7 +1540,7 @@ class TestMultiStepAgent:
 
         # Test overriding with kwargs
         with patch.dict("smolagents.models.MODEL_REGISTRY", {"TransformersModel": mock_model_class}):
-            agent = DummyMultiStepAgent.from_dict(agent_dict, max_steps=30)
+            agent = DummyMultiStepAgent.from_dict(agent_dict, trust_remote_code=True, max_steps=30)
         assert agent.max_steps == 30
 
     def test_multiagent_to_dict_from_dict_roundtrip(self):
@@ -1581,7 +1581,7 @@ class TestMultiStepAgent:
         mock_model_class.from_dict.return_value = mock_model_instance
 
         with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
-            recreated_agent = ToolCallingAgent.from_dict(agent_dict)
+            recreated_agent = ToolCallingAgent.from_dict(agent_dict, trust_remote_code=True)
 
         # Verify the recreated agent has the same structure
         assert recreated_agent.name == "main_agent"
@@ -1604,7 +1604,7 @@ class TestMultiStepAgent:
         }
 
         with pytest.raises(ValueError) as exc_info:
-            CodeAgent.from_dict(agent_dict)
+            CodeAgent.from_dict(agent_dict, trust_remote_code=True)
 
         error_message = str(exc_info.value)
         assert "InvalidModelClass" in error_message
@@ -1634,7 +1634,7 @@ class TestMultiStepAgent:
 
         with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
             with pytest.raises(ValueError) as exc_info:
-                CodeAgent.from_dict(agent_dict)
+                CodeAgent.from_dict(agent_dict, trust_remote_code=True)
 
             error_message = str(exc_info.value)
             assert "InvalidAgentClass" in error_message
@@ -2262,7 +2262,7 @@ print("Ok, calculation done!")""")
             import json
 
             mock_path.return_value.__truediv__.return_value.read_text.return_value = json.dumps(agent_dict)
-            agent = CodeAgent.from_folder("ignored_dummy_folder")
+            agent = CodeAgent.from_folder("ignored_dummy_folder", trust_remote_code=True)
         assert isinstance(agent, CodeAgent)
         assert agent.name == "test_agent"
         assert agent.description == "dummy description"
@@ -2312,7 +2312,7 @@ print("Ok, calculation done!")""")
         mock_model_class.from_dict.return_value = mock_model_instance
 
         with patch.dict("smolagents.models.MODEL_REGISTRY", {"InferenceClientModel": mock_model_class}):
-            agent = CodeAgent.from_dict(agent_dict)
+            agent = CodeAgent.from_dict(agent_dict, trust_remote_code=True)
 
         # Verify the agent was created correctly with CodeAgent-specific parameters
         assert agent.model == mock_model_instance
@@ -2329,7 +2329,7 @@ print("Ok, calculation done!")""")
         }
 
         with patch.dict("smolagents.models.MODEL_REGISTRY", {"InferenceClientModel": mock_model_class}):
-            agent = CodeAgent.from_dict(minimal_agent_dict)
+            agent = CodeAgent.from_dict(minimal_agent_dict, trust_remote_code=True)
         # Verify defaults are used
         assert agent.max_steps == 20  # default from MultiStepAgent.__init__
 
@@ -2337,6 +2337,7 @@ print("Ok, calculation done!")""")
         with patch.dict("smolagents.models.MODEL_REGISTRY", {"InferenceClientModel": mock_model_class}):
             agent = CodeAgent.from_dict(
                 agent_dict,
+                trust_remote_code=True,
                 additional_authorized_imports=["requests"],
                 executor_kwargs={"max_print_outputs_length": 5_000},
             )

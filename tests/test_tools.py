@@ -596,7 +596,7 @@ class TestTool:
         # Convert to dict
         tool_dict = example_tool.to_dict()
         # Create from dict
-        recreated_tool = Tool.from_dict(tool_dict)
+        recreated_tool = Tool.from_dict(tool_dict, trust_remote_code=True)
         # Verify properties
         assert recreated_tool.name == example_tool.name
         assert recreated_tool.description == example_tool.description
