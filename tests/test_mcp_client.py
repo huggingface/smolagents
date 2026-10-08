@@ -1,5 +1,7 @@
 import json
+from copy import deepcopy
 from textwrap import dedent
+from unittest.mock import patch
 
 import pytest
 from mcp import StdioServerParameters
@@ -48,6 +50,52 @@ def structured_output_server_script():
         mcp.run()
         '''
     )
+
+
+@pytest.mark.parametrize(
+    ("server_parameters", "expected_parameters"),
+    [
+        (
+            {"url": "https://example.com/mcp"},
+            {"url": "https://example.com/mcp", "transport": "streamable-http"},
+        ),
+        (
+            {"url": "https://example.com/mcp", "transport": None},
+            {"url": "https://example.com/mcp", "transport": "streamable-http"},
+        ),
+        (
+            [
+                {"url": "https://example.com/mcp"},
+                {"url": "https://example.com/sse", "transport": "sse"},
+            ],
+            [
+                {"url": "https://example.com/mcp", "transport": "streamable-http"},
+                {"url": "https://example.com/sse", "transport": "sse"},
+            ],
+        ),
+    ],
+)
+def test_mcp_client_prepares_http_server_parameters_without_mutating_input(server_parameters, expected_parameters):
+    original_parameters = deepcopy(server_parameters)
+
+    with (
+        patch("mcpadapt.core.MCPAdapt") as mock_mcp_adapt,
+        patch("mcpadapt.smolagents_adapter.SmolAgentsAdapter"),
+    ):
+        mock_mcp_adapt.return_value.__enter__.return_value = []
+        client = MCPClient(server_parameters, structured_output=False)
+        client.disconnect()
+
+    assert server_parameters == original_parameters
+    assert mock_mcp_adapt.call_args.args[0] == expected_parameters
+
+
+def test_mcp_client_rejects_invalid_transport_in_server_list():
+    with pytest.raises(ValueError, match="Unsupported transport: websocket"):
+        MCPClient(
+            [{"url": "https://example.com/mcp", "transport": "websocket"}],
+            structured_output=False,
+        )
 
 
 # Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior

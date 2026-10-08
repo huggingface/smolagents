@@ -825,6 +825,18 @@ class TestToolCollection:
             assert "tool1" in tool_collection.tools
             assert "tool2" in tool_collection.tools
 
+    def test_from_mcp_does_not_mutate_http_server_parameters(self, mock_mcp_adapt, mock_smolagents_adapter):
+        server_parameters = {"url": "https://example.com/mcp"}
+
+        with ToolCollection.from_mcp(server_parameters, trust_remote_code=True):
+            pass
+
+        assert server_parameters == {"url": "https://example.com/mcp"}
+        assert mock_mcp_adapt.call_args.args[0] == {
+            "url": "https://example.com/mcp",
+            "transport": "streamable-http",
+        }
+
     @require_run_all
     def test_integration_from_mcp(self):
         # define the most simple mcp server with one tool that echoes the input text
