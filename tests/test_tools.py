@@ -187,6 +187,39 @@ class TestTool:
 
         assert coolfunc.output_type == "number"
 
+    def test_tool_decorator_preserves_returns_description(self):
+        @tool
+        def summarize(text: str) -> str:
+            """Summarize text.
+
+            Args:
+                text: Text to summarize.
+
+            Returns:
+                A concise summary with the main claims and caveats.
+            """
+            return text
+
+        assert summarize.output_description == "A concise summary with the main claims and caveats."
+        assert summarize.to_code_prompt() == (
+            "def summarize(text: string) -> string:\n"
+            '    """Summarize text.\n\n'
+            "    Args:\n"
+            "        text: Text to summarize.\n\n"
+            "    Returns:\n"
+            "        string: A concise summary with the main claims and caveats.\n"
+            '    """'
+        )
+        assert summarize.to_tool_calling_prompt() == (
+            "summarize: Summarize text.\n"
+            "    Takes inputs: {'text': {'type': 'string', 'description': 'Text to summarize.'}}\n"
+            "    Returns an output of type: string: A concise summary with the main claims and caveats."
+        )
+
+        roundtripped = Tool.from_dict(summarize.to_dict())
+        assert roundtripped.output_description == summarize.output_description
+        assert roundtripped.to_tool_calling_prompt() == summarize.to_tool_calling_prompt()
+
     def test_tool_init_vanilla(self):
         class HFModelDownloadsTool(Tool):
             name = "model_download_counter"
