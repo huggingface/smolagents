@@ -174,19 +174,43 @@ def _coerce_tool_call(tool_call: Any) -> ChatMessageToolCall:
         return tool_call
 
     if isinstance(tool_call, dict):
-        tool_call_dict = tool_call
-    elif hasattr(tool_call, "model_dump"):
-        tool_call_dict = tool_call.model_dump()
+        fn_val = tool_call.get("function")
+        call_id = tool_call.get("id")
+        call_type = tool_call.get("type")
+    elif hasattr(tool_call, "model_dump") and callable(tool_call.model_dump):
+        data = tool_call.model_dump()
+        fn_val = data.get("function")
+        call_id = data.get("id")
+        call_type = data.get("type")
     elif hasattr(tool_call, "dict") and callable(tool_call.dict):
-        tool_call_dict = tool_call.dict()
+        data = tool_call.dict()
+        fn_val = data.get("function")
+        call_id = data.get("id")
+        call_type = data.get("type")
+    elif hasattr(tool_call, "function"):
+        fn_val = getattr(tool_call, "function")
+        call_id = getattr(tool_call, "id", "")
+        call_type = getattr(tool_call, "type", "function")
+    else:
+        raise TypeError(f"Unsupported tool call type: {type(tool_call)}")
+
+    if isinstance(fn_val, dict):
+        fn_name = fn_val.get("name", "")
+        fn_args = fn_val.get("arguments", "")
+    elif fn_val is not None:
+        fn_name = getattr(fn_val, "name", "")
+        fn_args = getattr(fn_val, "arguments", "")
+    else:
+        fn_name = ""
+        fn_args = ""
 
     return ChatMessageToolCall(
         function=ChatMessageToolCallFunction(
-            arguments=tool_call_dict["function"]["arguments"],
-            name=tool_call_dict["function"]["name"],
+            name=fn_name,
+            arguments=fn_args,
         ),
-        id=tool_call_dict["id"],
-        type=tool_call_dict["type"],
+        id=call_id if call_id is not None else "",
+        type=call_type if call_type is not None else "function",
     )
 
 
