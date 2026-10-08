@@ -470,7 +470,35 @@ class TestAgent:
         assert output == 7.2904
         assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
         assert agent.memory.steps[2].tool_calls == [
-            ToolCall(name="python_interpreter", arguments="final_answer(7.2904)", id="call_2")
+            ToolCall(name="final_answer", arguments=7.2904, id="call_2_0")
+        ]
+
+    def test_code_agent_memory_tracks_executed_tools(self):
+        @tool
+        def repeat_text(text: str, count: int) -> str:
+            """Repeat text.
+
+            Args:
+                text: Text to repeat.
+                count: Number of repetitions.
+            """
+
+            return text * count
+
+        class FakeToolUsingCodeModel(Model):
+            def generate(self, messages, stop_sequences=None, **kwargs):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="<code>\nresult = repeat_text(text='ha', count=2)\nfinal_answer(result)\n</code>",
+                )
+
+        agent = CodeAgent(tools=[repeat_text], model=FakeToolUsingCodeModel(), verbosity_level=10)
+        output = agent.run("Repeat text.")
+
+        assert output == "haha"
+        assert agent.memory.steps[1].tool_calls == [
+            ToolCall(name="repeat_text", arguments={"text": "ha", "count": 2}, id="call_1_0"),
+            ToolCall(name="final_answer", arguments="haha", id="call_1_1"),
         ]
 
     def test_additional_args_added_to_task(self):
