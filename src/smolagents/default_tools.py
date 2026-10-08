@@ -15,7 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -91,14 +94,50 @@ class FinalAnswerTool(Tool):
 
 
 class UserInputTool(Tool):
+    """Tool that asks for user input on a specific question.
+
+    This tool can be used in both terminal and interactive UI contexts (like Gradio).
+    By default, it uses Python's `input()` function for terminal input.
+
+    For interactive UIs, you can provide a custom `get_user_input` callable that
+    handles input collection in a UI-appropriate way.
+
+    Args:
+        get_user_input (`Callable[[str], str]`, *optional*): A callable that takes
+            a question string and returns the user's response. If not provided,
+            defaults to terminal input via `input()`.
+
+    Example:
+        ```python
+        # Terminal usage (default)
+        tool = UserInputTool()
+
+        # Custom input handler for UI integration
+        def my_input_handler(question: str) -> str:
+            # Custom logic to get user input
+            return get_input_from_ui(question)
+
+        tool = UserInputTool(get_user_input=my_input_handler)
+        ```
+    """
+
     name = "user_input"
     description = "Asks for user's input on a specific question"
     inputs = {"question": {"type": "string", "description": "The question to ask the user"}}
     output_type = "string"
 
-    def forward(self, question):
-        user_input = input(f"{question} => Type your answer here:")
-        return user_input
+    def __init__(self, get_user_input: "Callable[[str], str] | None" = None):
+        super().__init__()
+        self._get_user_input = get_user_input
+
+    def _default_input(self, question: str) -> str:
+        """Default input handler using terminal input()."""
+        return input(f"{question} => Type your answer here: ")
+
+    def forward(self, question: str) -> str:
+        if self._get_user_input is not None:
+            return self._get_user_input(question)
+        return self._default_input(question)
 
 
 class DuckDuckGoSearchTool(Tool):
