@@ -79,6 +79,23 @@ def multiline_description_tool():
 
 
 @pytest.fixture
+def tool_with_return_description():
+    @tool
+    def get_temperature(city: str) -> float:
+        """Get the temperature of any city in the world.
+
+        Args:
+            city: the city name
+
+        Returns:
+            float: temperature in Celsius
+        """
+        return 19.2
+
+    return get_temperature
+
+
+@pytest.fixture
 def example_tool():
     @tool
     def valid_tool_function(input: str) -> str:
