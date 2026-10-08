@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import atexit
 import base64
 import inspect
 import json
@@ -582,6 +583,8 @@ class DockerExecutor(RemotePythonExecutor):
         dockerfile_content: str | None = None,
     ):
         super().__init__(additional_imports, logger, allow_pickle)
+        self._cleaned_up = False
+        self._cleanup_registered = False
         try:
             import docker
         except ModuleNotFoundError:
@@ -650,6 +653,8 @@ class DockerExecutor(RemotePythonExecutor):
             container_kwargs["environment"] = env
 
             self.container = self.client.containers.run(self.image_name, **container_kwargs)
+            atexit.register(self.cleanup)
+            self._cleanup_registered = True
 
             retries = 0
             while self.container.status != "running" and retries < 5:
@@ -693,6 +698,9 @@ class DockerExecutor(RemotePythonExecutor):
 
     def cleanup(self):
         """Clean up the Docker container and resources."""
+        if getattr(self, "_cleaned_up", False):
+            return
+        self._cleaned_up = True
         try:
             if hasattr(self, "container"):
                 self.logger.log(f"Stopping and removing container {self.container.short_id}...", level=LogLevel.INFO)
@@ -702,9 +710,20 @@ class DockerExecutor(RemotePythonExecutor):
                 del self.container
         except Exception as e:
             self.logger.log_error(f"Error during cleanup: {e}")
+        finally:
+            if getattr(self, "_cleanup_registered", False):
+                try:
+                    atexit.unregister(self.cleanup)
+                except ValueError:
+                    pass
+                self._cleanup_registered = False
 
     def delete(self):
         """Ensure cleanup on deletion."""
+        self.cleanup()
+
+    def __del__(self):
+        """Best-effort cleanup on garbage collection."""
         self.cleanup()
 
     def _wait_for_server(self, token: str):
