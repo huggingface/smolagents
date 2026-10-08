@@ -87,6 +87,12 @@ def parse_arguments():
         default=1,
         help="The verbosity level, as an int in [0, 1, 2].",
     )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=None,
+        help="The maximum number of steps the agent can take to solve the task. Defaults to the agent's own default (20).",
+    )
     group = parser.add_argument_group("api options", "Options for API-based model types")
     group.add_argument(
         "--provider",
@@ -226,6 +232,7 @@ def run_smolagent(
     imports: list[str] | None = None,
     provider: str | None = None,
     action_type: str = "code",
+    max_steps: int | None = None,
 ) -> None:
     load_dotenv()
 
@@ -256,7 +263,7 @@ def run_smolagent(
     else:
         raise ValueError(f"Unsupported action type: {action_type}")
 
-    agent.run(prompt)
+    agent.run(prompt, max_steps=max_steps)
 
 
 def main() -> None:
@@ -287,6 +294,7 @@ def main() -> None:
         api_key=api_key,
         imports=imports,
         action_type=action_type,
+        max_steps=args.max_steps,
     )
 
 
