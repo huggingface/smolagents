@@ -84,7 +84,7 @@ print(result)
 
 ```python
 # Hugging Face의 특정 모델 사용
-model = InferenceClientModel(model_id="meta-llama/Llama-2-70b-chat-hf")
+model = InferenceClientModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
 
 # OpenAI/Anthropic 사용 ('smolagents[litellm]' 필요)
 from smolagents import LiteLLMModel
@@ -92,7 +92,7 @@ model = LiteLLMModel(model_id="gpt-4")
 
 # 로컬 모델 사용 ('smolagents[transformers]' 필요)
 from smolagents import TransformersModel
-model = TransformersModel(model_id="meta-llama/Llama-2-7b-chat-hf")
+model = TransformersModel(model_id="meta-llama/Llama-3.2-3B-Instruct")
 ```
 
 ## 다음 단계[[next-steps]]
