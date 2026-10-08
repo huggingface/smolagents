@@ -221,6 +221,10 @@ Extras for telemetry, monitoring and user interface components:
   ```bash
   pip install "smolagents[gradio]"
   ```
+- **tui**: Add support for interactive terminal UI components.
+  ```bash
+  pip install "smolagents[tui]"
+  ```
 </hfoption>
 <hfoption id="uv">
 - **telemetry**: Add support for monitoring and tracing.
@@ -230,6 +234,10 @@ Extras for telemetry, monitoring and user interface components:
 - **gradio**: Add support for interactive Gradio UI components.
   ```bash
   uv pip install "smolagents[gradio]"
+  ```
+- **tui**: Add support for interactive terminal UI components.
+  ```bash
+  uv pip install "smolagents[tui]"
   ```
 </hfoption>
 </hfoptions>

@@ -109,10 +109,13 @@ agent.run("Could you get me the title of the page at url 'https://huggingface.co
 You can quickly get started with smolagents using the command line interface:
 
 ```bash
+# Install terminal UI + default CLI tool support
+pip install "smolagents[tui,toolkit]"
+
 # Run with direct prompt and options
 smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
 
-# Run in interactive mode: launches when no prompt is provided, will guide you through argument selection
+# Launch the terminal chat UI: no prompt starts full-screen TUI mode
 smolagent
 ```
 
