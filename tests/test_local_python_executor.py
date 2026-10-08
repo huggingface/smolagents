@@ -1934,6 +1934,49 @@ class TestEvaluateCondition:
         else:
             pd.testing.assert_frame_equal(result, expected_result)
 
+    def test_evaluate_condition_chained_comparison_shortcircuits_on_false_like(self):
+        # A chained comparison must truth-test each non-final comparison result
+        # before evaluating the next comparator (CPython semantics).
+        # https://github.com/huggingface/smolagents/issues/2920
+        events = []
+
+        class FalseLike:
+            def __init__(self, events):
+                self.events = events
+
+            def __bool__(self):
+                self.events.append("bool")
+                return False
+
+        class Left:
+            def __init__(self, events):
+                self.events = events
+
+            def __lt__(self, other):
+                self.events.append("compare")
+                return FalseLike(self.events)
+
+        def later():
+            events.append("later")
+            return 5
+
+        state = {"left": Left(events)}
+        result, _ = evaluate_python_code("left < 1 < later()", {"later": later}, state=state)
+        assert isinstance(result, FalseLike)
+        # The callback in the skipped operand must not run, and the false-like
+        # result is truth-tested exactly once.
+        assert events == ["compare", "bool"]
+
+    def test_evaluate_condition_chained_comparison_still_returns_final_boolean(self):
+        # The final comparison result is not truth-tested; plain chained
+        # comparisons keep returning a plain boolean.
+        code = "0 <= 1 < 4 and 0 <= -5 < 4"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result is False
+        code = "0 <= 1 < 4 and 0 <= 1 < 4"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result is True
+
     @pytest.mark.parametrize(
         "condition, state, expected_exception",
         [

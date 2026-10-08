@@ -968,6 +968,7 @@ def evaluate_condition(
 ) -> bool | object:
     result = True
     left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
+    num_ops = len(condition.ops)
     for i, (op, comparator) in enumerate(zip(condition.ops, condition.comparators)):
         op = type(op)
         right = evaluate_ast(comparator, state, static_tools, custom_tools, authorized_imports)
@@ -994,8 +995,14 @@ def evaluate_condition(
         else:
             raise InterpreterError(f"Unsupported comparison operator: {op}")
 
-        if current_result is False:
-            return False
+        if i == num_ops - 1:
+            # The final comparison result is not truth-tested, matching CPython's
+            # chained-comparison semantics: `a < b < c` returns `(a < b) and (b < c)`.
+            return current_result if i == 0 else (result and current_result)
+        if not current_result:
+            # Short-circuit: truth-test every non-final comparison result before
+            # evaluating the next comparator, and preserve the returned object.
+            return current_result
         result = current_result if i == 0 else (result and current_result)
         left = right
     return result
