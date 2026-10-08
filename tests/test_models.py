@@ -517,6 +517,61 @@ class TestLiteLLMRouterModel:
             assert mock_router.call_args.kwargs["routing_strategy"] == "simple-shuffle"
             assert router_model.client == mock_router.return_value
 
+    def test_generate_does_not_override_router_deployment_config(self):
+        model_list = [
+            {
+                "model_name": "vllm-group",
+                "litellm_params": {
+                    "model": "openai/my-model",
+                    "api_base": "http://10.0.0.5:8000/v1",
+                    "api_key": "deployment-secret-key",
+                },
+            }
+        ]
+        router_model = LiteLLMRouterModel(
+            model_id="vllm-group",
+            model_list=model_list,
+        )
+        fake_response = MagicMock(
+            choices=[MagicMock(message=MagicMock(role="assistant", content="test response", tool_calls=None))],
+            usage=MagicMock(prompt_tokens=5, completion_tokens=10),
+        )
+        with patch.object(router_model.client, "completion", return_value=fake_response) as mock_completion:
+            res = router_model.generate([ChatMessage(role="user", content="hello")])
+            assert res.content == "test response"
+            mock_completion.assert_called_once()
+            call_kwargs = mock_completion.call_args.kwargs
+            assert "api_base" not in call_kwargs
+            assert "api_key" not in call_kwargs
+
+    def test_generate_stream_does_not_override_router_deployment_config(self):
+        model_list = [
+            {
+                "model_name": "vllm-group",
+                "litellm_params": {
+                    "model": "openai/my-model",
+                    "api_base": "http://10.0.0.5:8000/v1",
+                    "api_key": "deployment-secret-key",
+                },
+            }
+        ]
+        router_model = LiteLLMRouterModel(
+            model_id="vllm-group",
+            model_list=model_list,
+        )
+        fake_delta = MagicMock(
+            choices=[MagicMock(delta=MagicMock(content="chunk", tool_calls=None))],
+            usage=None,
+        )
+        with patch.object(router_model.client, "completion", return_value=[fake_delta]) as mock_completion:
+            deltas = list(router_model.generate_stream([ChatMessage(role="user", content="hello")]))
+            assert len(deltas) == 1
+            assert deltas[0].content == "chunk"
+            mock_completion.assert_called_once()
+            call_kwargs = mock_completion.call_args.kwargs
+            assert "api_base" not in call_kwargs
+            assert "api_key" not in call_kwargs
+
 
 class TestOpenAIModel:
     def test_client_kwargs_passed_correctly(self):

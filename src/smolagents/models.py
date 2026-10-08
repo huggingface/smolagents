@@ -1271,16 +1271,20 @@ class LiteLLMModel(ApiModel):
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
     ) -> ChatMessage:
+        extra_kwargs = {}
+        if self.api_base is not None:
+            extra_kwargs["api_base"] = self.api_base
+        if self.api_key is not None:
+            extra_kwargs["api_key"] = self.api_key
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
             response_format=response_format,
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
-            api_base=self.api_base,
-            api_key=self.api_key,
             convert_images_to_image_urls=True,
             custom_role_conversions=self.custom_role_conversions,
+            **extra_kwargs,
             **kwargs,
         )
         self._apply_rate_limit()
@@ -1314,16 +1318,20 @@ class LiteLLMModel(ApiModel):
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
     ) -> Generator[ChatMessageStreamDelta]:
+        extra_kwargs = {}
+        if self.api_base is not None:
+            extra_kwargs["api_base"] = self.api_base
+        if self.api_key is not None:
+            extra_kwargs["api_key"] = self.api_key
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
             response_format=response_format,
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
-            api_base=self.api_base,
-            api_key=self.api_key,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
+            **extra_kwargs,
             **kwargs,
         )
         self._apply_rate_limit()
