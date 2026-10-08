@@ -380,6 +380,21 @@ class TestEdgeCases:
         result = SafeSerializer.loads(serialized, allow_pickle=False)
         assert result == obj
 
+    @pytest.mark.parametrize(
+        "obj",
+        [
+            {"__type__": "bytes", "data": "aGVsbG8="},
+            {"__type__": "tuple", "data": ["user", "data"]},
+            {"__type__": "datetime", "data": "2026-08-13"},
+            {"__type__": "unknown", "nested": {"__type__": "set", "data": [1, 2]}},
+        ],
+    )
+    def test_dict_with_reserved_type_key(self, obj):
+        """Test dictionaries using the internal type-marker key."""
+        serialized = SafeSerializer.dumps(obj, allow_pickle=False)
+        result = SafeSerializer.loads(serialized, allow_pickle=False)
+        assert result == obj
+
     def test_mixed_collection_types(self):
         """Test mixed collection types in one structure."""
         obj = {
