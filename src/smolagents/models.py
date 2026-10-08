@@ -285,12 +285,36 @@ tool_role_conversions = {
 }
 
 
+def _sanitize_any_type(schema: dict) -> None:
+    """Recursively rewrite the internal ``"any"`` type placeholder to ``"string"`` in a JSON schema fragment.
+
+    `Any`-typed parameters are represented internally as ``{"type": "any"}``, which is not a valid JSON
+    Schema type: providers either reject it outright or silently fail to validate against it. This walks
+    into every place a nested schema can appear (``items``, ``prefixItems``, ``additionalProperties``,
+    ``anyOf``) so ``Any`` is sanitized no matter how deeply it is nested inside a ``List``, ``Dict``,
+    ``Tuple``, or ``Union`` type (e.g. ``Dict[str, Any]``, ``List[Any]``, ``List[Dict[str, Any]]``).
+    """
+    if not isinstance(schema, dict):
+        return
+    if schema.get("type") == "any":
+        schema["type"] = "string"
+    if isinstance(schema.get("items"), dict):
+        _sanitize_any_type(schema["items"])
+    for item in schema.get("prefixItems") or []:
+        _sanitize_any_type(item)
+    if isinstance(schema.get("additionalProperties"), dict):
+        _sanitize_any_type(schema["additionalProperties"])
+    for subschema in schema.get("anyOf") or []:
+        _sanitize_any_type(subschema)
+    for subschema in (schema.get("properties") or {}).values():
+        _sanitize_any_type(subschema)
+
+
 def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
-        if value["type"] == "any":
-            value["type"] = "string"
+        _sanitize_any_type(value)
         if not ("nullable" in value and value["nullable"]):
             required.append(key)
 
@@ -302,10 +326,7 @@ def get_tool_json_schema(tool: Tool) -> dict:
                 if t["type"] == "null":
                     value["nullable"] = True
                     continue
-                if t["type"] == "any":
-                    types.append("string")
-                else:
-                    types.append(t["type"])
+                types.append(t["type"])
                 if "enum" in t:  # assuming there is only one enum in anyOf
                     enum = t["enum"]
 
