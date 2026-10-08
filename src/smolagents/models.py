@@ -1796,6 +1796,43 @@ class OpenAIModel(ApiModel):
 OpenAIServerModel = OpenAIModel
 
 
+class OrcaRouterModel(OpenAIModel):
+    """This model connects to the OrcaRouter API (https://orcarouter.ai), which is OpenAI-compatible.
+
+    Parameters:
+        model_id (`str`):
+            The model identifier to route through OrcaRouter (e.g. "openai/gpt-4o", "anthropic/claude-sonnet-4").
+        api_key (`str`, *optional*):
+            The OrcaRouter API key. If not provided, falls back to the `ORCAROUTER_API_KEY` environment variable.
+        api_base (`str`, *optional*):
+            Override the OrcaRouter base URL. Defaults to "https://api.orcarouter.ai/v1".
+        **kwargs:
+            Forwarded to `OpenAIModel`.
+    """
+
+    DEFAULT_API_BASE = "https://api.orcarouter.ai/v1"
+
+    def __init__(
+        self,
+        model_id: str,
+        api_key: str | None = None,
+        api_base: str | None = None,
+        **kwargs,
+    ):
+        api_key = api_key or os.getenv("ORCAROUTER_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "OrcaRouter API key is required. Pass it via `api_key=...` or set the "
+                "`ORCAROUTER_API_KEY` environment variable."
+            )
+        super().__init__(
+            model_id=model_id,
+            api_key=api_key,
+            api_base=api_base or self.DEFAULT_API_BASE,
+            **kwargs,
+        )
+
+
 class AzureOpenAIModel(OpenAIModel):
     """This model connects to an Azure OpenAI deployment.
 
@@ -2077,6 +2114,7 @@ MODEL_REGISTRY = {
     "OpenAIModel": OpenAIModel,
     "AzureOpenAIModel": AzureOpenAIModel,
     "AmazonBedrockModel": AmazonBedrockModel,
+    "OrcaRouterModel": OrcaRouterModel,
 }
 
 __all__ = [
@@ -2098,5 +2136,6 @@ __all__ = [
     "AzureOpenAIModel",
     "AmazonBedrockServerModel",
     "AmazonBedrockModel",
+    "OrcaRouterModel",
     "ChatMessage",
 ]
