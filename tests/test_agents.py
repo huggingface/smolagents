@@ -1641,6 +1641,73 @@ class TestMultiStepAgent:
             assert "Unknown agent class" in error_message
             assert "Supported agents:" in error_message
 
+    def test_from_dict_propagates_shared_kwargs_to_managed_agents(self):
+        """Test that shared runtime kwargs (model, logger) propagate to managed agents,
+        while non-shared kwargs (e.g. additional_authorized_imports) do not override
+        child agent's own config (regression test for #1849).
+        """
+
+        @tool
+        def fake_tool() -> str:
+            """A fake tool"""
+            return None
+
+        # Create managed agent with unique tool and authorized_imports
+        managed_agent = CodeAgent(
+            tools=[fake_tool],
+            model=MagicMock(),
+            name="managed_agent",
+            description="A managed agent for testing",
+            max_steps=5,
+            additional_authorized_imports=["sympy"],
+        )
+
+        # Create main agent without child's tool and imports
+        main_agent = CodeAgent(
+            tools=[],
+            managed_agents=[managed_agent],
+            model=MagicMock(),
+            name="main_agent",
+            description="Main agent with managed agents",
+            max_steps=10,
+        )
+        main_agent_dict = main_agent.to_dict()
+
+        # Prepare shared runtime parameters
+        shared_model = MagicMock()
+        shared_logger = AgentLogger(LogLevel.DEBUG)
+        # A distinct model instance that from_dict would reconstruct if shared_model were not injected.
+        reconstructed_model = MagicMock()
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = reconstructed_model
+
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            # Pass a non-shared kwarg (additional_authorized_imports) alongside shared ones;
+            # it must not bleed into the child agent's config.
+            recreated_agent = CodeAgent.from_dict(
+                main_agent_dict,
+                model=shared_model,
+                logger=shared_logger,
+                additional_authorized_imports=["numpy"],
+            )
+
+        # Verify parent receives injected shared resources
+        assert recreated_agent.model is shared_model
+        assert recreated_agent.logger is shared_logger
+        # Verify parent does not inherit child-specific config
+        assert "sympy" not in recreated_agent.authorized_imports
+        assert "fake_tool" not in recreated_agent.tools
+
+        child_agent = recreated_agent.managed_agents["managed_agent"]
+        # Verify child receives shared resources (not its own reconstructed model)
+        assert child_agent.model is shared_model
+        assert child_agent.logger is shared_logger
+        # Verify child preserves its own authorized_imports and is not affected by parent's kwarg
+        assert "sympy" in child_agent.authorized_imports
+        assert "numpy" not in child_agent.authorized_imports
+        # Verify child preserves its own tools
+        assert "fake_tool" in child_agent.tools
+
 
 class TestToolCallingAgent:
     def test_toolcalling_agent_instructions(self):
