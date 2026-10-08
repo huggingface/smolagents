@@ -144,7 +144,7 @@ retriever_tool = RetrieverTool(docs_processed)
 ```
 
 > [!TIP]
-> We're using BM25, a lexical retrieval method, for simplicity and speed. For production systems, you might want to use semantic search with embeddings for better retrieval quality. Check the [MTEB Leaderboard](https://huggingface.co/spaces/mteb/leaderboard) for high-quality embedding models.
+> We're using BM25, a lexical retrieval method, for simplicity and speed. For production systems, you might want to use semantic search with embeddings for better retrieval quality. Check the [MTEB Leaderboard](https://huggingface.co/mteb) for high-quality embedding models.
 
 ### Step 4: Create an Advanced Retrieval Agent
 
