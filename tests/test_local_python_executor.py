@@ -1098,6 +1098,23 @@ assert cm.exited == True
     """
         evaluate_python_code(code, {}, state={})
 
+    def test_with_threading_lock(self):
+        """Test that threading.Lock works correctly with the with statement.
+
+        This is a regression test for GitHub issue #2090.
+        threading.Lock().__enter__() returns a boolean (True), not the lock itself,
+        so we need to ensure __exit__ is called on the original lock object.
+        """
+        code = """
+import threading
+lock = threading.Lock()
+with lock:
+    x = 1
+x
+"""
+        result, _ = evaluate_python_code(code, {}, state={}, authorized_imports=["threading"])
+        assert result == 1
+
     def test_with_exception_suppressed_by_exit(self):
         """Test that __exit__ returning True suppresses the exception."""
         code = """
