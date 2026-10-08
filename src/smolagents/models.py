@@ -359,9 +359,11 @@ def get_clean_message_list(
         # encode images if needed
         if isinstance(message.content, list):
             for element in message.content:
-                assert isinstance(element, dict), "Error: this element should be a dict:" + str(element)
+                if not isinstance(element, dict):
+                    raise TypeError("Error: this element should be a dict:" + str(element))
                 if element["type"] == "image":
-                    assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
+                    if flatten_messages_as_text:
+                        raise ValueError(f"Cannot use images with {flatten_messages_as_text=}")
                     if convert_images_to_image_urls:
                         element.update(
                             {
@@ -373,7 +375,8 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
+            if not isinstance(message.content, list):
+                raise TypeError("Error: wrong content:" + str(message.content))
             if flatten_messages_as_text:
                 output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
             else:
@@ -584,11 +587,13 @@ class Model:
         """Sometimes APIs do not return the tool call as a specific object, so we need to parse it."""
         message.role = MessageRole.ASSISTANT  # Overwrite role if needed
         if not message.tool_calls:
-            assert message.content is not None, "Message contains no content and no tool calls"
+            if message.content is None:
+                raise ValueError("Message contains no content and no tool calls")
             message.tool_calls = [
                 get_tool_call_from_text(message.content, self.tool_name_key, self.tool_arguments_key)
             ]
-        assert len(message.tool_calls) > 0, "No tool call was found in the model output"
+        if len(message.tool_calls) == 0:
+            raise ValueError("No tool call was found in the model output")
         for tool_call in message.tool_calls:
             tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
         return message
@@ -663,7 +668,8 @@ class VLLMModel(Model):
         super().__init__(**kwargs)
         self.model_id = model_id
         self.model = LLM(model=model_id, **self.model_kwargs)
-        assert self.model is not None
+        if self.model is None:
+            raise RuntimeError(f"Failed to initialise vLLM model for model_id={model_id!r}")
         self.tokenizer = get_tokenizer(model_id)
         self._is_vlm = False  # VLLMModel does not support vision models yet.
 
