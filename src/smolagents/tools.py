@@ -95,6 +95,28 @@ AUTHORIZED_TYPES = [
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
 
 
+_VERBOSE_TRUTHY_VALUES = frozenset({"1", "true", "yes", "on"})
+_VERBOSE_OUTPUT_TRUNCATE_LEN = 2000
+
+
+def _is_smolagents_verbose() -> bool:
+    """Return True when the ``SMOLAGENTS_VERBOSE`` environment variable is set to a truthy value.
+
+    Used by :class:`Tool` to opt-in to detailed logging of tool calls (inputs and outputs)
+    for debugging. Accepted truthy values are case-insensitive ``1``, ``true``, ``yes`` and ``on``.
+    See https://github.com/huggingface/smolagents/issues/2246.
+    """
+    return os.getenv("SMOLAGENTS_VERBOSE", "").strip().lower() in _VERBOSE_TRUTHY_VALUES
+
+
+def _truncate_for_log(value: Any, max_len: int = _VERBOSE_OUTPUT_TRUNCATE_LEN) -> str:
+    """Render ``value`` as ``repr`` and truncate to ``max_len`` characters for log readability."""
+    rendered = repr(value)
+    if len(rendered) <= max_len:
+        return rendered
+    return rendered[:max_len] + f"... <truncated, total {len(rendered)} chars>"
+
+
 class BaseTool(ABC):
     name: str
 
@@ -243,9 +265,37 @@ class Tool(BaseTool):
 
         if sanitize_inputs_outputs:
             args, kwargs = handle_agent_input_types(*args, **kwargs)
-        outputs = self.forward(*args, **kwargs)
+
+        # Verbose debug logging controlled by the SMOLAGENTS_VERBOSE env var
+        # (see https://github.com/huggingface/smolagents/issues/2246). Logs go to stderr
+        # so they don't pollute stdout-based tool pipelines.
+        verbose = _is_smolagents_verbose()
+        if verbose:
+            tool_name = getattr(self, "name", self.__class__.__name__)
+            print(f"[smolagents.verbose] Tool call: {tool_name}", file=sys.stderr)
+            print(
+                f"[smolagents.verbose]   inputs: args={args!r}, kwargs={kwargs!r}",
+                file=sys.stderr,
+            )
+
+        try:
+            outputs = self.forward(*args, **kwargs)
+        except Exception as exc:
+            if verbose:
+                print(
+                    f"[smolagents.verbose]   raised: {type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+            raise
+
         if sanitize_inputs_outputs:
             outputs = handle_agent_output_types(outputs, self.output_type)
+
+        if verbose:
+            print(
+                f"[smolagents.verbose]   output: {_truncate_for_log(outputs)}",
+                file=sys.stderr,
+            )
         return outputs
 
     def setup(self):
