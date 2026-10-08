@@ -328,6 +328,28 @@ class TestModel:
 
 
 class TestInferenceClientModel:
+    def test_from_dict_strips_deprecated_token_count_keys(self):
+        # Agents saved on the Hub with older smolagents versions serialized these
+        # deprecated attributes. They must be stripped on load, otherwise they leak
+        # into model.kwargs and get forwarded to InferenceClient.chat_completion(),
+        # raising TypeError. Regression test for the Hub backward-compat bug.
+        model_dictionary = {
+            "model_id": "test-model",
+            "max_tokens": 10,
+            "custom_param": "keep-me",
+            "last_input_token_count": 123,
+            "last_output_token_count": 456,
+        }
+        model = InferenceClientModel.from_dict(model_dictionary)
+        # Deprecated keys are stripped and never reach model.kwargs.
+        assert "last_input_token_count" not in model.kwargs
+        assert "last_output_token_count" not in model.kwargs
+        # Named constructor params are still applied.
+        assert model.model_id == "test-model"
+        # A legitimate provider-specific kwarg is preserved: the deny-list must not
+        # over-filter (guards against replacing it with constructor-signature filtering).
+        assert model.kwargs.get("custom_param") == "keep-me"
+
     def test_call_with_custom_role_conversions(self):
         custom_role_conversions = {MessageRole.USER: MessageRole.SYSTEM}
         model = InferenceClientModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
