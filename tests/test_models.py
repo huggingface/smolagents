@@ -890,6 +890,9 @@ def test_flatten_messages_as_text_for_all_models(
         ("oci/xai.grok-3-mini", False),
         # Supported models
         ("o3-mini", True),
+        ("o3-mini-2025-01-31", True),  # versioned o3-mini still supports stop (o3-mini is exempt, unlike o3)
+        ("openai/o3-mini", True),
+        ("openai/o3-mini-2025-01-31", True),
         ("gpt-4", True),
         ("claude-3-5-sonnet", True),
         ("mistral-large", True),

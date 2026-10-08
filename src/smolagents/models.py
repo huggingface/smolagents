@@ -428,7 +428,8 @@ def supports_stop_parameter(model_id: str) -> bool:
         bool: True if the model supports the stop parameter, False otherwise
     """
     model_name = model_id.split("/")[-1]
-    if model_name == "o3-mini":
+    if model_name == "o3-mini" or model_name.startswith("o3-mini-"):
+        # o3-mini supports `stop` (unlike o3); its dated snapshots (e.g. o3-mini-2025-01-31) do too.
         return True
     # o3* (except mini), o4*, all grok-* models, and the gpt-5* family (including versioned variants) don't support stop parameter
     openai_model_pattern = r"(o3(?:$|[-.].*)|o4(?:$|[-.].*)|gpt-5.*)"
