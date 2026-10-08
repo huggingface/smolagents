@@ -166,14 +166,14 @@ for table in ["receipts", "waiters"]:
 
 print(updated_description)
 ```
-चूंकि यह रिक्वेस्ट पिछले वाले से थोड़ी कठिन है, हम LLM इंजन को अधिक शक्तिशाली [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking) का उपयोग करने के लिए स्विच करेंगे!
+चूंकि यह रिक्वेस्ट पिछले वाले से थोड़ी कठिन है, हम LLM इंजन को अधिक शक्तिशाली [Qwen/Qwen3-4B-Instruct-2507](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507) का उपयोग करने के लिए स्विच करेंगे!
 
 ```py
 sql_engine.description = updated_description
 
 agent = CodeAgent(
     tools=[sql_engine],
-    model=InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking"),
+    model=InferenceClientModel(model_id="Qwen/Qwen3-4B-Instruct-2507"),
 )
 
 agent.run("Which waiter got more total money from tips?")
