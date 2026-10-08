@@ -525,13 +525,21 @@ class RateLimiter:
         self._last_call = time.time()
 
 
+class RetryError(Exception):
+    """Error raised when retries are exhausted, wrapping the last exception that caused the retries."""
+
+    def __init__(self, last_exception: BaseException, max_attempts: int):
+        self.last_exception = last_exception
+        super().__init__(f"Retried {max_attempts} times, last exception: {last_exception!r}")
+
+
 class Retrying:
     """Simple retrying controller. Inspired from library [tenacity](https://github.com/jd/tenacity/)."""
 
     def __init__(
         self,
         max_attempts: int = 1,
-        wait_seconds: float = 0.0,
+        wait_seconds: float = 1.0,
         exponential_base: float = 2.0,
         jitter: bool = True,
         retry_predicate: Callable[[BaseException], bool] | None = None,
@@ -576,7 +584,7 @@ class Retrying:
                 if not should_retry or attempt_number >= self.max_attempts:
                     if self.reraise:
                         raise
-                    raise
+                    raise RetryError(e, self.max_attempts) from e
 
                 # Log after failed attempt
                 if self.after_logger:
@@ -590,6 +598,10 @@ class Retrying:
 
                 # Exponential backoff with jitter
                 # https://cookbook.openai.com/examples/how_to_handle_rate_limits#example-3-manual-backoff-implementation
+                # Sleep before next attempt
+                if delay > 0:
+                    time.sleep(delay)
+
                 delay *= self.exponential_base * (1 + self.jitter * random.random())
 
                 # Log before sleeping
@@ -600,7 +612,3 @@ class Retrying:
                         log_level,
                         f"Retrying {fn_name} in {delay} seconds as it raised {e.__class__.__name__}: {e}.",
                     )
-
-                # Sleep before next attempt
-                if delay > 0:
-                    time.sleep(delay)
