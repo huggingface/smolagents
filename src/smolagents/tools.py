@@ -1383,6 +1383,14 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
         - Accepts "any" type as a wildcard that matches all types
     """
     if isinstance(arguments, dict):
+        try:
+            import inspect
+
+            sig = inspect.signature(tool.forward)
+            has_signature = True
+        except (ValueError, TypeError):
+            has_signature = False
+
         for key, value in arguments.items():
             if key not in tool.inputs:
                 raise ValueError(f"Argument {key} is not in the tool's input schema")
@@ -1390,6 +1398,25 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
             actual_type = _get_json_schema_type(type(value))["type"]
             expected_type = tool.inputs[key]["type"]
             expected_type_is_nullable = tool.inputs[key].get("nullable", False)
+
+            if has_signature and key in sig.parameters:
+                param = sig.parameters[key]
+                import typing
+                from types import UnionType
+
+                # Check if None is actually in the type annotation
+                allows_none = False
+                if param.annotation == inspect.Parameter.empty or param.annotation == typing.Any:
+                    allows_none = True
+                else:
+                    origin = typing.get_origin(param.annotation)
+                    if origin is UnionType or origin is typing.Union:
+                        args = typing.get_args(param.annotation)
+                        if type(None) in args:
+                            allows_none = True
+
+                if not allows_none and expected_type_is_nullable and param.default != inspect.Parameter.empty:
+                    expected_type_is_nullable = False
 
             # Type is valid if it matches, is "any", or is null for nullable parameters
             if (
@@ -1402,9 +1429,14 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
                 raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'")
 
         for key, schema in tool.inputs.items():
-            key_is_nullable = schema.get("nullable", False)
-            if key not in arguments and not key_is_nullable:
-                raise ValueError(f"Argument {key} is required")
+            if key not in arguments:
+                is_required = False
+                if has_signature and key in sig.parameters:
+                    is_required = sig.parameters[key].default == inspect.Parameter.empty
+                else:
+                    is_required = not schema.get("nullable", False)
+                if is_required:
+                    raise ValueError(f"Argument {key} is required")
         return None
     else:
         expected_type = list(tool.inputs.values())[0]["type"]
