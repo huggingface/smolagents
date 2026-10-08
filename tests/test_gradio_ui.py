@@ -130,6 +130,41 @@ class GradioUITester(unittest.TestCase):
             self.assertIn("File uploaded:", textbox.value)
             self.assertEqual(len(uploads_log), 1)
 
+    def test_images_from_files_loads_png_and_skips_text(self):
+        """Image uploads should become PIL images; non-images stay out of images=."""
+        from PIL import Image
+
+        png_path = os.path.join(self.temp_dir, "photo.png")
+        txt_path = os.path.join(self.temp_dir, "notes.txt")
+        Image.new("RGB", (8, 8), color="blue").save(png_path)
+        with open(txt_path, "w") as handle:
+            handle.write("not an image")
+
+        images = self.ui._images_from_files([png_path, txt_path])
+
+        self.assertEqual(len(images), 1)
+        self.assertIsInstance(images[0], Image.Image)
+
+    def test_stream_response_passes_pil_images_to_agent(self):
+        """Regression for #2088: Gradio file paths must not reach encode_image_base64 as strings."""
+        from PIL import Image
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+            png_path = temp_file.name
+        try:
+            Image.new("RGB", (8, 8), color="green").save(png_path)
+            self.mock_agent.run = Mock(return_value=[])
+
+            list(self.ui._stream_response({"text": "Caption this image.", "files": [png_path]}, []))
+
+            self.mock_agent.run.assert_called_once()
+            images = self.mock_agent.run.call_args.kwargs["images"]
+            self.assertEqual(len(images), 1)
+            self.assertIsInstance(images[0], Image.Image)
+        finally:
+            if os.path.exists(png_path):
+                os.remove(png_path)
+
 
 class TestStreamToGradio:
     """Tests for the stream_to_gradio function."""
