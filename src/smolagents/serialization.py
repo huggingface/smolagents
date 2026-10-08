@@ -154,7 +154,12 @@ class SafeSerializer:
                 return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
             np_integer = SafeSerializer._get_optional_type("numpy", "integer")
             np_floating = SafeSerializer._get_optional_type("numpy", "floating")
-            if (np_integer and isinstance(obj, np_integer)) or (np_floating and isinstance(obj, np_floating)):
+            np_bool = SafeSerializer._get_optional_type("numpy", "bool_")
+            if (
+                (np_integer and isinstance(obj, np_integer))
+                or (np_floating and isinstance(obj, np_floating))
+                or (np_bool and isinstance(obj, np_bool))
+            ):
                 return obj.item()
 
         # dataclass - check last as is_dataclass() has overhead

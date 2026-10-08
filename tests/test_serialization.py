@@ -588,6 +588,7 @@ class TestNumpySupport:
         test_cases = [
             np.int32(42),
             np.float64(3.14),
+            np.bool_(True),
         ]
 
         for obj in test_cases:
