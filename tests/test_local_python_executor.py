@@ -263,6 +263,33 @@ test_func(**None)
             state, {"x": 3, "test_dict": {"x": 3, "y": 5}, "_operations_count": {"counter": 7}}
         )
 
+    def test_evaluate_dict_unpacking(self):
+        code = "result = {**{'a': 1}, 'b': 2, **{'a': 3}}"
+
+        result, _ = evaluate_python_code(code, {}, state={})
+
+        assert result == {"a": 3, "b": 2}
+
+    def test_evaluate_dict_unpacking_accepts_mapping_protocol_objects(self):
+        code = """
+class MyMap:
+    def keys(self):
+        return ["a"]
+
+    def __getitem__(self, key):
+        return 1
+
+result = {**MyMap(), "b": 2}
+"""
+
+        result, _ = evaluate_python_code(code, {}, state={})
+
+        assert result == {"a": 1, "b": 2}
+
+    def test_evaluate_dict_unpacking_requires_mapping(self):
+        with pytest.raises(InterpreterError, match=r"TypeError: 'list' object is not a mapping"):
+            evaluate_python_code("result = {**[('a', 1)]}", {}, state={})
+
     def test_evaluate_expression(self):
         code = "x = 3\ny = 5"
         state = {}
