@@ -480,6 +480,14 @@ class TestGetCode:
         """,
                 ["numpy", "torch", "os"],
             ),
+            # Imports with inline comments
+            (
+                """
+        import IPython  # noqa: F401
+        from numpy.typing import NDArray  # type: ignore
+        """,
+                ["IPython", "numpy"],
+            ),
             # Try/except block (should be filtered)
             (
                 """
