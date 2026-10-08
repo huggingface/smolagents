@@ -732,9 +732,22 @@ nested_answer()
 
         # Check that at least one error message contains our check function name
         error_messages = [str(step.error) for step in failed_steps if step.error is not None]
-        assert any("check_uses_agent_state failed" in msg for msg in error_messages), (
+        assert any("check_uses_agent_state" in msg for msg in error_messages), (
             "Expected to find validation error message"
         )
+
+    def test_final_answer_check_returning_false_raises_agent_error(self):
+        # A check that returns False (not raises) must still reject the answer.
+        # Previously this was implemented with `assert`, which is stripped by
+        # python -O, silently disabling all final_answer_checks in production.
+        def check_returns_false(final_answer, memory, agent):
+            return False
+
+        agent = CodeAgent(model=FakeCodeModel(), tools=[], final_answer_checks=[check_returns_false])
+        agent.run("Dummy task.")
+        memory_str = str(agent.write_memory_to_messages())
+        assert "check_returns_false" in memory_str
+        assert "returned False" in memory_str
 
     def test_generation_errors_are_raised(self):
         class FakeCodeModel(Model):
