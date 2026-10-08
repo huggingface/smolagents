@@ -417,7 +417,7 @@ class WebSearchTool(Tool):
                     if {"title", "description", "link"} <= self.current.keys():
                         self.current["description"] = " ".join(self.current["description"])
                         self.results.append(self.current)
-                        self.current = {}
+                    self.current = {}
 
             def handle_data(self, data):
                 if self.capture_title:

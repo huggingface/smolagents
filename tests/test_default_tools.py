@@ -225,6 +225,24 @@ class TestWebSearchToolExa:
         assert "[Null Highlights Page](https://example.com)" in result
 
 
+def test_duckduckgo_parser_does_not_combine_incomplete_rows():
+    tool = WebSearchTool(engine="duckduckgo")
+    parser = tool._create_duckduckgo_parser()
+    parser.feed(
+        """
+        <table>
+          <tr><td class="result-snippet">orphan snippet</td></tr>
+          <tr>
+            <td><a class="result-link">Valid result</a></td>
+            <td><span class="link-text">example.com</span></td>
+          </tr>
+        </table>
+        """
+    )
+
+    assert parser.results == []
+
+
 @pytest.mark.parametrize(
     "language, content_type, extract_format, query",
     [
