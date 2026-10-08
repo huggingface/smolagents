@@ -21,6 +21,8 @@ The built-in tools can be categorized by their primary functions:
   - [`UserInputTool`]: Collect input from users.
 - **Speech Processing**: Convert audio to textual data.
   - [`SpeechToTextTool`]
+- **Video Understanding**: Analyze and answer questions about video content.
+  - [`TwelveLabsVideoUnderstandingTool`]
 - **Workflow Control**: Manage and direct the flow of agent operations.
   - [`FinalAnswerTool`]: Conclude agent workflow with final response.
 
@@ -47,6 +49,10 @@ The built-in tools can be categorized by their primary functions:
 ## SpeechToTextTool
 
 [[autodoc]] smolagents.default_tools.SpeechToTextTool
+
+## TwelveLabsVideoUnderstandingTool
+
+[[autodoc]] smolagents.default_tools.TwelveLabsVideoUnderstandingTool
 
 ## UserInputTool
 

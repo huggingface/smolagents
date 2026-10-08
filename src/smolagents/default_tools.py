@@ -643,6 +643,85 @@ class WikipediaSearchTool(Tool):
             return f"Error fetching Wikipedia summary: {str(e)}"
 
 
+class TwelveLabsVideoUnderstandingTool(Tool):
+    """
+    Analyze and answer questions about a video using TwelveLabs' Pegasus video-understanding model.
+
+    Pegasus watches the video (visuals, motion, on-screen text and audio) and returns a natural-language
+    answer to your prompt, so an agent can summarize footage, extract facts, or reason about what happens
+    on screen without first transcribing or captioning it.
+
+    The video is sent to the TwelveLabs API as a public URL and processed server-side. Processing a video
+    can take from a few seconds up to a couple of minutes depending on its length.
+
+    Requires a TwelveLabs API key (get a free one at https://twelvelabs.io). The key is read from the
+    `TWELVELABS_API_KEY` environment variable by default, or can be passed explicitly via `api_key`.
+
+    Args:
+        api_key (`str`, *optional*): TwelveLabs API key. Defaults to the `TWELVELABS_API_KEY` environment variable.
+        model_name (`str`, default `"pegasus1.5"`): Pegasus model to use for analysis.
+        max_tokens (`int`, default `2048`): Maximum number of tokens in the generated answer (must be between 512 and 98304).
+
+    Example:
+        ```python
+        >>> from smolagents import CodeAgent, InferenceClientModel, TwelveLabsVideoUnderstandingTool
+        >>> agent = CodeAgent(tools=[TwelveLabsVideoUnderstandingTool()], model=InferenceClientModel())
+        >>> agent.run(
+        ...     "What happens in this video? https://example.com/clip.mp4"
+        ... )
+        ```
+    """
+
+    name = "video_understanding"
+    description = (
+        "Analyzes a video given its public URL and answers a natural-language question about its content "
+        "(what happens, who/what appears, on-screen text, spoken audio). Returns the answer as text."
+    )
+    inputs = {
+        "video_url": {
+            "type": "string",
+            "description": "Public URL of the video to analyze (e.g. an https link to an .mp4 file).",
+        },
+        "prompt": {
+            "type": "string",
+            "description": "The question or instruction about the video, e.g. 'Summarize this video' or 'What objects appear?'.",
+        },
+    }
+    output_type = "string"
+
+    def __init__(self, api_key: str | None = None, model_name: str = "pegasus1.5", max_tokens: int = 2048):
+        super().__init__()
+        import os
+
+        try:
+            from twelvelabs import TwelveLabs
+        except ImportError as e:
+            raise ImportError(
+                "You must install package `twelvelabs` to run this tool: for instance run `pip install twelvelabs`."
+            ) from e
+
+        self.api_key = api_key or os.getenv("TWELVELABS_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "Missing API key. Provide `api_key` or set the `TWELVELABS_API_KEY` environment variable. "
+                "Get a free key at https://twelvelabs.io."
+            )
+        self.model_name = model_name
+        self.max_tokens = max_tokens
+        self.client = TwelveLabs(api_key=self.api_key)
+
+    def forward(self, video_url: str, prompt: str) -> str:
+        from twelvelabs.types.video_context import VideoContext_Url
+
+        response = self.client.analyze(
+            model_name=self.model_name,
+            video=VideoContext_Url(url=video_url),
+            prompt=prompt,
+            max_tokens=self.max_tokens,
+        )
+        return response.data or ""
+
+
 class SpeechToTextTool(PipelineTool):
     default_checkpoint = "openai/whisper-large-v3-turbo"
     description = "This is a tool that transcribes an audio into text. It returns the transcribed text."
@@ -694,5 +773,6 @@ __all__ = [
     "GoogleSearchTool",
     "VisitWebpageTool",
     "WikipediaSearchTool",
+    "TwelveLabsVideoUnderstandingTool",
     "SpeechToTextTool",
 ]

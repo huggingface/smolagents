@@ -12,8 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import unittest
-from unittest.mock import patch
+from importlib.util import find_spec
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -22,6 +24,7 @@ from smolagents.default_tools import (
     DuckDuckGoSearchTool,
     PythonInterpreterTool,
     SpeechToTextTool,
+    TwelveLabsVideoUnderstandingTool,
     VisitWebpageTool,
     WebSearchTool,
     WikipediaSearchTool,
@@ -30,6 +33,9 @@ from smolagents.local_python_executor import ExecutionTimeoutError
 
 from .test_tools import ToolTesterMixin
 from .utils.markers import require_run_all
+
+
+require_twelvelabs = pytest.mark.skipif(find_spec("twelvelabs") is None, reason="requires twelvelabs")
 
 
 class DefaultToolTests(unittest.TestCase):
@@ -252,3 +258,35 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+@require_twelvelabs
+class TestTwelveLabsVideoUnderstandingTool:
+    def test_missing_api_key_raises(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ValueError, match="Missing API key"):
+                TwelveLabsVideoUnderstandingTool()
+
+    def test_forward_wires_request_and_returns_data(self):
+        tool = TwelveLabsVideoUnderstandingTool(api_key="test-key", max_tokens=512)
+        tool.client = MagicMock()
+        tool.client.analyze.return_value = MagicMock(data="A rabbit hops through a meadow.")
+
+        result = tool.forward("https://example.com/clip.mp4", "What happens in this video?")
+
+        assert result == "A rabbit hops through a meadow."
+        tool.client.analyze.assert_called_once()
+        kwargs = tool.client.analyze.call_args.kwargs
+        assert kwargs["model_name"] == "pegasus1.5"
+        assert kwargs["prompt"] == "What happens in this video?"
+        assert kwargs["max_tokens"] == 512
+        assert kwargs["video"].url == "https://example.com/clip.mp4"
+
+    @require_run_all
+    def test_live_video_understanding(self):
+        tool = TwelveLabsVideoUnderstandingTool(max_tokens=512)
+        result = tool.forward(
+            "https://download.samplelib.com/mp4/sample-5s.mp4",
+            "Describe this video in one sentence.",
+        )
+        assert isinstance(result, str)
