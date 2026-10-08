@@ -1547,7 +1547,12 @@ class TestMultiStepAgent:
         """Test that to_dict() and from_dict() work correctly for agents with managed agents."""
         # Create a managed agent
         managed_agent = CodeAgent(
-            tools=[], model=MagicMock(), name="managed_agent", description="A managed agent for testing", max_steps=5
+            tools=[],
+            model=MagicMock(),
+            name="managed_agent",
+            description="A managed agent for testing",
+            max_steps=5,
+            reset_on_managed_call=False,
         )
 
         # Create a main agent with the managed agent
@@ -1573,6 +1578,7 @@ class TestMultiStepAgent:
         assert managed_agent_dict["class"] == "CodeAgent"
         assert managed_agent_dict["description"] == "A managed agent for testing"
         assert managed_agent_dict["max_steps"] == 5
+        assert managed_agent_dict["reset_on_managed_call"] is False
 
         # Test round-trip: from_dict should recreate the agent
         # Mock the model class for the test
@@ -1593,6 +1599,7 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.name == "managed_agent"
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
+        assert recreated_managed_agent.reset_on_managed_call is False
 
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
@@ -2119,6 +2126,33 @@ class TestCodeAgent:
                 "<summary_of_work>\n\nTest summary\n---\n</summary_of_work>"
             )
         assert result == expected_summary
+
+    @pytest.mark.parametrize(
+        ("reset_on_managed_call", "expected_reset"),
+        [
+            (True, True),
+            (False, False),
+        ],
+    )
+    def test_call_uses_reset_on_managed_call(self, reset_on_managed_call, expected_reset):
+        agent = CodeAgent(tools=[], model=MagicMock(), reset_on_managed_call=reset_on_managed_call)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+
+        agent("Test request")
+
+        _, kwargs = agent.run.call_args
+        assert kwargs["reset"] is expected_reset
+
+    def test_call_allows_explicit_reset_override(self):
+        agent = CodeAgent(tools=[], model=MagicMock(), reset_on_managed_call=False)
+        agent.name = "test_agent"
+        agent.run = MagicMock(return_value="Test output")
+
+        agent("Test request", reset=True)
+
+        _, kwargs = agent.run.call_args
+        assert kwargs["reset"] is True
 
     def test_code_agent_image_output(self):
         from PIL import Image
