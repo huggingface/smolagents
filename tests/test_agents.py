@@ -1813,6 +1813,83 @@ class TestToolCallingAgent:
         assert agent.memory.steps[1].observations == "Processed: output1\nProcessed: output2"
 
     @patch("openai.OpenAI")
+    def test_toolcalling_agent_stream_parallel_tool_calls_same_index(self, mock_openai_client, test_tool):
+        """Test fix for issue #1569: streaming parallel tool calls with same index are correctly separated.
+
+        Some providers (e.g., Ollama via LiteLLM) return multiple parallel tool calls with the
+        same index=0. This test verifies that such calls are correctly separated into distinct
+        tool calls rather than having their arguments concatenated together.
+        """
+        mock_client = mock_openai_client.return_value
+        from smolagents import OpenAIModel
+
+        # Simulate the exact scenario from issue #1569:
+        # Two complete tool calls, both with index=0, each with complete JSON arguments
+        mock_deltas = [
+            ChoiceDelta(role=MessageRole.ASSISTANT),
+            # First tool call - complete JSON for Emma Bull
+            ChoiceDelta(
+                tool_calls=[
+                    ChoiceDeltaToolCall(
+                        index=0,
+                        id=None,  # Some providers don't provide IDs
+                        function=ChoiceDeltaToolCallFunction(
+                            name="test_tool",
+                            arguments='{"input": "Emma Bull"}',
+                        ),
+                        type="function",
+                    )
+                ]
+            ),
+            # Second tool call - same index=0, but should be a separate call
+            ChoiceDelta(
+                tool_calls=[
+                    ChoiceDeltaToolCall(
+                        index=0,
+                        id=None,
+                        function=ChoiceDeltaToolCallFunction(
+                            name="test_tool",
+                            arguments='{"input": "Virginia Woolf"}',
+                        ),
+                        type="function",
+                    )
+                ]
+            ),
+        ]
+
+        class MockChoice:
+            def __init__(self, delta):
+                self.delta = delta
+
+        class MockChunk:
+            def __init__(self, delta):
+                self.choices = [MockChoice(delta)]
+                self.usage = None
+
+        mock_client.chat.completions.create.return_value = (MockChunk(delta) for delta in mock_deltas)
+
+        model = OpenAIModel(model_id="fakemodel")
+
+        agent = ToolCallingAgent(model=model, tools=[test_tool], max_steps=1, stream_outputs=True)
+        agent.run("Search for Emma Bull and Virginia Woolf")
+
+        # Should have 2 separate tool calls, not 1 with concatenated arguments
+        tool_calls = agent.memory.steps[1].model_output_message.tool_calls
+        assert len(tool_calls) == 2, f"Expected 2 tool calls, got {len(tool_calls)}"
+
+        # First tool call should be for Emma Bull
+        assert tool_calls[0].function.name == "test_tool"
+        assert tool_calls[0].function.arguments == {"input": "Emma Bull"}
+
+        # Second tool call should be for Virginia Woolf
+        assert tool_calls[1].function.name == "test_tool"
+        assert tool_calls[1].function.arguments == {"input": "Virginia Woolf"}
+
+        # Both calls should have been executed (observations should contain both results)
+        assert "Processed: Emma Bull" in agent.memory.steps[1].observations
+        assert "Processed: Virginia Woolf" in agent.memory.steps[1].observations
+
+    @patch("openai.OpenAI")
     def test_toolcalling_agent_final_answer_cannot_be_called_with_parallel_tool_calls(
         self, mock_openai_client, test_tool
     ):
