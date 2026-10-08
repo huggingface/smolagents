@@ -656,10 +656,17 @@ class VLLMModel(Model):
             raise ModuleNotFoundError("Please install 'vllm' extra to use VLLMModel: `pip install 'smolagents[vllm]'`")
 
         from vllm import LLM  # type: ignore
-        from vllm.transformers_utils.tokenizer import get_tokenizer  # type: ignore
+
+        try:
+            from vllm.transformers_utils.tokenizer import get_tokenizer  # type: ignore
+        except ModuleNotFoundError:
+            from vllm.tokenizers import get_tokenizer  # type: ignore
 
         self.model_kwargs = model_kwargs or {}
         self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
+        max_tokens = kwargs.pop("max_tokens", None)
+        if max_tokens is not None:
+            self.max_tokens = max_tokens
         super().__init__(**kwargs)
         self.model_id = model_id
         self.model = LLM(model=model_id, **self.model_kwargs)
@@ -711,6 +718,7 @@ class VLLMModel(Model):
         prepared_stop_sequences = completion_kwargs.pop("stop", [])
         tools = completion_kwargs.pop("tools", None)
         completion_kwargs.pop("tool_choice", None)
+        max_tokens = completion_kwargs.pop("max_tokens", getattr(self, "max_tokens", None))
 
         prompt = self.tokenizer.apply_chat_template(
             messages,
@@ -723,7 +731,7 @@ class VLLMModel(Model):
         sampling_params = SamplingParams(
             n=kwargs.get("n", 1),
             temperature=kwargs.get("temperature", 0.0),
-            max_tokens=kwargs.get("max_tokens", 2048),
+            max_tokens=max_tokens if max_tokens is not None else 2048,
             stop=prepared_stop_sequences,
             structured_outputs=structured_outputs,
         )
