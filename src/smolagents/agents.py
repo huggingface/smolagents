@@ -329,6 +329,7 @@ class MultiStepAgent(ABC):
         self.step_number = 0
         self.planning_interval = planning_interval
         self.state: dict[str, Any] = {}
+        self._media_counters: dict[str, int] = {"image": 0, "audio": 0}
         self.name = self._validate_name(name)
         self.description = description
         self.provide_run_summary = provide_run_summary
@@ -1390,11 +1391,17 @@ class ToolCallingAgent(MultiStepAgent):
             tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
             tool_call_result_type = type(tool_call_result)
             if tool_call_result_type in [AgentImage, AgentAudio]:
-                if tool_call_result_type == AgentImage:
-                    observation_name = "image.png"
+                # Check if tool has a custom output_name, otherwise use counter-based naming
+                tool = self.tools.get(tool_name)
+                custom_name = getattr(tool, "output_name", None) if tool else None
+                if custom_name:
+                    observation_name = custom_name
+                elif tool_call_result_type == AgentImage:
+                    self._media_counters["image"] += 1
+                    observation_name = f"image_{self._media_counters['image']}.png"
                 elif tool_call_result_type == AgentAudio:
-                    observation_name = "audio.mp3"
-                # TODO: tool_call_result naming could allow for different names of same type
+                    self._media_counters["audio"] += 1
+                    observation_name = f"audio_{self._media_counters['audio']}.wav"
                 self.state[observation_name] = tool_call_result
                 observation = f"Stored '{observation_name}' in memory."
             else:
