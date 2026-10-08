@@ -17,6 +17,7 @@ This guide will show you how to use different model types with your agents.
 7. [`OpenAIModel`]: Provides access to any provider that implements an OpenAI-compatible API
 8. [`AzureOpenAIModel`]: Uses Azure's OpenAI service
 9. [`AmazonBedrockModel`]: Connects to AWS Bedrock's API
+10. [`SambaNovaModel`]: Connects to SambaNova's API for fast inference
 
 All model classes support passing additional keyword arguments (like `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time.
 These parameters are automatically forwarded to the underlying model's completion calls, allowing you to configure model behavior such as creativity, response length, and sampling strategies.
@@ -115,3 +116,31 @@ model_mini = LiteLLMModel(
     max_tokens=1000
 )
 ```
+
+## Using SambaNova Models
+
+SambaNova provides fast inference through an OpenAI-compatible API. You can use the [`SambaNovaModel`] class to connect.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then, [get a SambaNova API key](https://cloud.sambanova.ai/apis) and set it in your code:
+```python
+import os
+
+from smolagents import SambaNovaModel
+
+model = SambaNovaModel(
+    model_id="MiniMax-M2.7",
+    api_key=os.environ.get("SAMBANOVA_API_KEY"),
+)
+```
+
+SambaNova offers several models:
+- `MiniMax-M2.7` - Primary reasoning/chat model (default)
+- `gemma-4-31B-it` - Vision-capable model
+- `DeepSeek-V3.1` / `DeepSeek-V3.2` - DeepSeek models
+- `Meta-Llama-3.3-70B-Instruct` - Llama model
+- `gpt-oss-120b` - Large OSS model

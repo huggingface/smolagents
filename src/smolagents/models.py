@@ -1856,6 +1856,70 @@ class AzureOpenAIModel(OpenAIModel):
 AzureOpenAIServerModel = AzureOpenAIModel
 
 
+class SambaNovaModel(OpenAIModel):
+    """
+    A model class for interacting with SambaNova models through the SambaNova API.
+
+    SambaNova provides an OpenAI-compatible API, allowing you to use their fast inference
+    infrastructure with smolagents. This class extends [`OpenAIModel`] with SambaNova-specific
+    defaults for seamless integration.
+
+    Parameters:
+        model_id (`str`, *optional*, default `"MiniMax-M2.7"`):
+            The model identifier to use on SambaNova. Available models include:
+            - `MiniMax-M2.7` (primary reasoning/chat model)
+            - `gemma-4-31B-it` (vision-capable)
+            - `DeepSeek-V3.1`, `DeepSeek-V3.2`
+            - `Meta-Llama-3.3-70B-Instruct`
+            - `gpt-oss-120b`
+            Defaults to `"MiniMax-M2.7"`.
+        api_key (`str`, *optional*):
+            The API key to use for authentication. If not provided, it will be inferred
+            from the `SAMBANOVA_API_KEY` environment variable.
+        client_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to the OpenAI client (like `max_retries`, etc.).
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+            Useful for specific models that do not support specific message roles like "system".
+        flatten_messages_as_text (`bool`, default `False`):
+            Whether to flatten messages as text.
+        **kwargs:
+            Additional keyword arguments to forward to the underlying OpenAI API completion call.
+
+    Example:
+    ```python
+    from smolagents import SambaNovaModel
+
+    model = SambaNovaModel(
+        model_id="MiniMax-M2.7",
+        temperature=0.7,
+    )
+    ```
+    """
+
+    def __init__(
+        self,
+        model_id: str = "MiniMax-M2.7",
+        api_key: str | None = None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        flatten_messages_as_text: bool = False,
+        **kwargs,
+    ):
+        if api_key is None:
+            api_key = os.getenv("SAMBANOVA_API_KEY")
+
+        super().__init__(
+            model_id=model_id,
+            api_base="https://api.sambanova.ai/v1/",
+            api_key=api_key,
+            client_kwargs=client_kwargs,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
+
+
 class AmazonBedrockModel(ApiModel):
     """
     A model class for interacting with Amazon Bedrock Server models through the Bedrock API.
@@ -2077,6 +2141,7 @@ MODEL_REGISTRY = {
     "OpenAIModel": OpenAIModel,
     "AzureOpenAIModel": AzureOpenAIModel,
     "AmazonBedrockModel": AmazonBedrockModel,
+    "SambaNovaModel": SambaNovaModel,
 }
 
 __all__ = [
@@ -2098,5 +2163,6 @@ __all__ = [
     "AzureOpenAIModel",
     "AmazonBedrockServerModel",
     "AmazonBedrockModel",
+    "SambaNovaModel",
     "ChatMessage",
 ]

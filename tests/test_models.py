@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import os
 import sys
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
@@ -33,6 +34,7 @@ from smolagents.models import (
     MLXModel,
     Model,
     OpenAIModel,
+    SambaNovaModel,
     TransformersModel,
     get_clean_message_list,
     get_tool_call_from_text,
@@ -634,6 +636,41 @@ class TestAzureOpenAIModel:
             max_retries=5,
         )
         assert model.client == MockAzureOpenAI.return_value
+
+
+class TestSambaNovaModel:
+    def test_client_kwargs_passed_correctly(self):
+        model_id = "MiniMax-M2.7"
+        api_key = "test_api_key"
+        client_kwargs = {"max_retries": 5}
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            model = SambaNovaModel(
+                model_id=model_id,
+                api_key=api_key,
+                client_kwargs=client_kwargs,
+            )
+        MockOpenAI.assert_called_once_with(
+            base_url="https://api.sambanova.ai/v1/",
+            api_key=api_key,
+            organization=None,
+            project=None,
+            max_retries=5,
+        )
+        assert model.client == MockOpenAI.return_value
+
+    def test_default_values(self):
+        with patch.dict(os.environ, {"SAMBANOVA_API_KEY": "env_test_key"}), \
+             patch("openai.OpenAI") as MockOpenAI:
+            model = SambaNovaModel()
+
+        MockOpenAI.assert_called_once_with(
+            base_url="https://api.sambanova.ai/v1/",
+            api_key="env_test_key",
+            organization=None,
+            project=None,
+        )
+        assert model.model_id == "MiniMax-M2.7"
 
 
 class TestTransformersModel:
