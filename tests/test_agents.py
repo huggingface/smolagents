@@ -60,6 +60,7 @@ from smolagents.memory import (
 )
 from smolagents.models import (
     ChatMessage,
+    ChatMessageStreamDelta,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
     InferenceClientModel,
@@ -472,6 +473,40 @@ class TestAgent:
         assert agent.memory.steps[2].tool_calls == [
             ToolCall(name="python_interpreter", arguments="final_answer(7.2904)", id="call_2")
         ]
+
+    def test_code_agent_streaming_partial_stop_sequence(self):
+        """Test that CodeAgent handles partial stop sequences in streaming output (issue #1872).
+
+        Some streaming servers (e.g., llama-server) may emit a partial stop sequence
+        before halting generation (e.g., '</code' instead of '</code>'). The agent
+        should strip the partial stop sequence and correctly parse the code.
+        """
+
+        class FakeStreamingCodeModel(Model):
+            """Model that simulates a streaming server emitting a partial stop sequence."""
+
+            def generate(self, messages, stop_sequences=None, **kwargs):
+                raise NotImplementedError("This model only supports streaming")
+
+            def generate_stream(self, messages, stop_sequences=None, **kwargs):
+                # Simulate streaming chunks where the server stops mid-stop-sequence.
+                # The final chunk includes '</code' (missing the closing '>').
+                chunks = [
+                    ChatMessageStreamDelta(content="Thought: I should compute the answer.\n"),
+                    ChatMessageStreamDelta(content="<code>\n"),
+                    ChatMessageStreamDelta(content="final_answer(42)\n"),
+                    ChatMessageStreamDelta(content="</code"),  # Partial stop sequence
+                ]
+                yield from chunks
+
+        agent = CodeAgent(
+            tools=[],
+            model=FakeStreamingCodeModel(),
+            stream_outputs=True,
+            max_steps=1,
+        )
+        output = agent.run("What is the answer?")
+        assert output == 42
 
     def test_additional_args_added_to_task(self):
         agent = CodeAgent(tools=[], model=FakeCodeModel())
