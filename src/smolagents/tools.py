@@ -565,7 +565,7 @@ class Tool(BaseTool):
             local_files_only=kwargs.get("local_files_only"),
         )
 
-        tool_code = Path(tool_file).read_text()
+        tool_code = Path(tool_file).read_text(encoding="utf-8")
         return Tool.from_code(tool_code, **kwargs)
 
     @classmethod

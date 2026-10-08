@@ -471,7 +471,7 @@ model = {{ agent_dict['model']['class'] }}(
 {{ tool.name }} = {{ tool.name | camelcase }}()
 {% endfor %}
 
-with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r') as stream:
+with open(os.path.join(CURRENT_DIR, "prompts.yaml"), 'r', encoding='utf-8') as stream:
     prompt_templates = yaml.safe_load(stream)
 
 {{ agent_name }} = {{ class_name }}(

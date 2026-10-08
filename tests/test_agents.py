@@ -2281,6 +2281,74 @@ print("Ok, calculation done!")""")
         assert agent.logger.level == 2
         assert agent.prompt_templates["system_prompt"] == "dummy system prompt"
 
+    def test_from_folder_reads_non_ascii_files_regardless_of_locale(self, tmp_path):
+        # `save()` writes agent.json and the tool files as UTF-8, so `from_folder()` has to
+        # read them as UTF-8 too. It used to omit the encoding and get the platform locale
+        # instead, which fails on any non-UTF-8 host (cp1252, cp936, ...).
+        #
+        # A non-UTF-8 host is simulated rather than relied upon: `read_text()` below refuses
+        # to guess an encoding, so the test fails without the fix on a UTF-8 machine too,
+        # where a plain locale read would happen to succeed.
+        real_read_text = Path.read_text
+
+        def read_text_without_locale_fallback(self, encoding=None, *args, **kwargs):
+            if encoding is None:
+                raise UnicodeDecodeError("cp1252", b"", 0, 1, "character maps to <undefined>")
+            return real_read_text(self, encoding, *args, **kwargs)
+
+        tool_code = dedent(
+            '''
+            from smolagents import Tool
+
+            class SimpleTool(Tool):
+                name = "greet"
+                description = "Salue l'utilisateur en français — 你好"
+                inputs = {"name": {"type": "string", "description": "prénom"}}
+                output_type = "string"
+
+                def forward(self, name: str) -> str:
+                    """Salue l'utilisateur.
+
+                    Args:
+                        name (str): prénom
+                    """
+                    return f"Bonjour {name}"
+            '''
+        ).strip()
+        agent_dict = {
+            "model": {"class": "InferenceClientModel", "data": {"model_id": "Qwen/Qwen2.5-Coder-32B-Instruct"}},
+            "tools": ["greet"],
+            "managed_agents": {},
+            "prompt_templates": EMPTY_PROMPT_TEMPLATES | {"system_prompt": "Réponds en français — 你好 ✅"},
+            "max_steps": 10,
+            "verbosity_level": 2,
+            "planning_interval": None,
+            "name": "agent_francais",
+            "description": "décrit en français",
+            "authorized_imports": [],
+            "executor_type": "local",
+            "executor_kwargs": {},
+            "max_print_outputs_length": None,
+        }
+        # Written exactly as `save()` writes them: json.dump escapes non-ASCII, but the tool
+        # file keeps it raw, so the bytes on disk are only decodable as UTF-8.
+        (tmp_path / "agent.json").write_text(json.dumps(agent_dict, indent=4), encoding="utf-8")
+        (tmp_path / "tools").mkdir()
+        (tmp_path / "tools" / "greet.py").write_text(tool_code, encoding="utf-8")
+        assert not (tmp_path / "tools" / "greet.py").read_bytes().isascii()
+
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = MagicMock()
+
+        with (
+            patch.object(Path, "read_text", read_text_without_locale_fallback),
+            patch.dict("smolagents.models.MODEL_REGISTRY", {"InferenceClientModel": mock_model_class}),
+        ):
+            agent = CodeAgent.from_folder(tmp_path)
+
+        assert agent.tools["greet"].description == "Salue l'utilisateur en français — 你好"
+        assert agent.prompt_templates["system_prompt"] == "Réponds en français — 你好 ✅"
+
     def test_from_dict(self):
         # Create a test agent dictionary
         agent_dict = {
