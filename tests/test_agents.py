@@ -1337,6 +1337,11 @@ class TestMultiStepAgent:
             assert isinstance(message.content, list)
             for content, expected_content in zip(message.content, expected_message.content):
                 assert content == expected_content
+        # Built-in templates must interpolate remaining_steps (not leave a literal brace placeholder).
+        if step > 1:
+            update_prompt = planning_step.model_input_messages[-1].content[0]["text"]
+            assert "{remaining_steps}" not in update_prompt
+            assert f"you have {agent.max_steps - step} steps remaining" in update_prompt
         # Test calls to model
         assert len(fake_model.generate.call_args_list) == 1
         for call_args, expected_messages in zip(fake_model.generate.call_args_list, expected_messages_list):
@@ -1351,6 +1356,69 @@ class TestMultiStepAgent:
                 assert isinstance(message.content, list)
                 for content, expected_content in zip(message.content, expected_message.content):
                     assert content == expected_content
+
+    @pytest.mark.parametrize(
+        "agent_factory",
+        [
+            lambda model: CodeAgent(tools=[], model=model, max_steps=20),
+            lambda model: CodeAgent(
+                tools=[], model=model, max_steps=20, use_structured_outputs_internally=True
+            ),
+            lambda model: ToolCallingAgent(tools=[], model=model, max_steps=20),
+        ],
+    )
+    def test_planning_update_renders_remaining_steps(self, agent_factory):
+        """All built-in planning templates interpolate remaining_steps via Jinja."""
+        fake_model = MagicMock()
+        fake_model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="updated plan",
+            tool_calls=None,
+            raw="updated plan",
+            token_usage=None,
+        )
+        agent = agent_factory(fake_model)
+        planning_step = list(
+            agent._generate_planning_step("demo", is_first_step=False, step=2, max_steps=3)
+        )[-1]
+        update_prompt = planning_step.model_input_messages[-1].content[0]["text"]
+        assert "{remaining_steps}" not in update_prompt
+        assert "you have 1 steps remaining" in update_prompt
+
+    def test_planning_uses_run_max_steps_override(self):
+        """Planning remaining_steps must use run(... max_steps=N), not the constructor default."""
+
+        class RecordingModel(Model):
+            def __init__(self):
+                super().__init__(model_id="recording")
+                self.calls = []
+
+            def generate(self, messages, **kwargs):
+                self.calls.append(messages)
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="<code>\nprint('continue')\n</code>",
+                )
+
+        model = RecordingModel()
+        agent = CodeAgent(tools=[], model=model, max_steps=20, planning_interval=1)
+        agent.run("demo", max_steps=3)
+
+        update_prompts = []
+        for messages in model.calls:
+            for message in messages:
+                if not message.content:
+                    continue
+                text = message.content[0]["text"] if isinstance(message.content, list) else str(message.content)
+                if "steps remaining" in text:
+                    update_prompts.append(text)
+
+        assert update_prompts, "expected at least one planning update prompt"
+        for prompt in update_prompts:
+            assert "{remaining_steps}" not in prompt
+            assert "you have 18 steps remaining" not in prompt
+        # First update planning happens at step 2 with effective max_steps=3 → 1 remaining.
+        assert any("you have 1 steps remaining" in prompt for prompt in update_prompts)
 
     @pytest.mark.parametrize(
         "expected_messages_list",
