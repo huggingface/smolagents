@@ -2120,6 +2120,74 @@ class TestCodeAgent:
             )
         assert result == expected_summary
 
+    def test_managed_agent_run_summary_excludes_tool_io(self):
+        # A managed agent with provide_run_summary=True must not feed raw tool-call and
+        # tool-response messages (which can carry secrets, PII or internal IDs returned by
+        # tools) into the manager's observation. Only the agent's own reasoning and the
+        # wrapped final answer should be surfaced. See issue #2424.
+        class SecretTool(Tool):
+            name = "search"
+            description = "Search internal database."
+            inputs = {"query": {"type": "string", "description": "query string"}}
+            output_type = "string"
+
+            def forward(self, query: str) -> str:
+                return "INTERNAL_DOC_HIT[secret_api_key=sk-LEAK-XYZ]"
+
+        class ScriptedModel(Model):
+            def __init__(self):
+                super().__init__()
+                self._step = 0
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None, **kwargs):
+                self._step += 1
+                if self._step == 1:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="I will search the database.",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_0",
+                                type="function",
+                                function=ChatMessageToolCallFunction(name="search", arguments={"query": "user info"}),
+                            )
+                        ],
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="I have the answer.",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id="call_1",
+                            type="function",
+                            function=ChatMessageToolCallFunction(
+                                name="final_answer", arguments={"answer": "User located."}
+                            ),
+                        )
+                    ],
+                )
+
+        agent = ToolCallingAgent(
+            tools=[SecretTool()],
+            model=ScriptedModel(),
+            name="researcher",
+            description="Looks up user information.",
+            provide_run_summary=True,
+            max_steps=3,
+            verbosity_level=0,
+        )
+        observation = agent("Find the user.")
+
+        # Wrapped final answer is surfaced.
+        assert "User located." in observation
+        # The agent's own reasoning is preserved in the summary.
+        assert "I will search the database." in observation
+        # Raw tool I/O must not leak into the manager's observation.
+        assert "sk-LEAK-XYZ" not in observation
+        assert "INTERNAL_DOC_HIT" not in observation
+        assert "Calling tools" not in observation
+        assert "Observation:" not in observation
+
     def test_code_agent_image_output(self):
         from PIL import Image
 
