@@ -39,6 +39,31 @@ RETRY_WAIT = 60
 RETRY_MAX_ATTEMPTS = 3
 RETRY_EXPONENTIAL_BASE = 2
 RETRY_JITTER = True
+# HTTP status codes that are typically transient and safe to retry.
+# Rate limiting (429) is handled separately by `is_rate_limit_error`.
+TRANSIENT_STATUS_CODES = {408, 409, 425, 500, 502, 503, 504}
+# Substrings matched against the exception *type name* (provider-agnostic: openai, litellm, requests, httpx...).
+TRANSIENT_ERROR_NAMES = (
+    "timeout",
+    "connectionerror",
+    "connectionreset",
+    "apiconnectionerror",
+    "serviceunavailable",
+    "internalservererror",
+    "remoteprotocolerror",
+    "badgateway",
+)
+# Substrings matched against the exception message as a last resort, when no status code or type is available.
+TRANSIENT_ERROR_PHRASES = (
+    "service unavailable",
+    "bad gateway",
+    "gateway timeout",
+    "internal server error",
+    "timed out",
+    "connection reset",
+    "connection aborted",
+    "temporarily unavailable",
+)
 STRUCTURED_GENERATION_PROVIDERS = ["cerebras", "fireworks-ai"]
 CODEAGENT_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -1154,6 +1179,10 @@ class ApiModel(Model):
             Rate limit in requests per minute.
         retry (`bool`, **optional**):
             Whether to retry on rate limit errors, up to RETRY_MAX_ATTEMPTS times. Defaults to True.
+        retry_on_transient (`bool`, **optional**):
+            Whether to also retry on transient server/network errors (e.g. 5xx, timeouts, connection
+            errors), not just rate limits. Genuine client errors (e.g. 401/404) are never retried.
+            Defaults to True.
         **kwargs:
             Additional keyword arguments to forward to the underlying model completion call.
     """
@@ -1165,18 +1194,20 @@ class ApiModel(Model):
         client: Any | None = None,
         requests_per_minute: float | None = None,
         retry: bool = True,
+        retry_on_transient: bool = True,
         **kwargs,
     ):
         super().__init__(model_id=model_id, **kwargs)
         self.custom_role_conversions = custom_role_conversions or {}
         self.client = client or self.create_client()
         self.rate_limiter = RateLimiter(requests_per_minute)
+        retry_predicate = should_retry_api_call if retry_on_transient else is_rate_limit_error
         self.retryer = Retrying(
             max_attempts=RETRY_MAX_ATTEMPTS if retry else 1,
             wait_seconds=RETRY_WAIT,
             exponential_base=RETRY_EXPONENTIAL_BASE,
             jitter=RETRY_JITTER,
-            retry_predicate=is_rate_limit_error,
+            retry_predicate=retry_predicate,
             reraise=True,
             before_sleep_logger=(logger, logging.INFO),
             after_logger=(logger, logging.INFO),
@@ -1200,6 +1231,34 @@ def is_rate_limit_error(exception: BaseException) -> bool:
         or "too many requests" in error_str
         or "rate_limit" in error_str
     )
+
+
+def is_transient_error(exception: BaseException) -> bool:
+    """Check if the exception looks like a transient server/network error worth retrying.
+
+    This prefers structured signals (HTTP status code, exception type name) over raw string
+    matching, so that genuine client errors (e.g. 401/404) or unrelated bugs are not retried.
+    Rate limiting is intentionally excluded here: it is handled by `is_rate_limit_error`.
+    """
+    # 1. HTTP status code, read from the exception itself or its attached response object.
+    status = getattr(exception, "status_code", None)
+    if status is None:
+        response = getattr(exception, "response", None)
+        status = getattr(response, "status_code", None)
+    if isinstance(status, int) and status in TRANSIENT_STATUS_CODES:
+        return True
+    # 2. Exception type name (covers openai/litellm/requests/httpx timeout & connection errors).
+    type_name = type(exception).__name__.lower()
+    if any(name in type_name for name in TRANSIENT_ERROR_NAMES):
+        return True
+    # 3. Last-resort phrase match for providers that only expose a plain message.
+    error_str = str(exception).lower()
+    return any(phrase in error_str for phrase in TRANSIENT_ERROR_PHRASES)
+
+
+def should_retry_api_call(exception: BaseException) -> bool:
+    """Combined retry predicate: retry on rate-limit OR transient server/network errors."""
+    return is_rate_limit_error(exception) or is_transient_error(exception)
 
 
 class LiteLLMModel(ApiModel):
