@@ -43,6 +43,14 @@ __all__ = ["AgentError"]
 
 @lru_cache
 def _is_package_available(package_name: str) -> bool:
+    """Check whether a Python package is installed and importable.
+
+    Args:
+        package_name: The name of the package to check (e.g. ``"torch"``).
+
+    Returns:
+        ``True`` if the package can be found by the import system, ``False`` otherwise.
+    """
     return importlib.util.find_spec(package_name) is not None
 
 
@@ -428,16 +436,38 @@ def get_source(obj) -> str:
 
 
 def encode_image_base64(image):
+    """Encode a PIL image to a base64-encoded PNG string.
+
+    Args:
+        image: A PIL ``Image`` object to encode.
+
+    Returns:
+        A UTF-8 decoded base64 string of the image in PNG format.
+    """
     buffered = BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
 def make_image_url(base64_image):
+    """Wrap a base64-encoded image string into a data URL.
+
+    Args:
+        base64_image: A base64-encoded PNG image string (as returned by :func:`encode_image_base64`).
+
+    Returns:
+        A ``data:image/png;base64,...`` URL string suitable for embedding in HTML or API payloads.
+    """
     return f"data:image/png;base64,{base64_image}"
 
 
 def make_init_file(folder: str | Path):
+    """Create a directory and place an empty ``__init__.py`` file inside it.
+
+    Args:
+        folder: Path to the directory to create. Intermediate directories are
+            created automatically (equivalent to ``mkdir -p``).
+    """
     os.makedirs(folder, exist_ok=True)
     # Create __init__
     with open(os.path.join(folder, "__init__.py"), "w"):
@@ -445,6 +475,22 @@ def make_init_file(folder: str | Path):
 
 
 def is_valid_name(name: str) -> bool:
+    """Check whether a string is a valid Python identifier that is not a reserved keyword.
+
+    Args:
+        name: The string to validate.
+
+    Returns:
+        ``True`` if ``name`` is a valid, non-keyword Python identifier; ``False`` otherwise.
+
+    Example:
+        >>> is_valid_name("my_tool")
+        True
+        >>> is_valid_name("for")  # reserved keyword
+        False
+        >>> is_valid_name("123abc")  # not a valid identifier
+        False
+    """
     return name.isidentifier() and not keyword.iskeyword(name) if isinstance(name, str) else False
 
 
