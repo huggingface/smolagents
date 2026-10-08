@@ -149,6 +149,24 @@ def union_types_func():
         return True if isinstance(value, int) else "string result"
 
     return process_union
+    return process_union
+
+
+@pytest.fixture
+def union_complex_types_func():
+    def process_union_complex(value: list[int] | dict[str, float]) -> str:
+        """
+        Process a value that is either a list of ints or a dict of floats.
+
+        Args:
+            value: A list of integers or a dict of floats.
+
+        Returns:
+            Processing result.
+        """
+        return "ok"
+
+    return process_union_complex
 
 
 @pytest.fixture
@@ -385,6 +403,19 @@ class TestGetJsonSchema:
         assert len(value_prop["type"]) == 2
         # Check union in return type: should be converted to "any"
         assert return_prop["type"] == "any"
+
+    def test_union_complex_types(self, union_complex_types_func):
+        """Union of complex types must preserve each member's inner schema (items/additionalProperties)."""
+        schema = get_json_schema(union_complex_types_func)
+        value_prop = schema["function"]["parameters"]["properties"]["value"]
+        # The union of two complex types should be expressed with "anyOf" so that
+        # the array item type and dict value type are not silently dropped.
+        assert "anyOf" in value_prop, value_prop
+        members = value_prop["anyOf"]
+        array_schema = next(m for m in members if m["type"] == "array")
+        object_schema = next(m for m in members if m["type"] == "object")
+        assert array_schema["items"] == {"type": "integer"}
+        assert object_schema["additionalProperties"] == {"type": "number"}
 
     def test_nested_types(self, nested_types_func):
         """Test schema generation for nested complex types."""
