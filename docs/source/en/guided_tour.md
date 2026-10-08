@@ -10,7 +10,7 @@ In this guided visit, you will learn how to build an agent, how to run it, and h
 The key difference lies in how actions are specified and executed: code generation vs structured tool calling.
 
 - [`CodeAgent`] generates tool calls as Python code snippets.
-  - The code is executed either locally (potentially unsecure) or in a secure sandbox.
+  - The code is executed either locally (potentially insecure) or in a secure sandbox.
   - Tools are exposed as Python functions (via bindings).
   - Example of tool call:
     ```py
