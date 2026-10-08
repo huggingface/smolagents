@@ -1594,6 +1594,150 @@ class TestMultiStepAgent:
         assert recreated_managed_agent.description == "A managed agent for testing"
         assert recreated_managed_agent.max_steps == 5
 
+    def test_to_dict_from_dict_roundtrip_preserves_common_settings(self):
+        """Regression test: instructions/provide_run_summary/return_full_result must survive a round-trip."""
+        agent = ToolCallingAgent(
+            tools=[],
+            model=MagicMock(),
+            name="agent",
+            description="desc",
+            instructions="Always be polite.",
+            provide_run_summary=True,
+            return_full_result=True,
+        )
+        agent_dict = agent.to_dict()
+        assert agent_dict["instructions"] == "Always be polite."
+        assert agent_dict["provide_run_summary"] is True
+        assert agent_dict["return_full_result"] is True
+
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = MagicMock()
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated = ToolCallingAgent.from_dict(agent_dict)
+
+        assert recreated.instructions == "Always be polite."
+        assert recreated.provide_run_summary is True
+        assert recreated.return_full_result is True
+
+    def test_to_dict_from_dict_roundtrip_default_values_are_preserved(self):
+        """Values left at their default must round-trip too, not just non-default ones."""
+        agent = ToolCallingAgent(tools=[], model=MagicMock(), name="agent", description="desc")
+        agent_dict = agent.to_dict()
+        assert agent_dict["instructions"] is None
+        assert agent_dict["provide_run_summary"] is False
+        assert agent_dict["return_full_result"] is False
+
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = MagicMock()
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated = ToolCallingAgent.from_dict(agent_dict)
+
+        assert recreated.instructions is None
+        assert recreated.provide_run_summary is False
+        assert recreated.return_full_result is False
+
+    def test_to_dict_from_dict_roundtrip_toolcalling_agent_specific_settings(self):
+        agent = ToolCallingAgent(
+            tools=[],
+            model=MagicMock(),
+            name="agent",
+            description="desc",
+            stream_outputs=True,
+            max_tool_threads=4,
+        )
+        agent_dict = agent.to_dict()
+        assert agent_dict["stream_outputs"] is True
+        assert agent_dict["max_tool_threads"] == 4
+
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = MagicMock()
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated = ToolCallingAgent.from_dict(agent_dict)
+
+        assert recreated.stream_outputs is True
+        assert recreated.max_tool_threads == 4
+
+    def test_to_dict_from_dict_roundtrip_code_agent_specific_settings(self):
+        agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            name="agent",
+            description="desc",
+            stream_outputs=True,
+            use_structured_outputs_internally=True,
+            code_block_tags="markdown",
+        )
+        agent_dict = agent.to_dict()
+        assert agent_dict["stream_outputs"] is True
+        assert agent_dict["use_structured_outputs_internally"] is True
+        assert tuple(agent_dict["code_block_tags"]) == ("```python", "```")
+
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = MagicMock()
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated = CodeAgent.from_dict(agent_dict)
+
+        assert recreated.stream_outputs is True
+        assert recreated._use_structured_outputs_internally is True
+        assert recreated.code_block_tags == ("```python", "```")
+
+    def test_from_dict_normalizes_json_roundtripped_code_block_tags_to_tuple(self):
+        """Regression test: JSON serializes tuples as lists; from_dict must convert code_block_tags back."""
+        mock_model = MagicMock()
+        mock_model.to_dict.return_value = {"model_id": "test-model"}  # must be JSON-serializable
+        agent = CodeAgent(tools=[], model=mock_model, name="agent", code_block_tags=("<<", ">>"))
+        agent_dict = agent.to_dict()
+
+        # Simulate the actual agent.json save/load path (json.dump/json.loads), where tuples become lists
+        json_roundtripped_dict = json.loads(json.dumps(agent_dict))
+        assert json_roundtripped_dict["code_block_tags"] == ["<<", ">>"]  # confirm JSON did flatten it to a list
+
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = MagicMock()
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated = CodeAgent.from_dict(json_roundtripped_dict)
+
+        assert recreated.code_block_tags == ("<<", ">>")
+        assert isinstance(recreated.code_block_tags, tuple)
+
+    def test_from_dict_kwargs_override_take_precedence_for_new_fields(self):
+        """Explicit from_dict kwargs must still override saved values, for the newly-serialized fields too."""
+        agent = ToolCallingAgent(
+            tools=[],
+            model=MagicMock(),
+            name="agent",
+            provide_run_summary=True,
+            max_tool_threads=2,
+        )
+        agent_dict = agent.to_dict()
+
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = MagicMock()
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            recreated = ToolCallingAgent.from_dict(agent_dict, provide_run_summary=False, max_tool_threads=8)
+
+        assert recreated.provide_run_summary is False
+        assert recreated.max_tool_threads == 8
+
+    def test_from_dict_backward_compatible_with_agent_dict_missing_new_keys(self):
+        """An agent.json saved by an older smolagents version (without the new keys) must still load fine."""
+        agent_dict = {
+            "model": {"class": "MagicMock", "data": {}},
+            "tools": [],
+            "managed_agents": {},
+        }
+        mock_model_class = MagicMock()
+        mock_model_class.from_dict.return_value = MagicMock()
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"MagicMock": mock_model_class}):
+            agent = CodeAgent.from_dict(agent_dict)
+
+        assert agent.instructions is None
+        assert agent.provide_run_summary is False
+        assert agent.return_full_result is False
+        assert agent.stream_outputs is False
+        assert agent._use_structured_outputs_internally is False
+        assert agent.code_block_tags == ("<code>", "</code>")
+
     def test_from_dict_invalid_model_class(self):
         """Test that from_dict raises ValueError with helpful message for invalid model class."""
         agent_dict = {
