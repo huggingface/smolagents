@@ -1078,3 +1078,109 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert len(data["tool_calls"]) > 0
     assert data["tool_calls"][0]["function"]["name"] == "final_answer"
     assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
+
+
+def test_coerce_tool_call_various_inputs():
+    from smolagents.models import _coerce_tool_call, ChatMessageToolCall, ChatMessageToolCallFunction
+
+    # 1. Existing ChatMessageToolCall
+    tc = ChatMessageToolCall(
+        function=ChatMessageToolCallFunction(name="search", arguments="{}"),
+        id="call_001",
+        type="function",
+    )
+    assert _coerce_tool_call(tc) is tc
+
+    # 2. Standard full dictionary
+    dict_full = {
+        "id": "call_002",
+        "type": "function",
+        "function": {"name": "calculator", "arguments": '{"a": 1, "b": 2}'},
+    }
+    res = _coerce_tool_call(dict_full)
+    assert isinstance(res, ChatMessageToolCall)
+    assert res.id == "call_002"
+    assert res.type == "function"
+    assert res.function.name == "calculator"
+    assert res.function.arguments == '{"a": 1, "b": 2}'
+
+    # 3. Minimal dictionary missing id and type (Issue #2879 Case 1)
+    dict_minimal = {"function": {"name": "search", "arguments": "{}"}}
+    res = _coerce_tool_call(dict_minimal)
+    assert isinstance(res, ChatMessageToolCall)
+    assert res.id == ""
+    assert res.type == "function"
+    assert res.function.name == "search"
+    assert res.function.arguments == "{}"
+
+    # 4. Dictionary with None values for id/type
+    dict_none = {"id": None, "type": None, "function": {"name": "test", "arguments": ""}}
+    res = _coerce_tool_call(dict_none)
+    assert res.id == ""
+    assert res.type == "function"
+    assert res.function.name == "test"
+
+    # 5. Custom object with .function (Issue #2879 Case 2)
+    class CustomToolCall:
+        def __init__(self):
+            self.id = "call_custom"
+            self.type = "function"
+            self.function = type("Fn", (), {"name": "custom_search", "arguments": '{"q": "hf"}'})()
+
+    res = _coerce_tool_call(CustomToolCall())
+    assert isinstance(res, ChatMessageToolCall)
+    assert res.id == "call_custom"
+    assert res.type == "function"
+    assert res.function.name == "custom_search"
+    assert res.function.arguments == '{"q": "hf"}'
+
+    # 6. Custom object with .function as dict and no id/type attributes
+    class MinimalCustomToolCall:
+        def __init__(self):
+            self.function = {"name": "dict_fn", "arguments": "args_val"}
+
+    res = _coerce_tool_call(MinimalCustomToolCall())
+    assert res.id == ""
+    assert res.type == "function"
+    assert res.function.name == "dict_fn"
+    assert res.function.arguments == "args_val"
+
+    # 7. Object with model_dump()
+    class ModelDumpObject:
+        def model_dump(self):
+            return {"id": "dump_1", "type": "function", "function": {"name": "dumped", "arguments": "{}"}}
+
+    res = _coerce_tool_call(ModelDumpObject())
+    assert res.id == "dump_1"
+    assert res.function.name == "dumped"
+
+    # 8. Object with dict()
+    class DictMethodObject:
+        def dict(self):
+            return {"id": "dict_1", "type": "function", "function": {"name": "dict_fn", "arguments": "{}"}}
+
+    res = _coerce_tool_call(DictMethodObject())
+    assert res.id == "dict_1"
+    assert res.function.name == "dict_fn"
+
+    # 9. Unsupported types raise TypeError
+    with pytest.raises(TypeError):
+        _coerce_tool_call("invalid_string_tool_call")
+    with pytest.raises(TypeError):
+        _coerce_tool_call(12345)
+
+
+def test_chat_message_post_init_coercion():
+    msg = ChatMessage(
+        role=MessageRole.ASSISTANT,
+        content="calling tools",
+        tool_calls=[
+            {"function": {"name": "search", "arguments": "{}"}},
+            type("FnObj", (), {"id": "f_1", "type": "function", "function": type("F", (), {"name": "calc", "arguments": "42"})()})(),
+        ],
+    )
+    assert len(msg.tool_calls) == 2
+    assert all(isinstance(tc, ChatMessageToolCall) for tc in msg.tool_calls)
+    assert msg.tool_calls[0].function.name == "search"
+    assert msg.tool_calls[1].function.name == "calc"
+
