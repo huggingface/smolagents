@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -44,6 +45,41 @@ from smolagents.models import (
 from smolagents.tools import tool
 
 from .utils.markers import require_run_all
+
+
+def _make_stream_event(content=None, finish_reason=None, usage=None):
+    delta = None if content is None else SimpleNamespace(content=content, tool_calls=None)
+    choice = SimpleNamespace(delta=delta, finish_reason=finish_reason)
+    return SimpleNamespace(usage=usage, choices=[choice])
+
+
+def _make_litellm_client(events):
+    return SimpleNamespace(completion=lambda **kwargs: iter(events))
+
+
+def _make_chat_client(events):
+    return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **kwargs: iter(events))))
+
+
+@pytest.mark.parametrize(
+    "model_factory",
+    [
+        lambda events: LiteLLMModel(model_id="test-model", client=_make_litellm_client(events), retry=False),
+        lambda events: InferenceClientModel(model_id="test-model", client=_make_chat_client(events), retry=False),
+        lambda events: OpenAIModel(model_id="test-model", client=_make_chat_client(events), retry=False),
+    ],
+)
+def test_generate_stream_ignores_noop_events(model_factory):
+    events = [
+        _make_stream_event(content=None, finish_reason=None),  # no-op chunk from provider
+        _make_stream_event(content="Hello from stream", finish_reason=None),
+    ]
+    model = model_factory(events)
+    messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
+
+    deltas = list(model.generate_stream(messages))
+
+    assert any(delta.content == "Hello from stream" for delta in deltas)
 
 
 class TestModel:
