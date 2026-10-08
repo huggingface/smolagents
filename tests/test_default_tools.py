@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
-from unittest.mock import patch
+from types import ModuleType
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,6 +22,7 @@ from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.default_tools import (
     DuckDuckGoSearchTool,
     PythonInterpreterTool,
+    ScavioSearchTool,
     SpeechToTextTool,
     VisitWebpageTool,
     WebSearchTool,
@@ -252,3 +254,50 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+class TestScavioSearchTool:
+    """Tests for ScavioSearchTool (Scavio web search)."""
+
+    @pytest.fixture(autouse=True)
+    def mock_scavio_client(self):
+        """Stub out the optional `scavio` SDK so these tests run without installing it."""
+        scavio_module = ModuleType("scavio")
+        scavio_module.ScavioClient = MagicMock()
+        with patch.dict("sys.modules", {"scavio": scavio_module}):
+            yield scavio_module.ScavioClient
+
+    def test_missing_api_key(self):
+        with patch.dict("os.environ", {}, clear=True):
+            with pytest.raises(ValueError, match="SCAVIO_API_KEY"):
+                ScavioSearchTool()
+
+    def test_search_results(self, mock_scavio_client):
+        mock_response = {
+            "organic_results": [
+                {"title": "Scavio", "link": "https://scavio.dev", "snippet": "Search API for AI agents."},
+                {"title": "Hugging Face", "link": "https://huggingface.co", "snippet": "The AI community."},
+            ]
+        }
+        mock_client = mock_scavio_client.return_value
+        mock_client.google.search.return_value = mock_response
+        tool = ScavioSearchTool(api_key="test-key", max_results=2)
+        result = tool("test query")
+
+        assert "## Search Results" in result
+        assert "[Scavio](https://scavio.dev)" in result
+        assert "[Hugging Face](https://huggingface.co)" in result
+        assert "Search API for AI agents." in result
+        mock_client.google.search.assert_called_once()
+
+    def test_no_results(self, mock_scavio_client):
+        mock_client = mock_scavio_client.return_value
+        mock_client.google.search.return_value = {"organic_results": []}
+        tool = ScavioSearchTool(api_key="test-key")
+        with pytest.raises(Exception, match="No results found"):
+            tool("obscure query")
+
+    def test_missing_sdk(self):
+        with patch.dict("sys.modules", {"scavio": None}):
+            with pytest.raises(ImportError, match="pip install scavio"):
+                ScavioSearchTool(api_key="test-key")
