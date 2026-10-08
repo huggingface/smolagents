@@ -873,11 +873,21 @@ You have been provided with these additional arguments, that you can access dire
             self.prompt_templates["managed_agent"]["task"],
             variables=dict(name=self.name, task=task),
         )
-        result = self.run(full_task, **kwargs)
-        if isinstance(result, RunResult):
-            report = result.output
-        else:
-            report = result
+        run_kwargs = {**kwargs, "return_full_result": True}
+        try:
+            result = self.run(full_task, **run_kwargs)
+            if isinstance(result, RunResult):
+                report = result.output
+                if result.state == "max_steps_error":
+                    report = (
+                        f"Sub-agent '{self.name}' did not produce a final answer. "
+                        f"Reason: max_steps ({run_kwargs.get('max_steps') or self.max_steps}) reached without "
+                        "calling final_answer."
+                    )
+            else:
+                report = result
+        except AgentError as error:
+            report = f"Sub-agent '{self.name}' failed with {type(error).__name__}: {error}"
         answer = populate_template(
             self.prompt_templates["managed_agent"]["report"], variables=dict(name=self.name, final_answer=report)
         )

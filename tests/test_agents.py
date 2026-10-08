@@ -574,6 +574,44 @@ class TestAgent:
         assert agent.name == "managed_agent"
         assert agent.description == "Empty"
 
+    def test_managed_agent_reports_max_steps_failure(self):
+        agent = CodeAgent(
+            tools=[PythonInterpreterTool()],
+            model=FakeCodeModelNoReturn(),
+            max_steps=1,
+            name="managed_agent",
+            description="Empty",
+            verbosity_level=0,
+        )
+
+        answer = agent("Dummy task")
+
+        assert "Sub-agent 'managed_agent' did not produce a final answer." in answer
+        assert "max_steps (1) reached without calling final_answer" in answer
+
+        class FakeToolCallModelNoCall(Model):
+            def generate(self, messages, stop_sequences=None, tools_to_call_from=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="I don't want to call tools today",
+                    tool_calls=None,
+                    raw="I don't want to call tools today",
+                )
+
+        agent = ToolCallingAgent(
+            tools=[],
+            model=FakeToolCallModelNoCall(),
+            max_steps=1,
+            name="managed_agent",
+            description="Empty",
+            verbosity_level=0,
+        )
+
+        answer = agent("Dummy task")
+
+        assert "Sub-agent 'managed_agent' did not produce a final answer." in answer
+        assert "max_steps (1) reached without calling final_answer" in answer
+
     def test_agent_description_gets_correctly_inserted_in_system_prompt(self):
         managed_agent = CodeAgent(
             tools=[], model=FakeCodeModelFunctionDef(), name="managed_agent", description="Empty"
