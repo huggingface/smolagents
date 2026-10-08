@@ -285,35 +285,63 @@ tool_role_conversions = {
 }
 
 
+def _replace_any_with_string(schema: dict) -> None:
+    """Recursively replace smolagents' internal "any" type with "string".
+
+    "any" is an internal marker, not a valid JSON Schema type, so it must not
+    reach providers. The old top-level loop handled it, but nested containers
+    (items, additionalProperties, prefixItems, anyOf branches) were never
+    visited, so e.g. List[Any] or Dict[str, Any] leaked {"type": "any"}.
+    """
+    if not isinstance(schema, dict):
+        return
+
+    if schema.get("type") == "any":
+        schema["type"] = "string"
+
+    # Flatten anyOf into a plain type (or list of types), recursing first so
+    # nested "any" markers are resolved before branch types are read.
+    if "anyOf" in schema:
+        types = []
+        enum = None
+        for branch in schema["anyOf"]:
+            _replace_any_with_string(branch)
+            if branch.get("type") == "null":
+                schema["nullable"] = True
+                continue
+            if branch.get("type") == "any":
+                types.append("string")
+            else:
+                types.append(branch.get("type"))
+            if "enum" in branch:  # assuming there is only one enum in anyOf
+                enum = branch["enum"]
+
+        schema["type"] = types if len(types) > 1 else types[0]
+        if enum is not None:
+            schema["enum"] = enum
+
+        schema.pop("anyOf")
+
+    # Descend into containers.
+    for key in ("items", "additionalProperties"):
+        child = schema.get(key)
+        if isinstance(child, dict):
+            _replace_any_with_string(child)
+    for child in schema.get("prefixItems", []):
+        if isinstance(child, dict):
+            _replace_any_with_string(child)
+    for child in schema.get("properties", {}).values():
+        if isinstance(child, dict):
+            _replace_any_with_string(child)
+
+
 def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
-        if value["type"] == "any":
-            value["type"] = "string"
+        _replace_any_with_string(value)
         if not ("nullable" in value and value["nullable"]):
             required.append(key)
-
-        # parse anyOf
-        if "anyOf" in value:
-            types = []
-            enum = None
-            for t in value["anyOf"]:
-                if t["type"] == "null":
-                    value["nullable"] = True
-                    continue
-                if t["type"] == "any":
-                    types.append("string")
-                else:
-                    types.append(t["type"])
-                if "enum" in t:  # assuming there is only one enum in anyOf
-                    enum = t["enum"]
-
-            value["type"] = types if len(types) > 1 else types[0]
-            if enum is not None:
-                value["enum"] = enum
-
-            value.pop("anyOf")
 
     return {
         "type": "function",
