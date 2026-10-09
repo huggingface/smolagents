@@ -386,14 +386,20 @@ class SafeSerializer:
         to_json_safe_source = inspect.getsource(SafeSerializer.to_json_safe)
         # Make it standalone (remove @staticmethod, change self references)
         to_json_safe_source = to_json_safe_source.replace("@staticmethod\n    ", "")
-        to_json_safe_source = to_json_safe_source.replace("SafeSerializer.to_json_safe", "to_json_safe")
 
         # Generate from_json_safe from actual implementation
         from_json_safe_source = inspect.getsource(SafeSerializer.from_json_safe)
         from_json_safe_source = from_json_safe_source.replace("@staticmethod\n    ", "")
-        from_json_safe_source = from_json_safe_source.replace("SafeSerializer.from_json_safe", "from_json_safe")
+
+        # _get_optional_type is referenced by to_json_safe/from_json_safe via
+        # SafeSerializer._get_optional_type, so the standalone class must ship it
+        # (classmethod) plus the optional-types cache it mutates.
+        optional_type_source = inspect.getsource(SafeSerializer._get_optional_type)
 
         return f'''
+import base64
+from typing import Any
+
 class SerializationError(Exception):
     """Raised when a type cannot be safely serialized."""
     pass
@@ -403,9 +409,13 @@ class SafeSerializer:
 
     SAFE_PREFIX = "safe:"
 
-    {to_json_safe_source}
+    _optional_types_cache: dict = {{}}
 
-    {from_json_safe_source}
+{optional_type_source}
+
+{to_json_safe_source}
+
+{from_json_safe_source}
 
     @staticmethod
     def dumps(obj, allow_pickle=False):
@@ -415,12 +425,12 @@ class SafeSerializer:
 
         if not allow_pickle:
             # Safe ONLY - no pickle fallback
-            json_safe = to_json_safe(obj)  # Raises SerializationError if fails
+            json_safe = SafeSerializer.to_json_safe(obj)  # Raises SerializationError if fails
             return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
         else:
             # Try safe first, fallback to pickle if allowed
             try:
-                json_safe = to_json_safe(obj)
+                json_safe = SafeSerializer.to_json_safe(obj)
                 return SafeSerializer.SAFE_PREFIX + json.dumps(json_safe)
             except SerializationError:
                 try:
@@ -436,7 +446,7 @@ class SafeSerializer:
 
         if data.startswith(SafeSerializer.SAFE_PREFIX):
             json_data = json.loads(data[len(SafeSerializer.SAFE_PREFIX):])
-            return from_json_safe(json_data)
+            return SafeSerializer.from_json_safe(json_data)
         elif data.startswith("pickle:"):
             if not allow_pickle:
                 raise SerializationError("Pickle data rejected: allow_pickle=False")

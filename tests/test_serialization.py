@@ -926,3 +926,41 @@ class TestConcurrency:
         assert len(errors) == 0, f"Errors occurred: {errors}"
         assert len(results) == 10
         assert all(success for _, success in results)
+
+
+
+class _PickleFallbackTarget:
+    """Module-level so pickle can resolve it (local classes cannot be pickled)."""
+
+    def __init__(self):
+        self.value = 42
+
+
+def test_get_safe_serializer_code_compiles_and_round_trips():
+    """The standalone serializer shipped for sandbox injection must be valid
+    Python: it must compile, exec, and round-trip the same payloads as the
+    in-process serializer. Regression for #2927 (generated code previously
+    failed to compile with IndentationError at the first method definition)."""
+    code = SafeSerializer.get_safe_serializer_code()
+    compile(code, "<generated-serializer>", "exec")
+
+    namespace = {}
+    exec(code, namespace)
+    GeneratedSafeSerializer = namespace["SafeSerializer"]
+
+    payloads = [
+        {"a": [1, 2, {"b": (3, 4)}], "s": "héllo", "n": None, "t": (1, 2)},
+        {"c": 1 + 2j, "st": {1, 2}, "b": b"x"},
+        {"dt": datetime(2026, 10, 9, 12, 0, 0)},
+        {},
+        [],
+    ]
+    for payload in payloads:
+        serialized = GeneratedSafeSerializer.dumps(payload, allow_pickle=False)
+        assert GeneratedSafeSerializer.loads(serialized, allow_pickle=False) == payload
+
+    # pickle fallback behaves like the in-process serializer
+    obj = _PickleFallbackTarget()
+    serialized = GeneratedSafeSerializer.dumps(obj, allow_pickle=True)
+    assert serialized.startswith("pickle:")
+    assert GeneratedSafeSerializer.loads(serialized, allow_pickle=True).value == 42
