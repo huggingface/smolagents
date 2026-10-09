@@ -691,6 +691,8 @@ def evaluate_augassign(
         current_value <<= value_to_add
     elif isinstance(expression.op, ast.RShift):
         current_value >>= value_to_add
+    elif isinstance(expression.op, ast.MatMult):
+        current_value @= value_to_add
     else:
         raise InterpreterError(f"Operation {type(expression.op).__name__} is not supported.")
 
@@ -763,6 +765,8 @@ def evaluate_binop(
         return left_val << right_val
     elif isinstance(binop.op, ast.RShift):
         return left_val >> right_val
+    elif isinstance(binop.op, ast.MatMult):
+        return left_val @ right_val
     else:
         raise NotImplementedError(f"Binary operation {type(binop.op).__name__} is not implemented.")
 
