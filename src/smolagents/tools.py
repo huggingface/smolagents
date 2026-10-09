@@ -320,7 +320,10 @@ class Tool(BaseTool):
 
             # Add output_schema if it exists
             if hasattr(self, "output_schema") and self.output_schema is not None:
-                tool_code += f"\n                output_schema = {repr(self.output_schema)}"
+                # Class-body attributes in the generated snippet are indented with 4
+                # spaces after textwrap.dedent; 16 spaces would put the attribute
+                # three levels too deep and make the generated code uncompilable.
+                tool_code += f"\n    output_schema = {repr(self.output_schema)}"
             import re
 
             def add_self_argument(source_code: str) -> str:

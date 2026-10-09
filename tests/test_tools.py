@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import sys
 import inspect
 import os
 import warnings
@@ -642,6 +643,46 @@ class TestTool:
 
         # Original function should not have 'self' parameter
         assert "self" not in original_signature.parameters
+
+    def test_decorated_tool_with_output_schema_round_trips(self, tmp_path):
+        # The generated class body must stay at 4-space indentation when an
+        # output_schema attribute is added; previously it was emitted at 16
+        # spaces, producing code that cannot compile (regression #2926).
+        module = tmp_path / "decorated_tool_schema.py"
+        module.write_text(
+            "from smolagents import tool\n"
+            "\n"
+            "@tool\n"
+            "def make_record(value: int) -> dict:\n"
+            '    """Return a record containing the supplied integer.\n'
+            "\n"
+            "    Args:\n"
+            "        value: The integer to include in the record.\n"
+            '    """\n'
+            "    return {'value': value}\n"
+        )
+
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("decorated_tool_schema", module)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["decorated_tool_schema"] = mod
+        spec.loader.exec_module(mod)
+
+        schema = {
+            "type": "object",
+            "properties": {"value": {"type": "integer"}},
+            "required": ["value"],
+        }
+        mod.make_record.output_schema = schema
+        tool_dict = mod.make_record.to_dict()
+
+        # Generated code must compile (was IndentationError before the fix).
+        compile(tool_dict["code"], "<generated-tool>", "exec")
+
+        restored = Tool.from_dict(tool_dict)
+        assert restored.output_schema == schema
+        assert restored(value=7) == {"value": 7}
 
     def test_tool_with_union_type_return(self):
         @tool
