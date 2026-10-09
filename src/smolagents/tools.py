@@ -551,18 +551,24 @@ class Tool(BaseTool):
                 "Loading a tool from Hub requires to acknowledge you trust its code: to do so, pass `trust_remote_code=True`."
             )
 
+        # Split kwargs: Hub download options are consumed here; the rest go to the tool's constructor.
+        hub_kwargs = {}
+        for key in ("cache_dir", "force_download", "proxies", "revision", "subfolder", "local_files_only"):
+            if key in kwargs:
+                hub_kwargs[key] = kwargs.pop(key)
+
         # Get the tool's tool.py file.
         tool_file = hf_hub_download(
             repo_id,
             "tool.py",
             token=token,
             repo_type="space",
-            cache_dir=kwargs.get("cache_dir"),
-            force_download=kwargs.get("force_download"),
-            proxies=kwargs.get("proxies"),
-            revision=kwargs.get("revision"),
-            subfolder=kwargs.get("subfolder"),
-            local_files_only=kwargs.get("local_files_only"),
+            cache_dir=hub_kwargs.get("cache_dir"),
+            force_download=hub_kwargs.get("force_download"),
+            proxies=hub_kwargs.get("proxies"),
+            revision=hub_kwargs.get("revision"),
+            subfolder=hub_kwargs.get("subfolder"),
+            local_files_only=hub_kwargs.get("local_files_only"),
         )
 
         tool_code = Path(tool_file).read_text()
