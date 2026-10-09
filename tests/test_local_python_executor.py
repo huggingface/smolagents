@@ -401,6 +401,41 @@ for result in search_results:
         result, _ = evaluate_python_code(code, {}, state=state, authorized_imports=["numpy"])
         assert result.tolist() == [[19, 22], [43, 50]]
 
+    def test_evaluate_augassign_matmult_preserves_identity(self):
+        class Matrix:
+            def __init__(self, value):
+                self.value = value
+
+            def __matmul__(self, other):
+                return Matrix(self.value * other.value)
+
+            def __imatmul__(self, other):
+                self.value *= other.value
+                return self
+
+        original = Matrix(2)
+        state = {"a": original, "b": Matrix(3)}
+        result, _ = evaluate_python_code("a @= b\na", {}, state=state)
+        assert result is original
+        assert state["a"] is original
+        assert original.value == 6
+
+    @pytest.mark.parametrize("code", ["a @ b", "a @= b\na"])
+    def test_evaluate_matmult_reflected_fallback(self, code):
+        class Left:
+            def __matmul__(self, other):
+                return NotImplemented
+
+        class Right:
+            def __rmatmul__(self, other):
+                return 42
+
+        state = {"a": Left(), "b": Right()}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == 42
+        if "@=" in code:
+            assert state["a"] == 42
+
     def test_recursive_function(self):
         code = """
 def recur_fibo(n):
