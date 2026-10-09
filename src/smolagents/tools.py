@@ -320,7 +320,7 @@ class Tool(BaseTool):
 
             # Add output_schema if it exists
             if hasattr(self, "output_schema") and self.output_schema is not None:
-                tool_code += f"\n                output_schema = {repr(self.output_schema)}"
+                tool_code += f"\n    output_schema = {repr(self.output_schema)}"
             import re
 
             def add_self_argument(source_code: str) -> str:

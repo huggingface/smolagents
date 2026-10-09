@@ -381,17 +381,22 @@ class SafeSerializer:
         This generates a standalone version from the actual implementation to avoid duplication.
         """
         import inspect
+        import textwrap
 
         # Generate to_json_safe from actual implementation
         to_json_safe_source = inspect.getsource(SafeSerializer.to_json_safe)
         # Make it standalone (remove @staticmethod, change self references)
         to_json_safe_source = to_json_safe_source.replace("@staticmethod\n    ", "")
         to_json_safe_source = to_json_safe_source.replace("SafeSerializer.to_json_safe", "to_json_safe")
+        # Re-indent to class-body level so the generated code compiles
+        to_json_safe_source = textwrap.indent(textwrap.dedent(to_json_safe_source), "    ")
 
         # Generate from_json_safe from actual implementation
         from_json_safe_source = inspect.getsource(SafeSerializer.from_json_safe)
         from_json_safe_source = from_json_safe_source.replace("@staticmethod\n    ", "")
         from_json_safe_source = from_json_safe_source.replace("SafeSerializer.from_json_safe", "from_json_safe")
+        # Re-indent to class-body level so the generated code compiles
+        from_json_safe_source = textwrap.indent(textwrap.dedent(from_json_safe_source), "    ")
 
         return f'''
 class SerializationError(Exception):
@@ -403,9 +408,9 @@ class SafeSerializer:
 
     SAFE_PREFIX = "safe:"
 
-    {to_json_safe_source}
+{to_json_safe_source}
 
-    {from_json_safe_source}
+{from_json_safe_source}
 
     @staticmethod
     def dumps(obj, allow_pickle=False):
