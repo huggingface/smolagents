@@ -1543,6 +1543,27 @@ class TestMultiStepAgent:
             agent = DummyMultiStepAgent.from_dict(agent_dict, max_steps=30)
         assert agent.max_steps == 30
 
+    def test_from_dict_model_override_skips_serialized_model(self):
+        """A model passed via kwargs overrides the serialized one without constructing it."""
+        agent_dict = {
+            "model": {"class": "TransformersModel", "data": {"model_id": "test/model"}},
+            "tools": [],
+            "managed_agents": {},
+            "prompt_templates": EMPTY_PROMPT_TEMPLATES,
+            "name": "test_agent",
+        }
+
+        mock_model_class = MagicMock()
+        with patch.dict("smolagents.models.MODEL_REGISTRY", {"TransformersModel": mock_model_class}):
+            override_model = MagicMock()
+            before = mock_model_class.from_dict.call_count
+            agent = DummyMultiStepAgent.from_dict(agent_dict, model=override_model)
+
+        # The serialized model must not be constructed: credentials absent from
+        # its serialized form are never required when an override is supplied.
+        assert mock_model_class.from_dict.call_count == before
+        assert agent.model is override_model
+
     def test_multiagent_to_dict_from_dict_roundtrip(self):
         """Test that to_dict() and from_dict() work correctly for agents with managed agents."""
         # Create a managed agent

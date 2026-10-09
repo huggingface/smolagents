@@ -1018,15 +1018,20 @@ You have been provided with these additional arguments, that you can access dire
         Returns:
             `MultiStepAgent`: Instance of the agent class.
         """
-        # Load model
-        model_info = agent_dict["model"]
-        model_class = MODEL_REGISTRY.get(model_info["class"])
-        if model_class is None:
-            raise ValueError(
-                f"Unknown model class '{model_info['class']}'. "
-                f"Supported models: {', '.join(sorted(MODEL_REGISTRY.keys()))}"
-            )
-        model = model_class.from_dict(model_info["data"])
+        # Load model. A model supplied via kwargs overrides the serialized one;
+        # construct the serialized model only when no override is provided, so
+        # credentials intentionally absent from the serialized form are never
+        # required to load the agent.
+        model = kwargs.get("model")
+        if model is None:
+            model_info = agent_dict["model"]
+            model_class = MODEL_REGISTRY.get(model_info["class"])
+            if model_class is None:
+                raise ValueError(
+                    f"Unknown model class '{model_info['class']}'. "
+                    f"Supported models: {', '.join(sorted(MODEL_REGISTRY.keys()))}"
+                )
+            model = model_class.from_dict(model_info["data"])
         # Load tools
         tools = []
         for tool_info in agent_dict["tools"]:
