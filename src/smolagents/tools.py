@@ -566,7 +566,21 @@ class Tool(BaseTool):
         )
 
         tool_code = Path(tool_file).read_text()
-        return Tool.from_code(tool_code, **kwargs)
+
+        # kwargs are documented to be split: Hub-download options (cache_dir,
+        # revision, subfolder, ...) are consumed above and must not leak into
+        # the tool constructor, which would break tools with a no-argument
+        # __init__ (TypeError: unexpected keyword argument).
+        hub_download_kwargs = {
+            "cache_dir",
+            "force_download",
+            "proxies",
+            "revision",
+            "subfolder",
+            "local_files_only",
+        }
+        constructor_kwargs = {k: v for k, v in kwargs.items() if k not in hub_download_kwargs}
+        return Tool.from_code(tool_code, **constructor_kwargs)
 
     @classmethod
     def from_code(cls, tool_code: str, **kwargs):

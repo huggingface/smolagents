@@ -612,6 +612,76 @@ class TestTool:
             Tool.from_dict({"name": "invalid_tool"})
         assert "must contain 'code' key" in str(e)
 
+    def test_from_hub_does_not_forward_download_kwargs_to_constructor(self, tmp_path):
+        # Docs promise kwargs are split: Hub-download options (cache_dir, ...)
+        # are used for the download, the rest go to the tool __init__. Before
+        # the fix, cache_dir leaked into the constructor, breaking tools with a
+        # no-argument __init__ (regression #2928).
+        tool_src = (
+            "from smolagents import Tool\n"
+            "\n"
+            "class EchoTool(Tool):\n"
+            '    name = "echo"\n'
+            '    description = "Echoes the input"\n'
+            '    inputs = {"message": {"type": "string", "description": "text"}}\n'
+            '    output_type = "string"\n'
+            "\n"
+            "    def __init__(self):\n"
+            "        super().__init__()\n"
+            '        self.suffix = "!"\n'
+            "\n"
+            "    def forward(self, message: str) -> str:\n"
+            '        return message + self.suffix\n'
+        )
+        tool_file = tmp_path / "echo_tool.py"
+        tool_file.write_text(tool_src)
+
+        with patch("smolagents.tools.hf_hub_download", return_value=str(tool_file)) as mock_download:
+            tool_obj = Tool.from_hub(
+                "fake/echo",
+                trust_remote_code=True,
+                cache_dir="/tmp/hubcache",
+                force_download=True,
+            )
+
+        # Download kwargs were used for the download…
+        assert mock_download.call_args.kwargs["cache_dir"] == "/tmp/hubcache"
+        assert mock_download.call_args.kwargs["force_download"] is True
+        # …and did not reach the no-argument constructor (previously TypeError).
+        assert tool_obj.name == "echo"
+        assert tool_obj("hi") == "hi!"
+
+    def test_from_hub_forwards_non_download_kwargs_to_constructor(self, tmp_path):
+        tool_src = (
+            "from smolagents import Tool\n"
+            "\n"
+            "class GreeterTool(Tool):\n"
+            '    name = "greeter"\n'
+            '    description = "Greets"\n'
+            '    inputs = {"name": {"type": "string", "description": "n"}}\n'
+            '    output_type = "string"\n'
+            "\n"
+            "    def __init__(self, greeting: str = \"Hello\"):\n"
+            "        super().__init__()\n"
+            '        self.greeting = greeting\n'
+            "\n"
+            "    def forward(self, name: str) -> str:\n"
+            '        return f"{self.greeting} {name}"\n'
+        )
+        tool_file = tmp_path / "greeter_tool.py"
+        tool_file.write_text(tool_src)
+
+        with patch("smolagents.tools.hf_hub_download", return_value=str(tool_file)):
+            tool_obj = Tool.from_hub(
+                "fake/greeter",
+                trust_remote_code=True,
+                cache_dir="/tmp/hubcache",
+                greeting="Bonjour",
+            )
+
+        assert tool_obj.greeting == "Bonjour"
+        assert tool_obj("Bob") == "Bonjour Bob"
+
     def test_tool_decorator_preserves_original_function(self):
         # Define a test function with type hints and docstring
         def test_function(items: list[str]) -> str:
