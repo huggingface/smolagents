@@ -557,12 +557,12 @@ class Tool(BaseTool):
             "tool.py",
             token=token,
             repo_type="space",
-            cache_dir=kwargs.get("cache_dir"),
-            force_download=kwargs.get("force_download"),
-            proxies=kwargs.get("proxies"),
-            revision=kwargs.get("revision"),
-            subfolder=kwargs.get("subfolder"),
-            local_files_only=kwargs.get("local_files_only"),
+            cache_dir=kwargs.pop("cache_dir", None),
+            force_download=kwargs.pop("force_download", None),
+            proxies=kwargs.pop("proxies", None),
+            revision=kwargs.pop("revision", None),
+            subfolder=kwargs.pop("subfolder", None),
+            local_files_only=kwargs.pop("local_files_only", None),
         )
 
         tool_code = Path(tool_file).read_text()
