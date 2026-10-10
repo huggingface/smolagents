@@ -2626,3 +2626,49 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+def test_push_to_hub_space_sdk_default():
+    agent = CodeAgent(tools=[], model=FakeToolCallModel())
+    with (
+        patch("smolagents.agents.create_repo") as mock_create_repo,
+        patch("smolagents.agents.metadata_update"),
+        patch("smolagents.agents.upload_folder"),
+        patch.object(agent, "save"),
+    ):
+        mock_create_repo.return_value = MagicMock(repo_id="test/agent")
+        agent.push_to_hub("test/agent")
+        mock_create_repo.assert_called_once_with(
+            repo_id="test/agent",
+            token=None,
+            private=None,
+            exist_ok=True,
+            repo_type="space",
+            space_sdk="gradio",
+        )
+
+
+def test_push_to_hub_space_sdk_custom():
+    agent = CodeAgent(tools=[], model=FakeToolCallModel())
+    with (
+        patch("smolagents.agents.create_repo") as mock_create_repo,
+        patch("smolagents.agents.metadata_update"),
+        patch("smolagents.agents.upload_folder"),
+        patch.object(agent, "save"),
+    ):
+        mock_create_repo.return_value = MagicMock(repo_id="test/agent")
+        agent.push_to_hub("test/agent", space_sdk="static")
+        mock_create_repo.assert_called_once_with(
+            repo_id="test/agent",
+            token=None,
+            private=None,
+            exist_ok=True,
+            repo_type="space",
+            space_sdk="static",
+        )
+
+
+def test_push_to_hub_space_sdk_invalid():
+    agent = CodeAgent(tools=[], model=FakeToolCallModel())
+    with pytest.raises(ValueError, match="Invalid space_sdk 'invalid_sdk'"):
+        agent.push_to_hub("test/agent", space_sdk="invalid_sdk")
