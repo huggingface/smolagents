@@ -599,10 +599,14 @@ def evaluate_class_def(
             # precedence, then enclosing scopes — as in native Python.
             # Reuse set_value so class bodies support the same targets as
             # regular assignments (Name, Attribute, Tuple unpacking, Subscript);
-            # writes always land in class_dict.
+            # writes always land in class_dict, so class attributes can never
+            # erase a module-level tool — skip the tool-rebinding guard here.
             class_state = ChainMap(class_dict, state)
             for target in stmt.targets:
-                set_value(target, value, class_state, static_tools, custom_tools, authorized_imports)
+                set_value(
+                    target, value, class_state, static_tools, custom_tools, authorized_imports,
+                    check_tool_rebinding=False,
+                )
         elif isinstance(stmt, ast.Pass):
             pass
         elif (
@@ -801,9 +805,10 @@ def set_value(
     static_tools: dict[str, Callable],
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
+    check_tool_rebinding: bool = True,
 ) -> None:
     if isinstance(target, ast.Name):
-        if target.id in static_tools:
+        if check_tool_rebinding and target.id in static_tools:
             raise InterpreterError(f"Cannot assign to name '{target.id}': doing this would erase the existing tool!")
         state[target.id] = value
     elif isinstance(target, ast.Tuple):
@@ -815,7 +820,7 @@ def set_value(
         if len(target.elts) != len(value):
             raise InterpreterError("Cannot unpack tuple of wrong size")
         for i, elem in enumerate(target.elts):
-            set_value(elem, value[i], state, static_tools, custom_tools, authorized_imports)
+            set_value(elem, value[i], state, static_tools, custom_tools, authorized_imports, check_tool_rebinding)
     elif isinstance(target, ast.Subscript):
         obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
         key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
