@@ -844,6 +844,12 @@ def function():
         evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
         assert state["_print_outputs"].value == "aliased\n"
 
+    def test_print_stays_forbidden_without_print_in_static_tools(self):
+        # callers passing a custom static_tools without print keep the
+        # allowlist behavior: print is forbidden, as before the fix
+        with pytest.raises(InterpreterError):
+            evaluate_python_code("print('hi')", {}, state={})
+
     def test_tuple_target_in_iterator(self):
         code = "for a, b in [('Ralf Weikert', 'Austria'), ('Samuel Seungwon Lee', 'South Korea')]:res = a.split()[0]"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
