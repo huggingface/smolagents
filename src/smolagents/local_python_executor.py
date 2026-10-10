@@ -22,6 +22,7 @@ import logging
 import math
 import re
 from abc import ABC, abstractmethod
+from collections import ChainMap
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -594,12 +595,14 @@ def evaluate_class_def(
                 raise InterpreterError(f"Unsupported AnnAssign target in class body: {type(target).__name__}")
         elif isinstance(stmt, ast.Assign):
             value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
+            # Class-body scoping: names defined earlier in the body take
+            # precedence, then enclosing scopes — as in native Python.
+            # Reuse set_value so class bodies support the same targets as
+            # regular assignments (Name, Attribute, Tuple unpacking, Subscript);
+            # writes always land in class_dict.
+            class_state = ChainMap(class_dict, state)
             for target in stmt.targets:
-                if isinstance(target, ast.Name):
-                    class_dict[target.id] = value
-                elif isinstance(target, ast.Attribute):
-                    obj = evaluate_ast(target.value, class_dict, static_tools, custom_tools, authorized_imports)
-                    setattr(obj, target.attr, value)
+                set_value(target, value, class_state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.Pass):
             pass
         elif (
