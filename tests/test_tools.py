@@ -1066,3 +1066,30 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+def test_from_gradio_wrapper_is_initialized():
+    """Regression test for https://github.com/huggingface/smolagents/issues/2944.
+
+    Tool.from_gradio must produce a fully initialized Tool: calling it used to
+    raise AttributeError because GradioToolWrapper never initialized
+    `is_initialized`.
+    """
+
+    class LocalGradioTool:
+        name = "double_value"
+        description = "Double a number."
+
+        def run(self, value: "int") -> str:
+            return str(value * 2)
+
+    source = LocalGradioTool()
+    assert source.run(4) == "8"
+
+    wrapped = Tool.from_gradio(source)
+
+    assert wrapped.is_initialized is True
+    assert wrapped.inputs == {"value": {"type": "integer", "description": ""}}
+    assert wrapped(value=4) == "8"
+    # Calling again must keep working (no re-setup / no state drift).
+    assert wrapped(value=7) == "14"
