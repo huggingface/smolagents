@@ -1066,3 +1066,54 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+def test_from_hub_pops_hub_download_options(tmp_path):
+    """Regression for #2928: Hub download options must not reach the tool constructor.
+
+    ``Tool.from_hub`` documents that extra kwargs are split between Hub download
+    options and tool-constructor options. Loading a tool with a no-argument
+    constructor must not fail because ``cache_dir`` leaked into ``__init__``.
+    """
+    tool_source = dedent(
+        '''
+        from smolagents import Tool
+
+
+        class EchoTool(Tool):
+            name = "echo"
+            description = "Return an integer unchanged."
+            inputs = {"value": {"type": "integer", "description": "Input integer."}}
+            output_type = "integer"
+
+            def __init__(self, suffix: str | None = None):
+                super().__init__()
+                self.suffix = suffix
+
+            def forward(self, value: int) -> int:
+                return value
+        '''
+    )
+    tool_path = tmp_path / "tool.py"
+    tool_path.write_text(tool_source)
+
+    with patch(
+        "smolagents.tools.hf_hub_download", return_value=str(tool_path)
+    ) as mock_download:
+        restored = Tool.from_hub(
+            "some-user/some-tool",
+            trust_remote_code=True,
+            cache_dir="/tmp/cache",
+            local_files_only=True,
+            revision="main",
+            suffix="suffix-value",
+        )
+
+    # Hub download options were forwarded to the download layer...
+    _, download_kwargs = mock_download.call_args
+    assert download_kwargs["cache_dir"] == "/tmp/cache"
+    assert download_kwargs["local_files_only"] is True
+    assert download_kwargs["revision"] == "main"
+
+    # ...but not to the tool constructor, which only received its own kwarg.
+    assert restored.suffix == "suffix-value"
+    assert restored(7) == 7
