@@ -968,6 +968,7 @@ def evaluate_condition(
 ) -> bool | object:
     result = True
     left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
+    num_ops = len(condition.ops)
     for i, (op, comparator) in enumerate(zip(condition.ops, condition.comparators)):
         op = type(op)
         right = evaluate_ast(comparator, state, static_tools, custom_tools, authorized_imports)
@@ -994,9 +995,18 @@ def evaluate_condition(
         else:
             raise InterpreterError(f"Unsupported comparison operator: {op}")
 
-        if current_result is False:
-            return False
-        result = current_result if i == 0 else (result and current_result)
+        if i == num_ops - 1:
+            # The final comparison result is returned directly. Every earlier
+            # result has already been truth-tested above, so truth-testing it
+            # again (as `result and current_result` would) can invoke a
+            # stateful `__bool__` a second time and change the outcome.
+            return current_result
+        if not current_result:
+            # Short-circuit: truth-test every non-final comparison result before
+            # evaluating the next comparator, and preserve the returned object.
+            return current_result
+        # The non-final result tested true; keep it without re-testing it.
+        result = current_result
         left = right
     return result
 
