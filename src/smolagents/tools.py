@@ -750,6 +750,7 @@ class Tool(BaseTool):
                 self.name = _gradio_tool.name
                 self.description = _gradio_tool.description
                 self.output_type = "string"
+                self.is_initialized = True
                 self._gradio_tool = _gradio_tool
                 func_args = list(inspect.signature(_gradio_tool.run).parameters.items())
                 self.inputs = {
