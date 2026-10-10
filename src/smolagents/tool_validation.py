@@ -57,11 +57,14 @@ class MethodChecker(ast.NodeVisitor):
         self.visit(node.value)
 
     def visit_With(self, node):
-        """Track aliases in 'with' statements (the 'y' in 'with X as y')"""
+        """Track names bound by 'with' aliases, including unpacking targets."""
         for item in node.items:
             if item.optional_vars:  # This is the 'y' in 'with X as y'
-                if isinstance(item.optional_vars, ast.Name):
-                    self.assigned_names.add(item.optional_vars.id)
+                self.assigned_names.update(
+                    target.id
+                    for target in ast.walk(item.optional_vars)
+                    if isinstance(target, ast.Name) and isinstance(target.ctx, ast.Store)
+                )
         self.generic_visit(node)
 
     def visit_ExceptHandler(self, node):
