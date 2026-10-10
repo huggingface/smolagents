@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Unio
 
 import yaml
 from huggingface_hub import create_repo, metadata_update, snapshot_download, upload_folder
+from huggingface_hub.constants import SPACES_SDK_TYPES
 from jinja2 import StrictUndefined, Template
 from rich.console import Group
 from rich.live import Live
@@ -1164,6 +1165,7 @@ You have been provided with these additional arguments, that you can access dire
         private: bool | None = None,
         token: bool | str | None = None,
         create_pr: bool = False,
+        space_sdk: str = "gradio",
     ) -> str:
         """
         Upload the agent to the Hub.
@@ -1181,14 +1183,20 @@ You have been provided with these additional arguments, that you can access dire
                 when running `huggingface-cli login` (stored in `~/.huggingface`).
             create_pr (`bool`, *optional*, defaults to `False`):
                 Whether to create a PR with the uploaded files or directly commit.
+            space_sdk (`str`, *optional*, defaults to `"gradio"`):
+                The Space SDK to use when creating the Space on the Hub. Must be one of `"gradio"`, `"streamlit"`, `"docker"`, or `"static"`.
         """
+        if space_sdk not in SPACES_SDK_TYPES:
+            raise ValueError(
+                f"Invalid space_sdk '{space_sdk}'. Supported values are: {', '.join(sorted(SPACES_SDK_TYPES))}"
+            )
         repo_url = create_repo(
             repo_id=repo_id,
             token=token,
             private=private,
             exist_ok=True,
             repo_type="space",
-            space_sdk="gradio",
+            space_sdk=space_sdk,
         )
         repo_id = repo_url.repo_id
         metadata_update(
