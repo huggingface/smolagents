@@ -1627,6 +1627,18 @@ def evaluate_python_code(
     state["_print_outputs"] = PrintContainer()
     state["_operations_count"] = {"counter": 0}
 
+    # Bind the `print` tool to this run's print outputs so that every invocation
+    # is captured — including when `print` is passed around as a callback (e.g.
+    # `map(print, values)`), which bypasses the direct-call interception in
+    # `evaluate_call`. Direct `print(...)` calls behave exactly as before.
+    print_outputs = state["_print_outputs"]
+
+    def capturing_print(*args, **kwargs):
+        print_outputs.append(" ".join(map(str, args)) + "\n")
+        return None
+
+    static_tools["print"] = capturing_print
+
     if "final_answer" in static_tools:
         previous_final_answer = static_tools["final_answer"]
 
