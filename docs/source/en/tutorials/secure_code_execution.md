@@ -304,6 +304,8 @@ with CodeAgent(
 
 The executor keeps Python state in the VM across agent steps and deletes the VM when the agent context exits. The host can pull the default Python image while guest networking is disabled. For packages the image does not already contain, use a prebuilt image or allow only the required destinations with `ResourceSpec(allow_hosts=[...])`. For a managed VM, set `target="cloud"` on `SmolExecutor` and authenticate with Smol Cloud; the same example then runs remotely.
 
+To pause and resume the VM without losing Python state, create `SmolExecutor(branchable=True)` and call `executor.machine.pause()` and `executor.machine.resume()` while the agent is open.
+
 ### Docker setup
 
 #### Installation
