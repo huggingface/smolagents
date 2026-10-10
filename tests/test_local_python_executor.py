@@ -2987,3 +2987,13 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_evaluate_python_code_docstring_parameters():
+    import inspect
+
+    sig = inspect.signature(evaluate_python_code)
+    doc = evaluate_python_code.__doc__
+    assert doc is not None
+    for param_name in sig.parameters:
+        assert param_name in doc, f"Parameter '{param_name}' is not documented in evaluate_python_code docstring."
