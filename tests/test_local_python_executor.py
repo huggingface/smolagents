@@ -1967,6 +1967,42 @@ class TestEvaluateCondition:
         # result is truth-tested exactly once.
         assert events == ["compare", "bool"]
 
+    def test_evaluate_condition_chained_comparison_truth_tests_truthy_result_once(self):
+        # A truthy non-final comparison result must be truth-tested only once:
+        # re-testing it when the chain returns (e.g. via `result and current_result`)
+        # can invoke a stateful `__bool__` a second time and change the outcome.
+        # https://github.com/huggingface/smolagents/pull/2921
+        events = []
+
+        class OneShotTruthy:
+            def __init__(self, events):
+                self.events = events
+
+            def __bool__(self):
+                self.events.append("bool")
+                if len(self.events) > 2:
+                    raise AssertionError("__bool__ called more than once")
+                return True
+
+        class Left:
+            def __init__(self, events):
+                self.events = events
+
+            def __lt__(self, other):
+                self.events.append("compare")
+                return OneShotTruthy(self.events)
+
+        def later():
+            events.append("later")
+            return 2
+
+        state = {"left": Left(events)}
+        result, _ = evaluate_python_code("left < 1 < later()", {"later": later}, state=state)
+        # The final comparison result is returned without re-testing the
+        # already-tested truthy first result (events: compare, bool, later only).
+        assert result is True
+        assert events == ["compare", "bool", "later"]
+
     def test_evaluate_condition_chained_comparison_still_returns_final_boolean(self):
         # The final comparison result is not truth-tested; plain chained
         # comparisons keep returning a plain boolean.

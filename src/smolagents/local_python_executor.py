@@ -996,14 +996,17 @@ def evaluate_condition(
             raise InterpreterError(f"Unsupported comparison operator: {op}")
 
         if i == num_ops - 1:
-            # The final comparison result is not truth-tested, matching CPython's
-            # chained-comparison semantics: `a < b < c` returns `(a < b) and (b < c)`.
-            return current_result if i == 0 else (result and current_result)
+            # The final comparison result is returned directly. Every earlier
+            # result has already been truth-tested above, so truth-testing it
+            # again (as `result and current_result` would) can invoke a
+            # stateful `__bool__` a second time and change the outcome.
+            return current_result
         if not current_result:
             # Short-circuit: truth-test every non-final comparison result before
             # evaluating the next comparator, and preserve the returned object.
             return current_result
-        result = current_result if i == 0 else (result and current_result)
+        # The non-final result tested true; keep it without re-testing it.
+        result = current_result
         left = right
     return result
 
