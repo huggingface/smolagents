@@ -247,6 +247,46 @@ test_func(**None)
         assert state["TestClass"].data.attr1 == "value1"
         assert state["TestClass"].data.attr2 == "value2"
 
+    def test_evaluate_class_def_with_assign_tuple_and_subscript_targets(self):
+        """
+        Test evaluate_class_def function when stmt is an instance of ast.Assign with ast.Tuple or ast.Subscript targets.
+        """
+        code = dedent("""
+        table = {"value": 2}
+        class Settings:
+            lower, upper = (2, 7)
+            table["value"] = 7
+            registry = {}
+            registry["n"] = 9
+        result = (Settings.lower, Settings.upper, table["value"], Settings.registry["n"])
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert result == (2, 7, 7, 9)
+
+    def test_evaluate_class_def_with_tool_named_attributes(self):
+        """
+        Class attributes may shadow built-in tool names (e.g. min/max): they
+        live on the class, so the tool-rebinding guard must not fire there.
+        """
+        code = dedent("""
+        class Limits:
+            min = 0
+            max = 10
+            lo, hi = (0, 10)
+        result = (Limits.min, Limits.max, Limits.lo, Limits.hi)
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert result == (0, 10, 0, 10)
+        # module-level guard still applies: rebinding a tool name raises
+        with pytest.raises(InterpreterError):
+            evaluate_python_code("min = 5", BASE_PYTHON_TOOLS, state={})
+
     def test_evaluate_constant(self):
         code = "x = 3"
         state = {}
