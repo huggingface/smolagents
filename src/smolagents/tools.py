@@ -1358,6 +1358,16 @@ def get_tools_definition_code(tools: dict[str, Tool]) -> str:
     return tool_definition_code
 
 
+def _get_argument_json_schema_type(value: Any, expected_type: str | list[str]) -> str:
+    # Agent-typed values (e.g. retrieved from the agent state) subclass PIL images or str,
+    # so they are matched explicitly against media input types
+    expected_types = [expected_type] if isinstance(expected_type, str) else expected_type
+    for agent_type, schema_type in ((AgentImage, "image"), (AgentAudio, "audio")):
+        if isinstance(value, agent_type) and schema_type in expected_types:
+            return schema_type
+    return _get_json_schema_type(type(value))["type"]
+
+
 def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
     """Validate tool arguments against tool's input schema.
 
@@ -1387,8 +1397,8 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
             if key not in tool.inputs:
                 raise ValueError(f"Argument {key} is not in the tool's input schema")
 
-            actual_type = _get_json_schema_type(type(value))["type"]
             expected_type = tool.inputs[key]["type"]
+            actual_type = _get_argument_json_schema_type(value, expected_type)
             expected_type_is_nullable = tool.inputs[key].get("nullable", False)
 
             # Type is valid if it matches, is "any", or is null for nullable parameters
@@ -1408,7 +1418,7 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
         return None
     else:
         expected_type = list(tool.inputs.values())[0]["type"]
-        if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
+        if _get_argument_json_schema_type(arguments, expected_type) != expected_type and not expected_type == "any":
             raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
 
 
