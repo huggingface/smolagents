@@ -24,10 +24,10 @@ import numpy as np
 import PIL.Image
 import pytest
 
-from smolagents.agent_types import _AGENT_TYPE_MAPPING
+from smolagents.agent_types import _AGENT_TYPE_MAPPING, AgentAudio, AgentImage
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
 
-from .utils.markers import require_run_all
+from .utils.markers import require_run_all, require_soundfile, require_torch
 
 
 class ToolTesterMixin:
@@ -968,6 +968,68 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, {"argument_a": expected_input})
+
+
+class TestValidateToolArgumentsAgentTypes:
+    def test_agent_image_matches_image_input(self):
+        class ImageSizeTool(Tool):
+            name = "image_size"
+            description = "Return the size of an image"
+            inputs = {"image": {"type": "image", "description": "The image"}}
+            output_type = "array"
+
+            def forward(self, image):
+                return list(image.size)
+
+        image = AgentImage(PIL.Image.new("RGB", (3, 2)))
+        # Should not raise any exception
+        validate_tool_arguments(ImageSizeTool(), {"image": image})
+        validate_tool_arguments(ImageSizeTool(), image)
+
+    def test_agent_image_still_matches_object_input(self):
+        class ObjectTool(Tool):
+            name = "object_tool"
+            description = "Accept any object"
+            inputs = {"value": {"type": "object", "description": "The value"}}
+            output_type = "string"
+
+            def forward(self, value):
+                return str(value)
+
+        # Should not raise any exception
+        validate_tool_arguments(ObjectTool(), {"value": AgentImage(PIL.Image.new("RGB", (3, 2)))})
+
+    @require_soundfile
+    @require_torch
+    def test_agent_audio_matches_audio_input(self):
+        import torch
+
+        class AudioLengthTool(Tool):
+            name = "audio_length"
+            description = "Return the number of samples of an audio"
+            inputs = {"audio": {"type": "audio", "description": "The audio"}}
+            output_type = "integer"
+
+            def forward(self, audio):
+                return len(audio.to_raw())
+
+        audio = AgentAudio(torch.zeros(8))
+        # Should not raise any exception
+        validate_tool_arguments(AudioLengthTool(), {"audio": audio})
+        validate_tool_arguments(AudioLengthTool(), audio)
+
+    def test_agent_image_does_not_match_string_input(self):
+        class EchoTool(Tool):
+            name = "echo"
+            description = "Echo a string"
+            inputs = {"text": {"type": "string", "description": "The text"}}
+            output_type = "string"
+
+            def forward(self, text):
+                return text
+
+        with pytest.raises(TypeError):
+            validate_tool_arguments(EchoTool(), {"text": AgentImage(PIL.Image.new("RGB", (3, 2)))})
 
 
 @pytest.mark.parametrize(

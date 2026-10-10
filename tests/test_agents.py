@@ -1648,6 +1648,22 @@ class TestToolCallingAgent:
         assert agent.instructions == "Test instructions"
         assert "Test instructions" in agent.system_prompt
 
+    def test_execute_tool_call_accepts_agent_image_from_state(self):
+        import PIL.Image
+
+        class ImageSizeTool(Tool):
+            name = "image_size"
+            description = "Return the size of an image"
+            inputs = {"image": {"type": "image", "description": "The image"}}
+            output_type = "array"
+
+            def forward(self, image):
+                return list(image.size)
+
+        agent = ToolCallingAgent(tools=[ImageSizeTool()], model=MagicMock())
+        agent.state["image.png"] = AgentImage(PIL.Image.new("RGB", (3, 2)))
+        assert agent.execute_tool_call("image_size", {"image": "image.png"}) == [3, 2]
+
     def test_toolcalling_agent_passes_both_tools_and_managed_agents(self, test_tool):
         """Test that both tools and managed agents are passed to the model."""
         managed_agent = MagicMock()
