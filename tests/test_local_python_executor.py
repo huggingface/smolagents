@@ -2987,3 +2987,18 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_print_passed_as_a_callback_is_captured():
+    """`print` used as a value must reach the captured logs, not just direct calls."""
+    executor = LocalPythonExecutor([])
+    executor.send_tools({})
+
+    assert executor("print('red')\nprint('blue')").logs == "red\nblue\n"
+
+    output = executor("list(map(print, ['red', 'blue']))")
+
+    assert output.output == [None, None]
+    # The callbacks ran and returned None, so this used to complete without an error
+    # while the observable output was missing entirely.
+    assert output.logs == "red\nblue\n"

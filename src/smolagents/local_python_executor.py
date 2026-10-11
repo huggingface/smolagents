@@ -1625,6 +1625,15 @@ def evaluate_python_code(
     static_tools = static_tools.copy() if static_tools is not None else {}
     custom_tools = custom_tools if custom_tools is not None else {}
     state["_print_outputs"] = PrintContainer()
+
+    def _capturing_print(*args):
+        # `print` can be passed around as a value (e.g. `map(print, ...)`), and the
+        # AST special case below only fires for a direct `print(...)` call. Bind the
+        # container of this run so the callback form is captured too.
+        state["_print_outputs"] += " ".join(map(str, args)) + "\n"
+        return None
+
+    static_tools = {**static_tools, "print": _capturing_print}
     state["_operations_count"] = {"counter": 0}
 
     if "final_answer" in static_tools:
