@@ -1016,6 +1016,11 @@ def evaluate_condition(
 
         if current_result is False:
             return False
+        # A false-like object also ends the chain and CPython returns that value
+        # itself, but an array-like result (pandas/numpy comparisons) cannot be
+        # tested for truth at all, so leave those to the existing accumulation.
+        if not hasattr(current_result, "__len__") and not current_result:
+            return current_result
         result = current_result if i == 0 else (result and current_result)
         left = right
     return result
