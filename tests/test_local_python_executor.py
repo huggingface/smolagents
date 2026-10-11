@@ -2987,3 +2987,19 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_class_body_tuple_and_subscript_assignments_apply():
+    """Native Python is the control: these must not be dropped silently."""
+    executor = LocalPythonExecutor([])
+    executor.send_tools({})
+
+    output = executor(
+        'table = {"value": 2}\n'
+        "class Settings:\n"
+        "    lower, upper = (2, 7)\n"
+        '    table["value"] = 7\n'
+        'result = (hasattr(Settings, "lower"), hasattr(Settings, "upper"), table["value"])\n'
+    )
+
+    assert output.output == (True, True, 7)
