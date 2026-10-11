@@ -93,6 +93,7 @@ model = InferenceClientModel(
 <summary> <b>LiteLLM to access 100+ LLMs</b></summary>
 
 ```py
+import os
 from smolagents import LiteLLMModel
 
 model = LiteLLMModel(
