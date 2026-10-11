@@ -46,22 +46,23 @@ class MethodChecker(ast.NodeVisitor):
             actual_name = name.asname or name.name
             self.from_imports[actual_name] = (module, name.name)
 
+    def _add_target_names(self, target):
+        if isinstance(target, ast.Name):
+            self.assigned_names.add(target.id)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for elt in target.elts:
+                self._add_target_names(elt)
+
     def visit_Assign(self, node):
         for target in node.targets:
-            if isinstance(target, ast.Name):
-                self.assigned_names.add(target.id)
-            elif isinstance(target, (ast.Tuple, ast.List)):
-                for elt in target.elts:
-                    if isinstance(elt, ast.Name):
-                        self.assigned_names.add(elt.id)
+            self._add_target_names(target)
         self.visit(node.value)
 
     def visit_With(self, node):
         """Track aliases in 'with' statements (the 'y' in 'with X as y')"""
         for item in node.items:
             if item.optional_vars:  # This is the 'y' in 'with X as y'
-                if isinstance(item.optional_vars, ast.Name):
-                    self.assigned_names.add(item.optional_vars.id)
+                self._add_target_names(item.optional_vars)
         self.generic_visit(node)
 
     def visit_ExceptHandler(self, node):
@@ -78,24 +79,13 @@ class MethodChecker(ast.NodeVisitor):
             self.visit(node.value)
 
     def visit_For(self, node):
-        target = node.target
-        if isinstance(target, ast.Name):
-            self.assigned_names.add(target.id)
-        elif isinstance(target, ast.Tuple):
-            for elt in target.elts:
-                if isinstance(elt, ast.Name):
-                    self.assigned_names.add(elt.id)
+        self._add_target_names(node.target)
         self.generic_visit(node)
 
     def _handle_comprehension_generators(self, generators):
         """Helper method to handle generators in all types of comprehensions"""
         for generator in generators:
-            if isinstance(generator.target, ast.Name):
-                self.assigned_names.add(generator.target.id)
-            elif isinstance(generator.target, ast.Tuple):
-                for elt in generator.target.elts:
-                    if isinstance(elt, ast.Name):
-                        self.assigned_names.add(elt.id)
+            self._add_target_names(generator.target)
 
     def visit_ListComp(self, node):
         """Track variables in list comprehensions"""
