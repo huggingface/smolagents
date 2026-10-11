@@ -1418,7 +1418,10 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
         return None
     else:
         expected_type = list(tool.inputs.values())[0]["type"]
-        if _get_argument_json_schema_type(arguments, expected_type) != expected_type and not expected_type == "any":
+        actual_type = _get_argument_json_schema_type(arguments, expected_type)
+        if (
+            actual_type != expected_type if isinstance(expected_type, str) else actual_type not in expected_type
+        ) and expected_type != "any":
             raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
 
 

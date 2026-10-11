@@ -986,6 +986,24 @@ class TestValidateToolArgumentsAgentTypes:
         validate_tool_arguments(ImageSizeTool(), {"image": image})
         validate_tool_arguments(ImageSizeTool(), image)
 
+    def test_agent_image_matches_union_input(self):
+        class MediaTool(Tool):
+            name = "media"
+            description = "Describe media"
+            inputs = {"image": {"type": ["image", "string"], "description": "Image or description"}}
+            output_type = "string"
+
+            def forward(self, image):
+                return "ok"
+
+        image = AgentImage(PIL.Image.new("RGB", (3, 2)))
+        # Should not raise any exception
+        validate_tool_arguments(MediaTool(), {"image": image})
+        validate_tool_arguments(MediaTool(), image)
+        validate_tool_arguments(MediaTool(), "a red square")
+        with pytest.raises(TypeError):
+            validate_tool_arguments(MediaTool(), 3)
+
     def test_agent_image_still_matches_object_input(self):
         class ObjectTool(Tool):
             name = "object_tool"
