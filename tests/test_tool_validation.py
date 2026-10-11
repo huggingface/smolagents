@@ -187,3 +187,27 @@ class TestMethodChecker:
         method_checker = MethodChecker(set())
         method_checker.visit(ast.parse(source_code))
         assert method_checker.errors == []
+
+    def test_with_tuple_unpacking(self):
+        source_code = dedent(
+            """
+            def forward(self) -> str:
+                with open("file") as (a, b):
+                    return a + b
+            """
+        )
+        method_checker = MethodChecker(set())
+        method_checker.visit(ast.parse(source_code))
+        assert method_checker.errors == []
+
+    def test_with_nested_unpacking(self):
+        source_code = dedent(
+            """
+            def forward(self) -> str:
+                with open("file") as [a, (b, c)]:
+                    return a + b + c
+            """
+        )
+        method_checker = MethodChecker(set())
+        method_checker.visit(ast.parse(source_code))
+        assert method_checker.errors == []
