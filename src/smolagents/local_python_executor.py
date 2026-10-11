@@ -600,6 +600,26 @@ def evaluate_class_def(
                 elif isinstance(target, ast.Attribute):
                     obj = evaluate_ast(target.value, class_dict, static_tools, custom_tools, authorized_imports)
                     setattr(obj, target.attr, value)
+                elif isinstance(target, ast.Tuple):
+                    # Tuple unpacking used to be dropped without a word, so the
+                    # class silently ended up without those attributes.
+                    if not isinstance(value, (tuple, list)):
+                        raise InterpreterError("cannot unpack non-sequence in class body")
+                    if len(target.elts) != len(value):
+                        raise InterpreterError("unpacking mismatch in class body")
+                    for element, item in zip(target.elts, value):
+                        if not isinstance(element, ast.Name):
+                            raise InterpreterError(
+                                f"Unsupported unpack target in class body: {type(element).__name__}"
+                            )
+                        class_dict[element.id] = item
+                elif isinstance(target, ast.Subscript):
+                    # Same for subscript assignments: they were accepted and ignored.
+                    container = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
+                    index = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
+                    container[index] = value
+                else:
+                    raise InterpreterError(f"Unsupported assignment target in class body: {type(target).__name__}")
         elif isinstance(stmt, ast.Pass):
             pass
         elif (
@@ -996,6 +1016,11 @@ def evaluate_condition(
 
         if current_result is False:
             return False
+        # A false-like object also ends the chain and CPython returns that value
+        # itself, but an array-like result (pandas/numpy comparisons) cannot be
+        # tested for truth at all, so leave those to the existing accumulation.
+        if not hasattr(current_result, "__len__") and not current_result:
+            return current_result
         result = current_result if i == 0 else (result and current_result)
         left = right
     return result

@@ -2987,3 +2987,45 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_class_body_tuple_and_subscript_assignments_apply():
+    """Native Python is the control: these must not be dropped silently."""
+    executor = LocalPythonExecutor([])
+    executor.send_tools({})
+
+    output = executor(
+        'table = {"value": 2}\n'
+        "class Settings:\n"
+        "    lower, upper = (2, 7)\n"
+        '    table["value"] = 7\n'
+        'result = (hasattr(Settings, "lower"), hasattr(Settings, "upper"), table["value"])\n'
+    )
+
+    assert output.output == (True, True, 7)
+
+
+def test_chained_comparison_short_circuits_on_a_false_like_result():
+    """CPython skips the later operands once a comparison is false-like."""
+    executor = LocalPythonExecutor([])
+    executor.send_tools({})
+
+    output = executor(
+        "events = []\n"
+        "class FalseLike:\n"
+        "    def __bool__(self):\n"
+        "        events.append('bool')\n"
+        "        return False\n"
+        "class Left:\n"
+        "    def __lt__(self, other):\n"
+        "        events.append('lt')\n"
+        "        return FalseLike()\n"
+        "def probe():\n"
+        "    events.append('probe')\n"
+        "    return 2\n"
+        "result = Left() < 1 < probe()\n"
+        "events\n"
+    )
+
+    # The second comparison must not run, so probe() never appends.
+    assert output.output == ["lt", "bool"]
