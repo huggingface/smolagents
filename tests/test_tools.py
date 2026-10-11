@@ -25,7 +25,14 @@ import PIL.Image
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
+from smolagents.tools import (
+    AUTHORIZED_TYPES,
+    Tool,
+    ToolCollection,
+    launch_gradio_demo,
+    tool,
+    validate_tool_arguments,
+)
 
 from .utils.markers import require_run_all
 
@@ -62,7 +69,9 @@ class ToolTesterMixin:
 
     @pytest.fixture
     def create_inputs(self, shared_datadir):
-        def _create_inputs(tool_inputs: dict[str, dict[str | type, str]]) -> dict[str, Any]:
+        def _create_inputs(
+            tool_inputs: dict[str, dict[str | type, str]],
+        ) -> dict[str, Any]:
             inputs = {}
 
             for input_name, input_desc in tool_inputs.items():
@@ -71,7 +80,9 @@ class ToolTesterMixin:
                 if input_type == "string":
                     inputs[input_name] = "Text input"
                 elif input_type == "image":
-                    inputs[input_name] = PIL.Image.open(shared_datadir / "000000039769.png").resize((512, 512))
+                    inputs[input_name] = PIL.Image.open(
+                        shared_datadir / "000000039769.png"
+                    ).resize((512, 512))
                 elif input_type == "audio":
                     inputs[input_name] = np.ones(3000)
                 else:
@@ -92,11 +103,17 @@ class TestTool:
             # Invalid cases
             ("invalid_type", ValueError, "must be one of"),
             (["string", "invalid_type"], ValueError, "must be one of"),
-            ([123, "string"], TypeError, "when type is a list, all elements must be strings"),
+            (
+                [123, "string"],
+                TypeError,
+                "when type is a list, all elements must be strings",
+            ),
             (123, TypeError, "must be a string or list of strings"),
         ],
     )
-    def test_tool_input_type_validation(self, type_value, should_raise_error, error_contains):
+    def test_tool_input_type_validation(
+        self, type_value, should_raise_error, error_contains
+    ):
         """Test the validation of the type property in tool inputs."""
 
         # Define a tool class with the test type value
@@ -126,7 +143,10 @@ class TestTool:
     @pytest.mark.parametrize(
         "tool_fixture, expected_output",
         [
-            ("no_input_tool", 'def no_input_tool() -> string:\n    """Tool with no inputs\n    """'),
+            (
+                "no_input_tool",
+                'def no_input_tool() -> string:\n    """Tool with no inputs\n    """',
+            ),
             (
                 "single_input_tool",
                 'def single_input_tool(text: string) -> string:\n    """Tool with one input\n\n    Args:\n        text: Input text\n    """',
@@ -141,7 +161,9 @@ class TestTool:
             ),
         ],
     )
-    def test_tool_to_code_prompt_output_format(self, tool_fixture, expected_output, request):
+    def test_tool_to_code_prompt_output_format(
+        self, tool_fixture, expected_output, request
+    ):
         """Test that to_code_prompt generates properly formatted and indented output."""
         tool = request.getfixturevalue(tool_fixture)
         code_prompt = tool.to_code_prompt()
@@ -168,7 +190,9 @@ class TestTool:
             ),
         ],
     )
-    def test_tool_to_tool_calling_prompt_output_format(self, tool_fixture, expected_output, request):
+    def test_tool_to_tool_calling_prompt_output_format(
+        self, tool_fixture, expected_output, request
+    ):
         """Test that to_tool_calling_prompt generates properly formatted output."""
         tool = request.getfixturevalue(tool_fixture)
         tool_calling_prompt = tool.to_tool_calling_prompt()
@@ -297,7 +321,9 @@ class TestTool:
         class FailTool(Tool):
             name = "specific"
             description = "test description"
-            inputs = {"string_input": {"type": "string", "description": "input description"}}
+            inputs = {
+                "string_input": {"type": "string", "description": "input description"}
+            }
             output_type = "string"
 
             def __init__(self, url):
@@ -310,12 +336,17 @@ class TestTool:
         fail_tool = FailTool("dummy_url")
         with pytest.raises(Exception) as e:
             fail_tool.to_dict()
-        assert "Parameters in __init__ must have default values, found required parameters" in str(e)
+        assert (
+            "Parameters in __init__ must have default values, found required parameters"
+            in str(e)
+        )
 
         class PassTool(Tool):
             name = "specific"
             description = "test description"
-            inputs = {"string_input": {"type": "string", "description": "input description"}}
+            inputs = {
+                "string_input": {"type": "string", "description": "input description"}
+            }
             output_type = "string"
 
             def __init__(self, url: str | None = "none"):
@@ -335,7 +366,9 @@ class TestTool:
         class FailTool(Tool):
             name = "specific"
             description = "test description"
-            inputs = {"string_input": {"type": "string", "description": "input description"}}
+            inputs = {
+                "string_input": {"type": "string", "description": "input description"}
+            }
             output_type = "string"
 
             def useless_method(self):
@@ -354,7 +387,9 @@ class TestTool:
         class SuccessTool(Tool):
             name = "specific"
             description = "test description"
-            inputs = {"string_input": {"type": "string", "description": "input description"}}
+            inputs = {
+                "string_input": {"type": "string", "description": "input description"}
+            }
             output_type = "string"
 
             def useless_method(self):
@@ -499,7 +534,9 @@ class TestTool:
 
     def test_tool_supports_array(self):
         @tool
-        def get_weather(locations: list[str], months: tuple[str, str] | None = None) -> dict[str, float]:
+        def get_weather(
+            locations: list[str], months: tuple[str, str] | None = None
+        ) -> dict[str, float]:
             """
             Get weather in the next days at given locations.
 
@@ -555,7 +592,9 @@ class TestTool:
         assert get_choice.inputs["choice"]["nullable"] is True
         assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
 
-    def test_saving_tool_produces_valid_python_code_with_multiline_description(self, tmp_path):
+    def test_saving_tool_produces_valid_python_code_with_multiline_description(
+        self, tmp_path
+    ):
         @tool
         def get_weather(location: Any) -> None:
             """
@@ -572,7 +611,9 @@ class TestTool:
             source_code = f.read()
             compile(source_code, f.name, "exec")
 
-    @pytest.mark.parametrize("fixture_name", ["boolean_default_tool_class", "boolean_default_tool_function"])
+    @pytest.mark.parametrize(
+        "fixture_name", ["boolean_default_tool_class", "boolean_default_tool_function"]
+    )
     def test_to_dict_boolean_default_input(self, fixture_name, request):
         """Test that boolean input parameter with default value is correctly represented in to_dict output"""
         tool = request.getfixturevalue(fixture_name)
@@ -582,7 +623,9 @@ class TestTool:
         # Check nullable attribute is set for the parameter with default value
         assert "'nullable': True" in result["code"]
 
-    @pytest.mark.parametrize("fixture_name", ["optional_input_tool_class", "optional_input_tool_function"])
+    @pytest.mark.parametrize(
+        "fixture_name", ["optional_input_tool_class", "optional_input_tool_function"]
+    )
     def test_to_dict_optional_input(self, fixture_name, request):
         """Test that Optional/nullable input parameter is correctly represented in to_dict output"""
         tool = request.getfixturevalue(fixture_name)
@@ -739,7 +782,9 @@ class TestToolDecorator:
         assert "            count: int = 1," not in forward_source
         assert "            count: int=1," not in forward_source
 
-    def test_tool_decorator_source_extraction_with_multiple_decorators_and_multiline(self):
+    def test_tool_decorator_source_extraction_with_multiple_decorators_and_multiline(
+        self,
+    ):
         """Test that @tool works with both multiple decorators and multiline signatures."""
 
         def dummy_decorator_1(func):
@@ -818,8 +863,12 @@ def mock_smolagents_adapter():
 # Ignore FutureWarning about structured_output default value change: this test intentionally uses default behavior
 @pytest.mark.filterwarnings("ignore:.*structured_output:FutureWarning")
 class TestToolCollection:
-    def test_from_mcp(self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter):
-        with ToolCollection.from_mcp(mock_server_parameters, trust_remote_code=True) as tool_collection:
+    def test_from_mcp(
+        self, mock_server_parameters, mock_mcp_adapt, mock_smolagents_adapter
+    ):
+        with ToolCollection.from_mcp(
+            mock_server_parameters, trust_remote_code=True
+        ) as tool_collection:
             assert isinstance(tool_collection, ToolCollection)
             assert len(tool_collection.tools) == 2
             assert "tool1" in tool_collection.tools
@@ -845,10 +894,16 @@ class TestToolCollection:
             args=["-c", mcp_server_script],
         )
 
-        with ToolCollection.from_mcp(mcp_server_params, trust_remote_code=True) as tool_collection:
+        with ToolCollection.from_mcp(
+            mcp_server_params, trust_remote_code=True
+        ) as tool_collection:
             assert len(tool_collection.tools) == 1, "Expected 1 tool"
-            assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
-            assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
+            assert tool_collection.tools[0].name == "echo_tool", (
+                "Expected tool name to be 'echo_tool'"
+            )
+            assert tool_collection.tools[0](text="Hello") == "Hello", (
+                "Expected tool to echo the input text"
+            )
 
     def test_integration_from_mcp_with_streamable_http(self):
         import subprocess
@@ -877,11 +932,16 @@ class TestToolCollection:
 
         try:
             with ToolCollection.from_mcp(
-                {"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True
+                {"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"},
+                trust_remote_code=True,
             ) as tool_collection:
                 assert len(tool_collection.tools) == 1, "Expected 1 tool"
-                assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
-                assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
+                assert tool_collection.tools[0].name == "echo_tool", (
+                    "Expected tool name to be 'echo_tool'"
+                )
+                assert tool_collection.tools[0](text="Hello") == "Hello", (
+                    "Expected tool to echo the input text"
+                )
         finally:
             # clean up the process when test is done
             server_process.kill()
@@ -914,11 +974,16 @@ class TestToolCollection:
 
         try:
             with ToolCollection.from_mcp(
-                {"url": "http://127.0.0.1:8000/sse", "transport": "sse"}, trust_remote_code=True
+                {"url": "http://127.0.0.1:8000/sse", "transport": "sse"},
+                trust_remote_code=True,
             ) as tool_collection:
                 assert len(tool_collection.tools) == 1, "Expected 1 tool"
-                assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
-                assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
+                assert tool_collection.tools[0].name == "echo_tool", (
+                    "Expected tool name to be 'echo_tool'"
+                )
+                assert tool_collection.tools[0](text="Hello") == "Hello", (
+                    "Expected tool to echo the input text"
+                )
         finally:
             # clean up the process when test is done
             server_process.kill()
@@ -977,7 +1042,13 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         # - Valid input
         ("required_unsupported_none", str, ..., "text", None),
         # - None not allowed
-        ("required_unsupported_none", str, ..., None, "Argument param has type 'null' but should be 'string'"),
+        (
+            "required_unsupported_none",
+            str,
+            ...,
+            None,
+            "Argument param has type 'null' but should be 'string'",
+        ),
         # - Missing required parameter is not allowed
         ("required_unsupported_none", str, ..., ..., "Argument param is required"),
         #
@@ -1032,7 +1103,9 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
         ("optional_supported_none_none_default", str | None, None, ..., None),
     ],
 )
-def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_value, expected_error_message):
+def test_validate_tool_arguments_nullable(
+    scenario, type_hint, default, input_value, expected_error_message
+):
     """Test validation of tool arguments with focus on nullable properties: optional (with default value) and supporting None value."""
 
     # Create a tool with the appropriate signature
@@ -1067,6 +1140,7 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
 
+
 def test_from_hub_pops_hub_download_options(tmp_path):
     """Regression for #2928: Hub download options must not reach the tool constructor.
 
@@ -1075,7 +1149,7 @@ def test_from_hub_pops_hub_download_options(tmp_path):
     constructor must not fail because ``cache_dir`` leaked into ``__init__``.
     """
     tool_source = dedent(
-        '''
+        """
         from smolagents import Tool
 
 
@@ -1091,7 +1165,7 @@ def test_from_hub_pops_hub_download_options(tmp_path):
 
             def forward(self, value: int) -> int:
                 return value
-        '''
+        """
     )
     tool_path = tmp_path / "tool.py"
     tool_path.write_text(tool_source)
