@@ -16,6 +16,7 @@ import inspect
 import os
 import textwrap
 import unittest
+from types import SimpleNamespace
 
 import pytest
 from IPython.core.interactiveshell import InteractiveShell
@@ -23,6 +24,7 @@ from IPython.core.interactiveshell import InteractiveShell
 from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
+    RateLimiter,
     create_agent_gradio_app_template,
     get_source,
     instance_to_source,
@@ -30,6 +32,38 @@ from smolagents.utils import (
     parse_code_blobs,
     parse_json_blob,
 )
+
+
+@pytest.mark.parametrize("wall_time", [999.25, 1_000_000.25])
+def test_rate_limiter_ignores_wall_clock_changes(monkeypatch, wall_time):
+    clock = SimpleNamespace(now=0.0, wall=1000.0, sleeps=[])
+
+    def sleep(delay):
+        clock.sleeps.append(delay)
+        clock.now += delay
+
+    monkeypatch.setattr(
+        "smolagents.utils.time",
+        SimpleNamespace(time=lambda: clock.wall, monotonic=lambda: clock.now, sleep=sleep),
+    )
+    limiter = RateLimiter(requests_per_minute=60)
+
+    limiter.throttle()
+    assert clock.sleeps == []
+
+    clock.now = 0.25
+    clock.wall = wall_time
+    limiter.throttle()
+    assert clock.sleeps == pytest.approx([0.75])
+
+    clock.now = 2.0
+    limiter.throttle()
+    assert clock.sleeps == pytest.approx([0.75])
+
+
+def test_disabled_rate_limiter_does_not_read_clock(monkeypatch):
+    monkeypatch.setattr("smolagents.utils.time", SimpleNamespace())
+    RateLimiter().throttle()
 
 
 class ValidTool(Tool):

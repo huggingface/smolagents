@@ -512,17 +512,18 @@ class RateLimiter:
     def __init__(self, requests_per_minute: float | None = None):
         self._enabled = requests_per_minute is not None
         self._interval = 60.0 / requests_per_minute if self._enabled else 0.0
-        self._last_call = 0.0
+        self._last_call: float | None = None
 
     def throttle(self):
         """Pause execution to respect the rate limit, if enabled."""
         if not self._enabled:
             return
-        now = time.time()
-        elapsed = now - self._last_call
-        if elapsed < self._interval:
-            time.sleep(self._interval - elapsed)
-        self._last_call = time.time()
+        now = time.monotonic()
+        if self._last_call is not None:
+            elapsed = now - self._last_call
+            if elapsed < self._interval:
+                time.sleep(self._interval - elapsed)
+        self._last_call = time.monotonic()
 
 
 class Retrying:
