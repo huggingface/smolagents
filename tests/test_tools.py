@@ -16,7 +16,7 @@ import inspect
 import os
 import warnings
 from textwrap import dedent
-from typing import Any, Literal
+from typing import Any, Literal, Union
 from unittest.mock import MagicMock, patch
 
 import mcp
@@ -968,6 +968,25 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, {"argument_a": expected_input})
+
+
+def test_tool_accepts_anyof_input():
+    @tool
+    def calculate(selection: Union[Literal[2, "double"], list[int]]) -> int:
+        """Calculate the selected quantities.
+
+        Args:
+            selection: A doubling selector or an explicit integer list to sum.
+        """
+        return sum(selection) if isinstance(selection, list) else 74
+
+    assert "anyOf" in calculate.inputs["selection"]
+    assert calculate(selection=[23, 31, 47]) == 101
+    validate_tool_arguments(calculate, {"selection": [1, 2]})
+    validate_tool_arguments(calculate, {"selection": "double"})
+    with pytest.raises(TypeError):
+        validate_tool_arguments(calculate, {"selection": 1.5})
+    assert "selection:" in calculate.to_code_prompt()
 
 
 @pytest.mark.parametrize(
