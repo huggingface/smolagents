@@ -247,6 +247,58 @@ test_func(**None)
         assert state["TestClass"].data.attr1 == "value1"
         assert state["TestClass"].data.attr2 == "value2"
 
+    def test_evaluate_class_def_rhs_sees_class_local_bindings(self):
+        """
+        Test that the right-hand side of a class-body assignment resolves names
+        against earlier class-local bindings, shadowing enclosing scopes.
+        """
+        code = dedent("""\
+            value = "global"
+            class Settings:
+                value = "local"
+                alias = value
+            result = (Settings.value, Settings.alias, value)
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert result == ("local", "local", "global")
+
+    def test_evaluate_class_def_annassign_rhs_sees_class_local_bindings(self):
+        """
+        Test that an annotated class-body assignment resolves its value against
+        earlier class-local bindings as well.
+        """
+        code = dedent("""\
+            value = "global"
+            class Settings:
+                value = "local"
+                alias: str = value
+            result = (Settings.value, Settings.alias, value)
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert result == ("local", "local", "global")
+
+    def test_evaluate_class_def_comprehension_does_not_leak_into_class_dict(self):
+        """
+        Test that comprehension loop variables evaluated in a class body do not
+        leak into the class namespace.
+        """
+        code = dedent("""\
+            class C:
+                items = [i * 2 for i in range(3)]
+            result = (C.items, hasattr(C, "i"))
+        """)
+
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert result == ([0, 2, 4], False)
+
     def test_evaluate_constant(self):
         code = "x = 3"
         state = {}

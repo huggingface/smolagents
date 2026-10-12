@@ -22,6 +22,7 @@ import logging
 import math
 import re
 from abc import ABC, abstractmethod
+from collections import ChainMap
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -562,12 +563,17 @@ def evaluate_class_def(
     else:
         class_dict = {}
 
+    # Class-body name resolution: names bound earlier in the body shadow
+    # enclosing scopes, matching CPython class-body semantics. ChainMap
+    # holds a live reference to class_dict, so later bindings are visible.
+    class_state = ChainMap(class_dict, state)
+
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
             class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value:
-                value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
+                value = evaluate_ast(stmt.value, class_state, static_tools, custom_tools, authorized_imports)
             target = stmt.target
             # Handle target types for annotation
             if isinstance(target, ast.Name):
@@ -593,7 +599,10 @@ def evaluate_class_def(
             else:
                 raise InterpreterError(f"Unsupported AnnAssign target in class body: {type(target).__name__}")
         elif isinstance(stmt, ast.Assign):
-            value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
+            # Evaluate the right-hand side against class_state so that names
+            # bound earlier in the class body take precedence over enclosing
+            # scopes, as in native Python.
+            value = evaluate_ast(stmt.value, class_state, static_tools, custom_tools, authorized_imports)
             for target in stmt.targets:
                 if isinstance(target, ast.Name):
                     class_dict[target.id] = value
