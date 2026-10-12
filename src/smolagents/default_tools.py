@@ -415,13 +415,15 @@ class WebSearchTool(Tool):
                 elif tag == "tr":
                     # Store current result if all parts are present
                     if {"title", "description", "link"} <= self.current.keys():
+                        self.current["title"] = " ".join(part for part in self.current["title"] if part)
                         self.current["description"] = " ".join(self.current["description"])
                         self.results.append(self.current)
                         self.current = {}
 
             def handle_data(self, data):
                 if self.capture_title:
-                    self.current["title"] = data.strip()
+                    self.current.setdefault("title", [])
+                    self.current["title"].append(data.strip())
                 elif self.capture_description:
                     self.current.setdefault("description", [])
                     self.current["description"].append(data.strip())

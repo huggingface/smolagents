@@ -252,3 +252,48 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+class TestDuckDuckGoParser(unittest.TestCase):
+    def _parse(self, html):
+        parser = WebSearchTool(engine="duckduckgo")._create_duckduckgo_parser()
+        parser.feed(html)
+        return parser.results
+
+    def test_title_preserved_across_nested_tags(self):
+        html = (
+            "<table><tr>"
+            "<td><a class='result-link'><b>Local</b> inventory &amp; count</a></td>"
+            "<td class='result-snippet'>There are <strong>17</strong> entries.</td>"
+            "<td><span class='link-text'>catalog.invalid/local</span></td>"
+            "</tr></table>"
+        )
+        results = self._parse(html)
+        assert len(results) == 1
+        assert results[0]["title"] == "Local inventory & count"
+        assert results[0]["description"] == "There are 17 entries."
+        assert results[0]["link"] == "https://catalog.invalid/local"
+
+    def test_title_without_nested_tags_unchanged(self):
+        html = (
+            "<table><tr>"
+            "<td><a class='result-link'>Plain title</a></td>"
+            "<td class='result-snippet'>One.</td>"
+            "<td><span class='link-text'>a.invalid</span></td>"
+            "</tr></table>"
+        )
+        results = self._parse(html)
+        assert len(results) == 1
+        assert results[0]["title"] == "Plain title"
+
+    def test_title_with_multiple_nested_fragments(self):
+        html = (
+            "<table><tr>"
+            "<td><a class='result-link'><i>A</i><b>B</b>  <u>C</u></a></td>"
+            "<td class='result-snippet'>Two.</td>"
+            "<td><span class='link-text'>b.invalid</span></td>"
+            "</tr></table>"
+        )
+        results = self._parse(html)
+        assert len(results) == 1
+        assert results[0]["title"] == "A B C"
