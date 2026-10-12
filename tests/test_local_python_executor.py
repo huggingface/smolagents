@@ -2987,3 +2987,14 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_print_as_callback_is_captured():
+    """Print used as a callback (e.g. map(print, ...)) must appear in logs."""
+    executor = LocalPythonExecutor([])
+    executor.send_tools({})
+    direct = executor("print('red')\nprint('blue')")
+    assert direct.logs == "red\nblue\n"
+    callback = executor("list(map(print, ['red', 'blue']))")
+    assert callback.output == [None, None]
+    assert callback.logs == "red\nblue\n"
