@@ -1066,3 +1066,17 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class TestFromGradioAnnotations:
+    def test_a_python_class_annotation_maps_to_its_json_type(self):
+        class FakeGradioTool:
+            name = "read_file"
+            description = "Reads a file."
+
+            def run(self, path: str, retries: int) -> str:
+                return path
+
+        tool = Tool.from_gradio(FakeGradioTool())
+        assert tool.inputs["path"]["type"] == "string"
+        assert tool.inputs["retries"]["type"] == "integer"

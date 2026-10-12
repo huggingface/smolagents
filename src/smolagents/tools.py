@@ -752,8 +752,15 @@ class Tool(BaseTool):
                 self.output_type = "string"
                 self._gradio_tool = _gradio_tool
                 func_args = list(inspect.signature(_gradio_tool.run).parameters.items())
+                # An annotation is the class itself (str), while CONVERSION_DICT is keyed by name ("str").
                 self.inputs = {
-                    key: {"type": CONVERSION_DICT[value.annotation], "description": ""} for key, value in func_args
+                    key: {
+                        "type": CONVERSION_DICT[
+                            value.annotation.__name__ if isinstance(value.annotation, type) else value.annotation
+                        ],
+                        "description": "",
+                    }
+                    for key, value in func_args
                 }
                 self.forward = self._gradio_tool.run
 
