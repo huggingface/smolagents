@@ -15,6 +15,8 @@
 import inspect
 import os
 import textwrap
+import threading
+import time
 import unittest
 
 import pytest
@@ -23,6 +25,7 @@ from IPython.core.interactiveshell import InteractiveShell
 from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
+    RateLimiter,
     create_agent_gradio_app_template,
     get_source,
     instance_to_source,
@@ -552,3 +555,40 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+class RateLimiterTests(unittest.TestCase):
+    def test_disabled_limiter_is_noop(self):
+        limiter = RateLimiter()
+        start = time.monotonic()
+        for _ in range(100):
+            limiter.throttle()
+        assert time.monotonic() - start < 1.0
+
+    def test_throttle_enforces_interval(self):
+        limiter = RateLimiter(requests_per_minute=600)  # 0.1s interval
+        start = time.monotonic()
+        limiter.throttle()
+        limiter.throttle()
+        assert time.monotonic() - start >= 0.1 - 0.02
+
+    def test_throttle_is_thread_safe(self):
+        limiter = RateLimiter(requests_per_minute=600)  # 0.1s interval
+        timestamps = []
+        timestamps_lock = threading.Lock()
+
+        def worker():
+            for _ in range(3):
+                limiter.throttle()
+                with timestamps_lock:
+                    timestamps.append(time.monotonic())
+
+        threads = [threading.Thread(target=worker) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        timestamps.sort()
+        for earlier, later in zip(timestamps, timestamps[1:]):
+            assert later - earlier >= 0.1 - 0.02

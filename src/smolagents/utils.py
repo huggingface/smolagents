@@ -23,6 +23,7 @@ import keyword
 import os
 import random
 import re
+import threading
 import time
 from functools import lru_cache
 from io import BytesIO
@@ -513,16 +514,18 @@ class RateLimiter:
         self._enabled = requests_per_minute is not None
         self._interval = 60.0 / requests_per_minute if self._enabled else 0.0
         self._last_call = 0.0
+        self._lock = threading.Lock()
 
     def throttle(self):
         """Pause execution to respect the rate limit, if enabled."""
         if not self._enabled:
             return
-        now = time.time()
-        elapsed = now - self._last_call
-        if elapsed < self._interval:
-            time.sleep(self._interval - elapsed)
-        self._last_call = time.time()
+        with self._lock:
+            now = time.time()
+            elapsed = now - self._last_call
+            if elapsed < self._interval:
+                time.sleep(self._interval - elapsed)
+            self._last_call = time.time()
 
 
 class Retrying:
