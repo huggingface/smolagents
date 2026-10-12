@@ -289,31 +289,36 @@ def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
-        if value["type"] == "any":
-            value["type"] = "string"
-        if not ("nullable" in value and value["nullable"]):
-            required.append(key)
-
         # parse anyOf
         if "anyOf" in value:
             types = []
             enum = None
             for t in value["anyOf"]:
-                if t["type"] == "null":
+                if t.get("type") == "null":
                     value["nullable"] = True
                     continue
-                if t["type"] == "any":
+                branch_types = t.get("type", "any")
+                if branch_types == "any":
                     types.append("string")
+                elif isinstance(branch_types, list):
+                    types.extend(branch_types)
                 else:
-                    types.append(t["type"])
+                    types.append(branch_types)
                 if "enum" in t:  # assuming there is only one enum in anyOf
                     enum = t["enum"]
 
-            value["type"] = types if len(types) > 1 else types[0]
+            value["type"] = list(dict.fromkeys(types))
+            if len(value["type"]) == 1:
+                value["type"] = value["type"][0]
             if enum is not None:
                 value["enum"] = enum
 
             value.pop("anyOf")
+        elif value.get("type") == "any":
+            value["type"] = "string"
+
+        if not value.get("nullable", False):
+            required.append(key)
 
     return {
         "type": "function",

@@ -555,6 +555,23 @@ class TestTool:
         assert get_choice.inputs["choice"]["nullable"] is True
         assert get_choice.inputs["choice"]["enum"] == [1, 2, 3]
 
+    def test_tool_supports_nullable_literal_in_union(self):
+        @tool
+        def calculate(selection: Union[Literal[None, 2, "double"], list[int]]) -> int:
+            """
+            Calculate a value from a selector or a list.
+
+            Args:
+                selection: The selector or list of values.
+            """
+            return 0
+
+        assert calculate.inputs["selection"]["nullable"] is True
+        validate_tool_arguments(calculate, {"selection": None})
+        validate_tool_arguments(calculate, {"selection": 2})
+        validate_tool_arguments(calculate, {"selection": "double"})
+        validate_tool_arguments(calculate, {"selection": [1, 2]})
+
     def test_saving_tool_produces_valid_python_code_with_multiline_description(self, tmp_path):
         @tool
         def get_weather(location: Any) -> None:

@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from typing import Literal, Union
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -221,6 +222,21 @@ class TestModel:
             return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
         assert "nullable" in get_tool_json_schema(get_weather)["function"]["parameters"]["properties"]["celsius"]
+
+    def test_get_json_schema_supports_anyof_tool_inputs(self):
+        @tool
+        def calculate(selection: Union[Literal[2, "double"], list[int]]) -> int:
+            """
+            Calculate a value from a selector or a list.
+
+            Args:
+                selection: The selector or list of values.
+            """
+            return 0
+
+        selection_schema = get_tool_json_schema(calculate)["function"]["parameters"]["properties"]["selection"]
+        assert selection_schema["type"] == ["integer", "string", "array"]
+        assert selection_schema["enum"] == [2, "double"]
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
