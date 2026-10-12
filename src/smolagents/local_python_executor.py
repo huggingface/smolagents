@@ -404,7 +404,7 @@ def evaluate_unaryop(
     if isinstance(expression.op, ast.USub):
         return -operand
     elif isinstance(expression.op, ast.UAdd):
-        return operand
+        return +operand
     elif isinstance(expression.op, ast.Not):
         return not operand
     elif isinstance(expression.op, ast.Invert):

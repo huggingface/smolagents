@@ -378,6 +378,17 @@ for result in search_results:
         assert result == 9
         self.assertDictEqualNoPrint(state, {"x": 3, "y": 6, "_operations_count": {"counter": 4}})
 
+    def test_evaluate_unary_plus_applies_python_numeric_semantics(self):
+        # Unary plus is not an identity: +True is int 1 in CPython, not bool.
+        code = "[+True, +False, +7, +2.5]"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == [1, 0, 7, 2.5]
+        assert [type(value).__name__ for value in result] == ["int", "int", "int", "float"]
+
+    def test_evaluate_unary_plus_on_non_numeric_raises_like_python(self):
+        with pytest.raises(InterpreterError):
+            evaluate_python_code('+"x"', {}, state={})
+
     def test_recursive_function(self):
         code = """
 def recur_fibo(n):
