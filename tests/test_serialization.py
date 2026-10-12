@@ -588,6 +588,11 @@ class TestNumpySupport:
         test_cases = [
             np.int32(42),
             np.float64(3.14),
+            np.str_("hello"),
+            np.bool_(True),
+            np.bytes_(b"abc"),
+            np.complex64(1 + 2j),
+            np.complex128(1 + 2j),
         ]
 
         for obj in test_cases:
