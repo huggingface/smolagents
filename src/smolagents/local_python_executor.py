@@ -17,6 +17,7 @@
 import ast
 import builtins
 import difflib
+import contextvars
 import inspect
 import logging
 import math
@@ -61,7 +62,12 @@ MAX_EXECUTION_TIME_SECONDS = 30
 ALLOWED_DUNDER_METHODS = ["__init__", "__str__", "__repr__"]
 
 
+_print_state: contextvars.ContextVar[dict | None] = contextvars.ContextVar("_print_state", default=None)
+
 def custom_print(*args):
+    state = _print_state.get()
+    if state is not None and "_print_outputs" in state:
+        state["_print_outputs"] += " ".join(map(str, args)) + "\n"
     return None
 
 
@@ -306,7 +312,8 @@ def timeout(timeout_seconds: int):
         def wrapper(*args, **kwargs):
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
             with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
+                ctx = contextvars.copy_context()
+                future = executor.submit(ctx.run, func, *args, **kwargs)
                 try:
                     result = future.result(timeout=timeout_seconds)
                     return result
@@ -1625,6 +1632,7 @@ def evaluate_python_code(
     static_tools = static_tools.copy() if static_tools is not None else {}
     custom_tools = custom_tools if custom_tools is not None else {}
     state["_print_outputs"] = PrintContainer()
+    token = _print_state.set(state)
     state["_operations_count"] = {"counter": 0}
 
     if "final_answer" in static_tools:
@@ -1664,7 +1672,10 @@ def evaluate_python_code(
     if timeout_seconds is not None:
         _execute_code = timeout(timeout_seconds)(_execute_code)
 
-    return _execute_code()
+    try:
+        return _execute_code()
+    finally:
+        _print_state.reset(token)
 
 
 @dataclass
