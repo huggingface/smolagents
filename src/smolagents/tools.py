@@ -92,7 +92,20 @@ AUTHORIZED_TYPES = [
     "null",
 ]
 
-CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
+CONVERSION_DICT = {
+    str: "string",
+    int: "integer",
+    float: "number",
+    bool: "boolean",
+    "str": "string",
+    "int": "integer",
+    "float": "number",
+    "bool": "boolean",
+    "string": "string",
+    "integer": "integer",
+    "number": "number",
+    "boolean": "boolean",
+}
 
 
 class BaseTool(ABC):
@@ -752,9 +765,20 @@ class Tool(BaseTool):
                 self.output_type = "string"
                 self._gradio_tool = _gradio_tool
                 func_args = list(inspect.signature(_gradio_tool.run).parameters.items())
-                self.inputs = {
-                    key: {"type": CONVERSION_DICT[value.annotation], "description": ""} for key, value in func_args
-                }
+                self.inputs = {}
+                for key, value in func_args:
+                    annotation = value.annotation
+                    if annotation == inspect.Parameter.empty:
+                        arg_type = "string"
+                    elif annotation in CONVERSION_DICT:
+                        arg_type = CONVERSION_DICT[annotation]
+                    elif hasattr(annotation, "__name__") and annotation.__name__ in CONVERSION_DICT:
+                        arg_type = CONVERSION_DICT[annotation.__name__]
+                    elif isinstance(annotation, str) and annotation.lower() in AUTHORIZED_TYPES:
+                        arg_type = annotation.lower()
+                    else:
+                        arg_type = "string"
+                    self.inputs[key] = {"type": arg_type, "description": ""}
                 self.forward = self._gradio_tool.run
 
         return GradioToolWrapper(gradio_tool)
