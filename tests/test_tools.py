@@ -1066,3 +1066,21 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+def test_tool_from_gradio_plain_annotations():
+    class MockGradioTool:
+        name = "mock_tool"
+        description = "A mock gradio tool"
+
+        def run(self, x: str, y: int, z: float):
+            return f"{x} {y} {z}"
+
+    tool_obj = Tool.from_gradio(MockGradioTool())
+    assert tool_obj.name == "mock_tool"
+    assert tool_obj.inputs == {
+        "x": {"type": "string", "description": ""},
+        "y": {"type": "integer", "description": ""},
+        "z": {"type": "number", "description": ""},
+    }
+

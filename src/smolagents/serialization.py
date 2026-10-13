@@ -152,10 +152,9 @@ class SafeSerializer:
             np_ndarray = SafeSerializer._get_optional_type("numpy", "ndarray")
             if np_ndarray is not None and obj_type is np_ndarray:
                 return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
-            np_integer = SafeSerializer._get_optional_type("numpy", "integer")
-            np_floating = SafeSerializer._get_optional_type("numpy", "floating")
-            if (np_integer and isinstance(obj, np_integer)) or (np_floating and isinstance(obj, np_floating)):
-                return obj.item()
+            np_generic = SafeSerializer._get_optional_type("numpy", "generic")
+            if np_generic is not None and isinstance(obj, np_generic):
+                return SafeSerializer.to_json_safe(obj.item())
 
         # dataclass - check last as is_dataclass() has overhead
         import dataclasses
