@@ -1331,7 +1331,19 @@ class ToolCallingAgent(MultiStepAgent):
                 raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
         else:
             for tool_call in chat_message.tool_calls:
-                tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+                raw_arguments = tool_call.function.arguments
+                parsed_arguments = parse_json_if_needed(raw_arguments)
+                # A native tool call must carry a JSON object. `parse_json_if_needed` returns the
+                # input unchanged when the parse fails, which would hand the raw (e.g. truncated)
+                # string to the tool as if it were a real argument value. Report it so the model
+                # can correct the call instead.
+                if isinstance(parsed_arguments, str) and parsed_arguments.lstrip()[:1] in ("{", "["):
+                    raise AgentToolCallError(
+                        f"Tool call '{tool_call.function.name}' has arguments that are not valid JSON: {raw_arguments!r}. "
+                        "Native tool call arguments must be a valid JSON object.",
+                        self.logger,
+                    )
+                tool_call.function.arguments = parsed_arguments
         final_answer, got_final_answer = None, False
         for output in self.process_tool_calls(chat_message, memory_step):
             yield output
