@@ -2248,6 +2248,30 @@ print("Ok, calculation done!")""")
         assert "open" in agent.python_executor.static_tools
 
     @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10", "v1.20"])
+    def test_from_folder_keeps_an_explicit_managed_agents_argument(self, agent_dict_version, get_agent_dict):
+        """An explicit managed_agents argument replaces the saved ones, and the saved child is not rebuilt."""
+        import json
+
+        agent_dict = get_agent_dict(agent_dict_version)
+        agent_dict["managed_agents"] = {"saved_child": "ToolCallingAgent"}
+
+        class MustNotBeRebuilt:
+            @staticmethod
+            def from_folder(*_args, **_kwargs):
+                raise AssertionError("the saved managed agent was rebuilt despite the explicit argument")
+
+        explicit = [object()]
+        with (
+            patch("smolagents.agents.Path") as mock_path,
+            patch("smolagents.agents.AGENT_REGISTRY", {"ToolCallingAgent": MustNotBeRebuilt}),
+            patch.object(CodeAgent, "from_dict", return_value="agent") as from_dict,
+        ):
+            mock_path.return_value.__truediv__.return_value.read_text.return_value = json.dumps(agent_dict)
+            CodeAgent.from_folder("ignored_dummy_folder", managed_agents=explicit)
+
+        assert from_dict.call_args.kwargs["managed_agents"] is explicit
+
+    @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10", "v1.20"])
     def test_from_folder(self, agent_dict_version, get_agent_dict):
         agent_dict = get_agent_dict(agent_dict_version)
         mock_model_class = MagicMock()
