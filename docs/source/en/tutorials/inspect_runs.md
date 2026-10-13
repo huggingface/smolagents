@@ -115,6 +115,60 @@ Start the UI to inspect traces, then open the Traces view in your browser:
 mlflow server --port 5000
 ```
 
+## Setting up telemetry with Confident AI
+
+[Confident AI](https://www.confident-ai.com/) is an LLM observability and evaluation platform. Its OpenTelemetry-native tracing SDK, [`confident-trace`](https://github.com/confident-ai/confident-trace), detects smolagents on its own, so a single `init()` call traces agent runs along with the model and tool calls beneath them. You do not have to register an instrumentor or configure a tracer provider.
+
+Install the SDK alongside smolagents and the provider SDK your model uses:
+
+```shell
+pip install confident-trace 'smolagents[openai]'
+```
+
+Set your [Confident AI project API key](https://app.confident-ai.com) and your provider key. Set `CONFIDENT_OTEL_ENDPOINT` to `https://eu.otel.confident-ai.com/v1/traces` if your project is in the EU region, otherwise traces are sent to the US servers:
+
+```shell
+export CONFIDENT_API_KEY="<your-confident-api-key>"
+export OPENAI_API_KEY="<your-openai-key>"
+```
+
+Call `init()` once before you build an agent, and call `shutdown()` when the process exits so queued traces are flushed:
+
+```python
+import os
+
+from confident_trace import init, shutdown
+from smolagents import OpenAIModel, ToolCallingAgent
+
+init()
+
+agent = ToolCallingAgent(
+    model=OpenAIModel("gpt-4o-mini", api_key=os.environ["OPENAI_API_KEY"]),
+    tools=[],
+)
+
+try:
+    result = agent.run("Explain OpenTelemetry in one sentence.")
+    print(result)
+finally:
+    shutdown()
+```
+
+smolagents spans describe the structure of the run. Model calls are captured by the provider integration underneath, so keep the integration for your provider SDK enabled to see LLM spans with messages, model details, and token usage. Traces appear in the Confident AI Observatory.
+
+### Online evals
+
+You can configure what happens to your incoming traces on Confident AI's [workflows page](https://www.confident-ai.com/docs/llm-tracing/workflows).
+
+![Confident AI workflows page](https://confident-docs.s3.us-east-1.amazonaws.com/confident-trace-workflows.png)
+
+- **Evaluation rules** — evaluate incoming traces against a [metric collection](https://www.confident-ai.com/docs/metrics/metric-collections).
+- **Classifiers** — label your traces by issue, sentiment, or any dimension you define, which lets you group or filter them later on.
+- **Queue ingestion** — route your production traces into annotation queues for your internal review team to annotate them by hand.
+- **Dataset ingestion** — ingest your production traces into datasets to reuse as test cases and iterate on results to improve over time.
+
+See the [Confident AI smolagents guide](https://www.confident-ai.com/docs/integrations/third-party/smolagents) for trace properties, multi-turn threads, and the rest of the configuration options.
+
 ## Setting up telemetry with 🪢 Langfuse
 
 This part shows how to monitor and debug your Hugging Face **smolagents** with **Langfuse** using the `SmolagentsInstrumentor`.
