@@ -293,10 +293,12 @@ def get_tool_json_schema(tool: Tool) -> dict:
         if "anyOf" in value:
             types = []
             enum = None
+            non_null_branches = 0
             for t in value["anyOf"]:
                 if t.get("type") == "null":
                     value["nullable"] = True
                     continue
+                non_null_branches += 1
                 branch_types = t.get("type", "any")
                 if branch_types == "any":
                     types.append("string")
@@ -310,7 +312,9 @@ def get_tool_json_schema(tool: Tool) -> dict:
             value["type"] = list(dict.fromkeys(types))
             if len(value["type"]) == 1:
                 value["type"] = value["type"][0]
-            if enum is not None:
+            # Hoisting a branch's enum onto the whole property is only valid when that branch is the sole
+            # non-null alternative (e.g. Optional[Literal[...]]); otherwise it would reject the other branches.
+            if enum is not None and non_null_branches == 1:
                 value["enum"] = enum
 
             value.pop("anyOf")

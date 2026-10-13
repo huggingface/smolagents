@@ -42,7 +42,7 @@ from smolagents.models import (
     remove_content_after_stop_sequences,
     supports_stop_parameter,
 )
-from smolagents.tools import tool
+from smolagents.tools import Tool, tool
 
 from .utils.markers import require_run_all
 
@@ -234,9 +234,33 @@ class TestModel:
             """
             return 0
 
+        jsonschema = pytest.importorskip("jsonschema")
         selection_schema = get_tool_json_schema(calculate)["function"]["parameters"]["properties"]["selection"]
         assert selection_schema["type"] == ["integer", "string", "array"]
-        assert selection_schema["enum"] == [2, "double"]
+        assert "enum" not in selection_schema
+        for valid_value in ([23, 31, 47], 2, "double"):
+            jsonschema.validate(valid_value, selection_schema)
+
+    def test_get_json_schema_keeps_enum_for_single_non_null_anyof_branch(self):
+        class PickTool(Tool):
+            name = "pick"
+            description = "Pick a unit."
+            inputs = {
+                "unit": {
+                    "anyOf": [{"type": "string", "enum": ["celsius", "fahrenheit"]}, {"type": "null"}],
+                    "description": "The unit.",
+                    "nullable": True,
+                }
+            }
+            output_type = "string"
+
+            def forward(self, unit=None):
+                return str(unit)
+
+        unit_schema = get_tool_json_schema(PickTool())["function"]["parameters"]["properties"]["unit"]
+        assert unit_schema["type"] == "string"
+        assert unit_schema["enum"] == ["celsius", "fahrenheit"]
+        assert unit_schema["nullable"] is True
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
