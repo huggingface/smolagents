@@ -386,6 +386,10 @@ def _parse_type_hint(hint: type) -> dict:
 
 def _parse_union_type(args: tuple[Any, ...]) -> dict:
     subtypes = [_parse_type_hint(t) for t in args if t is not type(None)]
+    nullable = type(None) in args
+    for subtype in subtypes:
+        nullable = subtype.pop("nullable", False) or nullable
+
     if len(subtypes) == 1:
         # A single non-null type can be expressed directly
         return_dict = subtypes[0]
@@ -395,7 +399,7 @@ def _parse_union_type(args: tuple[Any, ...]) -> dict:
     else:
         # A union of more complex types requires "anyOf"
         return_dict = {"anyOf": subtypes}
-    if type(None) in args:
+    if nullable:
         return_dict["nullable"] = True
     return return_dict
 

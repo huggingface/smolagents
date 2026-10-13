@@ -95,6 +95,16 @@ AUTHORIZED_TYPES = [
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
 
 
+def _get_input_types(input_content: dict) -> list[str]:
+    """Collect the JSON-schema type names an input accepts, recursing into `anyOf`."""
+    if "type" in input_content:
+        input_type = input_content["type"]
+        return [input_type] if isinstance(input_type, str) else list(input_type)
+    if "anyOf" in input_content:
+        return [t for branch in input_content["anyOf"] for t in _get_input_types(branch)]
+    return ["any"]
+
+
 class BaseTool(ABC):
     name: str
 
@@ -171,23 +181,27 @@ class Tool(BaseTool):
         # Validate inputs
         for input_name, input_content in self.inputs.items():
             assert isinstance(input_content, dict), f"Input '{input_name}' should be a dictionary."
-            assert "type" in input_content and "description" in input_content, (
-                f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
+            assert "description" in input_content and ("type" in input_content or "anyOf" in input_content), (
+                f"Input '{input_name}' should have a 'description' and either 'type' or 'anyOf', "
+                f"has only {list(input_content.keys())}."
             )
-            # Get input_types as a list, whether from a string or list
-            if isinstance(input_content["type"], str):
-                input_types = [input_content["type"]]
-            elif isinstance(input_content["type"], list):
-                input_types = input_content["type"]
-                # Check if all elements are strings
-                if not all(isinstance(t, str) for t in input_types):
+            # Get input_types as a list, whether from a string, a list or an `anyOf` union
+            if "type" in input_content:
+                if isinstance(input_content["type"], str):
+                    input_types = [input_content["type"]]
+                elif isinstance(input_content["type"], list):
+                    input_types = input_content["type"]
+                    # Check if all elements are strings
+                    if not all(isinstance(t, str) for t in input_types):
+                        raise TypeError(
+                            f"Input '{input_name}': when type is a list, all elements must be strings, got {input_content['type']}"
+                        )
+                else:
                     raise TypeError(
-                        f"Input '{input_name}': when type is a list, all elements must be strings, got {input_content['type']}"
+                        f"Input '{input_name}': type must be a string or list of strings, got {type(input_content['type']).__name__}"
                     )
             else:
-                raise TypeError(
-                    f"Input '{input_name}': type must be a string or list of strings, got {type(input_content['type']).__name__}"
-                )
+                input_types = _get_input_types(input_content)
             # Check all types are authorized
             invalid_types = [t for t in input_types if t not in AUTHORIZED_TYPES]
             if invalid_types:
@@ -256,8 +270,10 @@ class Tool(BaseTool):
         self.is_initialized = True
 
     def to_code_prompt(self) -> str:
-        args_signature = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
-
+        args_signature = ", ".join(
+            f"{arg_name}: {arg_schema['type'] if 'type' in arg_schema else ' | '.join(dict.fromkeys(_get_input_types(arg_schema)))}"
+            for arg_name, arg_schema in self.inputs.items()
+        )
         # Use dict type for tools with output schema to indicate structured return
         has_schema = hasattr(self, "output_schema") and self.output_schema is not None
         output_type = "dict" if has_schema else self.output_type
@@ -1388,18 +1404,19 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
                 raise ValueError(f"Argument {key} is not in the tool's input schema")
 
             actual_type = _get_json_schema_type(type(value))["type"]
-            expected_type = tool.inputs[key]["type"]
+            expected_types = _get_input_types(tool.inputs[key])
             expected_type_is_nullable = tool.inputs[key].get("nullable", False)
 
-            # Type is valid if it matches, is "any", or is null for nullable parameters
+            # Type is valid if it matches, is "any", is an integer where a number is expected,
+            # or is null for nullable parameters
             if (
-                (actual_type != expected_type if isinstance(expected_type, str) else actual_type not in expected_type)
-                and expected_type != "any"
+                actual_type not in expected_types
+                and "any" not in expected_types
                 and not (actual_type == "null" and expected_type_is_nullable)
+                and not (actual_type == "integer" and "number" in expected_types)
             ):
-                if actual_type == "integer" and expected_type == "number":
-                    continue
-                raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'")
+                expected_repr = tool.inputs[key]["type"] if "type" in tool.inputs[key] else expected_types
+                raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{expected_repr}'")
 
         for key, schema in tool.inputs.items():
             key_is_nullable = schema.get("nullable", False)
@@ -1407,9 +1424,16 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
                 raise ValueError(f"Argument {key} is required")
         return None
     else:
-        expected_type = list(tool.inputs.values())[0]["type"]
-        if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
-            raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
+        input_schema = list(tool.inputs.values())[0]
+        expected_types = _get_input_types(input_schema)
+        actual_type = _get_json_schema_type(type(arguments))["type"]
+        if (
+            actual_type not in expected_types
+            and "any" not in expected_types
+            and not (actual_type == "integer" and "number" in expected_types)
+        ):
+            expected_repr = input_schema["type"] if "type" in input_schema else expected_types
+            raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_repr}'")
 
 
 __all__ = [
