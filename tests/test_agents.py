@@ -2250,9 +2250,11 @@ print("Ok, calculation done!")""")
     @pytest.mark.parametrize("agent_dict_version", ["v1.9", "v1.10", "v1.20"])
     def test_from_folder_keeps_an_explicit_managed_agents_argument(self, agent_dict_version, get_agent_dict):
         """An explicit managed_agents argument replaces the saved ones, and the saved child is not rebuilt."""
+        import copy
         import json
 
-        agent_dict = get_agent_dict(agent_dict_version)
+        # The fixture is shared across tests; copy it so this test's saved child does not leak into them.
+        agent_dict = copy.deepcopy(get_agent_dict(agent_dict_version))
         agent_dict["managed_agents"] = {"saved_child": "ToolCallingAgent"}
 
         class MustNotBeRebuilt:
