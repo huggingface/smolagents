@@ -78,6 +78,34 @@ model = OpenAIModel(
 )
 ```
 
+## Using Cheaper Inference Models
+
+Cheaper Inference is an OpenAI-compatible LLM gateway.
+You can use the [`OpenAIModel`] to connect to Cheaper Inference by setting the appropriate base URL.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then, [get a Cheaper Inference API key](https://cheaperinference.com/signup) and set it in your code:
+```python
+CHEAPER_INFERENCE_API_KEY = <YOUR-CHEAPER-INFERENCE-API-KEY>
+```
+
+Now, you can initialize any model available on Cheaper Inference using the `OpenAIModel` class:
+```python
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    # You can use any model ID available on Cheaper Inference
+    model_id="gpt-5.4-mini",
+    # Cheaper Inference API base URL
+    api_base="https://api.cheaperinference.com/v1",
+    api_key=CHEAPER_INFERENCE_API_KEY,
+)
+```
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
