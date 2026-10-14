@@ -1133,8 +1133,10 @@ You have been provided with these additional arguments, that you can access dire
                 "The agent you're loading uses the deprecated 'HfApiModel' class: it was automatically updated to 'InferenceClientModel'."
             )
         # Load managed agents from their respective folders, recursively
+        # An explicit managed_agents argument replaces the saved ones, so they are not rebuilt.
         managed_agents = []
-        for managed_agent_name, managed_agent_class_name in agent_dict["managed_agents"].items():
+        saved_managed_agents = {} if "managed_agents" in kwargs else agent_dict["managed_agents"]
+        for managed_agent_name, managed_agent_class_name in saved_managed_agents.items():
             agent_cls = AGENT_REGISTRY.get(managed_agent_class_name)
             if agent_cls is None:
                 raise ValueError(
@@ -1152,7 +1154,7 @@ You have been provided with these additional arguments, that you can access dire
         agent_dict["tools"] = tools
 
         # Add managed agents to kwargs to override the empty list in from_dict
-        if managed_agents:
+        if managed_agents and "managed_agents" not in kwargs:
             kwargs["managed_agents"] = managed_agents
 
         return cls.from_dict(agent_dict, **kwargs)
