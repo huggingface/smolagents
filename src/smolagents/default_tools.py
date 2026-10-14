@@ -128,7 +128,7 @@ class DuckDuckGoSearchTool(Tool):
         self.max_results = max_results
         self.rate_limit = rate_limit
         self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
-        self._last_request_time = 0.0
+        self._last_request_time = None
         try:
             from ddgs import DDGS
         except ImportError as e:
@@ -152,11 +152,12 @@ class DuckDuckGoSearchTool(Tool):
         if not self.rate_limit:
             return
 
-        now = time.time()
-        elapsed = now - self._last_request_time
-        if elapsed < self._min_interval:
-            time.sleep(self._min_interval - elapsed)
-        self._last_request_time = time.time()
+        now = time.monotonic()
+        if self._last_request_time is not None:
+            elapsed = now - self._last_request_time
+            if elapsed < self._min_interval:
+                time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.monotonic()
 
 
 class GoogleSearchTool(Tool):
@@ -294,7 +295,7 @@ class ApiWebSearchTool(Tool):
         self.params = params or {"count": 10}
         self.rate_limit = rate_limit
         self._min_interval = 1.0 / rate_limit if rate_limit else 0.0
-        self._last_request_time = 0.0
+        self._last_request_time = None
 
     def _enforce_rate_limit(self) -> None:
         import time
@@ -303,11 +304,12 @@ class ApiWebSearchTool(Tool):
         if not self.rate_limit:
             return
 
-        now = time.time()
-        elapsed = now - self._last_request_time
-        if elapsed < self._min_interval:
-            time.sleep(self._min_interval - elapsed)
-        self._last_request_time = time.time()
+        now = time.monotonic()
+        if self._last_request_time is not None:
+            elapsed = now - self._last_request_time
+            if elapsed < self._min_interval:
+                time.sleep(self._min_interval - elapsed)
+        self._last_request_time = time.monotonic()
 
     def forward(self, query: str) -> str:
         import requests
