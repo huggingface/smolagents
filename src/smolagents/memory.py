@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, Type
 
 from smolagents.models import ChatMessage, MessageRole, get_dict_from_nested_dataclasses
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
-from smolagents.utils import AgentError, make_json_serializable
+from smolagents.utils import AgentError, encode_image_base64, make_json_serializable
 
 
 if TYPE_CHECKING:
@@ -81,7 +81,11 @@ class ActionStep(MemoryStep):
             "model_output": self.model_output,
             "code_action": self.code_action,
             "observations": self.observations,
-            "observations_images": [image.tobytes() for image in self.observations_images]
+            # PNG bytes -> base64 str via the shared helper: JSON-safe, and keeps size/mode
+            # (unlike raw `tobytes()`, which is not JSON-serializable and loses the dimensions).
+            # 通过共享工具函数把 PNG 字节转为 base64 字符串：保证 JSON 可序列化，
+            # 并保留图像尺寸/模式（原始 tobytes() 既无法 JSON 序列化，也丢失尺寸信息）。
+            "observations_images": [encode_image_base64(image) for image in self.observations_images]
             if self.observations_images
             else None,
             "action_output": make_json_serializable(self.action_output),
