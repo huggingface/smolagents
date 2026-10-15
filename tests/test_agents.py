@@ -2650,11 +2650,21 @@ def test_tool_calling_agent_rejects_native_tool_call_with_unparseable_arguments(
     assert "not valid JSON" in str(excinfo.value)
 
 
-def test_tool_calling_agent_keeps_bare_value_native_tool_call_arguments():
-    """A native tool call whose arguments are a bare value (not JSON) keeps working.
+@pytest.mark.parametrize(
+    "raw_arguments, expected_arguments",
+    [
+        ("archived", "archived"),
+        (json.dumps("{example}"), "{example}"),
+        (json.dumps("[example]"), "[example]"),
+        (json.dumps("  {example}"), "  {example}"),
+    ],
+)
+def test_tool_calling_agent_keeps_valid_scalar_string_native_tool_call_arguments(raw_arguments, expected_arguments):
+    """A native tool call whose arguments are a scalar string (bare value or JSON string) keeps working.
 
-    Single-input tools may legitimately receive a plain string such as ``"archived"``; only
-    a truncated JSON object/array is treated as a malformed call.
+    Single-input tools may legitimately receive a plain string such as ``"archived"`` or a valid JSON
+    string that happens to begin with ``"{"`` or ``"["`` (e.g. ``json.dumps("{example}")``); only
+    failed JSON decoding of an attempted object or array is treated as a malformed call.
     """
 
     @tool
@@ -2677,14 +2687,14 @@ def test_tool_calling_agent_keeps_bare_value_native_tool_call_arguments():
             ChatMessageToolCall(
                 id="call_0",
                 type="function",
-                function=ChatMessageToolCallFunction(name="_sample_tool", arguments="archived"),
+                function=ChatMessageToolCallFunction(name="_sample_tool", arguments=raw_arguments),
             )
         ],
     )
     agent = ToolCallingAgent(tools=[_sample_tool], model=model)
 
     tool_call = next(agent._step_stream(ActionStep(step_number=1, timing="mock_timing", model_output="")))
-    assert tool_call.arguments == "archived"
+    assert tool_call.arguments == expected_arguments
 
 
 def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
