@@ -1481,11 +1481,14 @@ class ToolCallingAgent(MultiStepAgent):
             raise AgentToolExecutionError(error_msg, self.logger) from e
 
         try:
-            # Call tool with appropriate arguments
+            # final_answer is an identity tool: sanitizing its AgentAudio/
+            # AgentImage argument would strip modality metadata such as
+            # sample rate before it reaches the caller.
+            sanitize = tool_name != "final_answer"
             if isinstance(arguments, dict):
-                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=sanitize)
             else:
-                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=sanitize)
 
         except Exception as e:
             # Handle execution errors

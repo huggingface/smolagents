@@ -266,6 +266,11 @@ def handle_agent_output_types(output: Any, output_type: str | None = None) -> An
         decoded_outputs = _AGENT_TYPE_MAPPING[output_type](output)
         return decoded_outputs
 
+    # AgentAudio also inherits from str, so generic string conversion must
+    # never reinterpret an already typed audio/image/text result.
+    if isinstance(output, AgentType):
+        return output
+
     # If the class does not have defined output, then we map according to the type
     if isinstance(output, str):
         return AgentText(output)
