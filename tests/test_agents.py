@@ -2610,6 +2610,93 @@ def test_tool_calling_agents_raises_tool_call_error_being_invoked_with_wrong_arg
         agent.execute_tool_call(_sample_tool.name, arguments)
 
 
+def test_tool_calling_agent_rejects_native_tool_call_with_unparseable_arguments():
+    """A native tool call whose arguments are not valid JSON must not reach the tool.
+
+    Regression test for https://github.com/huggingface/smolagents/issues/2951: a truncated
+    JSON object such as '{"status": "archived"' was passed to the tool as a raw string and
+    the run still reported success.
+    """
+
+    @tool
+    def _sample_tool(status: str) -> str:
+        """Return the given status.
+
+        Args:
+            status: The status to return.
+
+        Returns:
+            The status.
+        """
+        return status
+
+    model = MagicMock()
+    model.generate.return_value = ChatMessage(
+        role=MessageRole.ASSISTANT,
+        content="",
+        tool_calls=[
+            ChatMessageToolCall(
+                id="call_0",
+                type="function",
+                function=ChatMessageToolCallFunction(name="_sample_tool", arguments='{"status": "archived"'),
+            )
+        ],
+    )
+    agent = ToolCallingAgent(tools=[_sample_tool], model=model)
+
+    with pytest.raises(AgentToolCallError) as excinfo:
+        next(agent._step_stream(ActionStep(step_number=1, timing="mock_timing", model_output="")))
+
+    assert "not valid JSON" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "raw_arguments, expected_arguments",
+    [
+        ("archived", "archived"),
+        (json.dumps("{example}"), "{example}"),
+        (json.dumps("[example]"), "[example]"),
+        (json.dumps("  {example}"), "  {example}"),
+    ],
+)
+def test_tool_calling_agent_keeps_valid_scalar_string_native_tool_call_arguments(raw_arguments, expected_arguments):
+    """A native tool call whose arguments are a scalar string (bare value or JSON string) keeps working.
+
+    Single-input tools may legitimately receive a plain string such as ``"archived"`` or a valid JSON
+    string that happens to begin with ``"{"`` or ``"["`` (e.g. ``json.dumps("{example}")``); only
+    failed JSON decoding of an attempted object or array is treated as a malformed call.
+    """
+
+    @tool
+    def _sample_tool(status: str) -> str:
+        """Return the given status.
+
+        Args:
+            status: The status to return.
+
+        Returns:
+            The status.
+        """
+        return status
+
+    model = MagicMock()
+    model.generate.return_value = ChatMessage(
+        role=MessageRole.ASSISTANT,
+        content="",
+        tool_calls=[
+            ChatMessageToolCall(
+                id="call_0",
+                type="function",
+                function=ChatMessageToolCallFunction(name="_sample_tool", arguments=raw_arguments),
+            )
+        ],
+    )
+    agent = ToolCallingAgent(tools=[_sample_tool], model=model)
+
+    tool_call = next(agent._step_stream(ActionStep(step_number=1, timing="mock_timing", model_output="")))
+    assert tool_call.arguments == expected_arguments
+
+
 def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     @tool
     def _sample_tool(_: str) -> float:

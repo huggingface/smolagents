@@ -68,7 +68,6 @@ from .models import (
     MessageRole,
     Model,
     agglomerate_stream_deltas,
-    parse_json_if_needed,
 )
 from .monitoring import (
     YELLOW_HEX,
@@ -1331,7 +1330,23 @@ class ToolCallingAgent(MultiStepAgent):
                 raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
         else:
             for tool_call in chat_message.tool_calls:
-                tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+                raw_arguments = tool_call.function.arguments
+                if isinstance(raw_arguments, dict):
+                    parsed_arguments = raw_arguments
+                else:
+                    try:
+                        parsed_arguments = json.loads(raw_arguments)
+                    except Exception:
+                        # A native tool call must carry a JSON object. If JSON decoding fails and the raw
+                        # argument looks like an attempted object or array, report it so the model can correct it.
+                        if isinstance(raw_arguments, str) and raw_arguments.lstrip()[:1] in ("{", "["):
+                            raise AgentToolCallError(
+                                f"Tool call '{tool_call.function.name}' has arguments that are not valid JSON: {raw_arguments!r}. "
+                                "Native tool call arguments must be a valid JSON object.",
+                                self.logger,
+                            )
+                        parsed_arguments = raw_arguments
+                tool_call.function.arguments = parsed_arguments
         final_answer, got_final_answer = None, False
         for output in self.process_tool_calls(chat_message, memory_step):
             yield output
