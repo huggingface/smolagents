@@ -1083,16 +1083,21 @@ def _evaluate_comprehensions(
     comprehension = comprehensions[0]
     iter_value = evaluate_ast(comprehension.iter, state, static_tools, custom_tools, authorized_imports)
     for value in iter_value:
-        new_state = state.copy()
-        set_value(comprehension.target, value, new_state, static_tools, custom_tools, authorized_imports)
+        # Mutate the shared comprehension scope *in place* (the scope is created once
+        # by the caller, e.g. via `state.copy()`) so that closures defined inside the
+        # element expression capture the comprehension target the same way CPython
+        # does: a single scope shared across iterations, *not* a fresh scope per
+        # iteration. Using a fresh copy per iteration made lambdas capture the
+        # per-iteration value instead of the final value (see issue #2992).
+        set_value(comprehension.target, value, state, static_tools, custom_tools, authorized_imports)
         # Check all filter conditions
         if all(
-            evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+            evaluate_ast(if_clause, state, static_tools, custom_tools, authorized_imports)
             for if_clause in comprehension.ifs
         ):
-            # Recurse with remaining comprehensions
+            # Recurse with remaining comprehensions (same shared scope)
             yield from _evaluate_comprehensions(
-                comprehensions[1:], evaluate_element, new_state, static_tools, custom_tools, authorized_imports
+                comprehensions[1:], evaluate_element, state, static_tools, custom_tools, authorized_imports
             )
 
 
@@ -1103,11 +1108,14 @@ def evaluate_listcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> list[Any]:
+    # Single comprehension scope (copy of the outer state) shared across all
+    # iterations, so that closures capture the comprehension target like CPython does.
+    comp_state = state.copy()
     return list(
         _evaluate_comprehensions(
             listcomp.generators,
             lambda comp_state: evaluate_ast(listcomp.elt, comp_state, static_tools, custom_tools, authorized_imports),
-            state,
+            comp_state,
             static_tools,
             custom_tools,
             authorized_imports,
@@ -1122,11 +1130,13 @@ def evaluate_setcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> set[Any]:
+    # Single comprehension scope (copy of the outer state) shared across all iterations.
+    comp_state = state.copy()
     return set(
         _evaluate_comprehensions(
             setcomp.generators,
             lambda comp_state: evaluate_ast(setcomp.elt, comp_state, static_tools, custom_tools, authorized_imports),
-            state,
+            comp_state,
             static_tools,
             custom_tools,
             authorized_imports,
@@ -1141,6 +1151,8 @@ def evaluate_dictcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> dict[Any, Any]:
+    # Single comprehension scope (copy of the outer state) shared across all iterations.
+    comp_state = state.copy()
     return dict(
         _evaluate_comprehensions(
             dictcomp.generators,
@@ -1148,7 +1160,7 @@ def evaluate_dictcomp(
                 evaluate_ast(dictcomp.key, comp_state, static_tools, custom_tools, authorized_imports),
                 evaluate_ast(dictcomp.value, comp_state, static_tools, custom_tools, authorized_imports),
             ),
-            state,
+            comp_state,
             static_tools,
             custom_tools,
             authorized_imports,
@@ -1349,32 +1361,17 @@ def evaluate_generatorexp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Generator[Any]:
-    def generator():
-        for gen in genexp.generators:
-            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
-            for value in iter_value:
-                new_state = state.copy()
-                set_value(
-                    gen.target,
-                    value,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                if all(
-                    evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                    for if_clause in gen.ifs
-                ):
-                    yield evaluate_ast(
-                        genexp.elt,
-                        new_state,
-                        static_tools,
-                        custom_tools,
-                        authorized_imports,
-                    )
-
-    return generator()
+    # Single comprehension scope (copy of the outer state) shared across all
+    # iterations, matching CPython's scoping for closure capture (issue #2992).
+    comp_state = state.copy()
+    return _evaluate_comprehensions(
+        genexp.generators,
+        lambda comp_state: evaluate_ast(genexp.elt, comp_state, static_tools, custom_tools, authorized_imports),
+        comp_state,
+        static_tools,
+        custom_tools,
+        authorized_imports,
+    )
 
 
 def evaluate_delete(

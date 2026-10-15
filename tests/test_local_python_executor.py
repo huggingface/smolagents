@@ -444,6 +444,19 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == "t-h-e-s-e-a-g-u-l-l"
 
+    def test_comprehension_closure_scope_matches_cpython(self):
+        # Regression test for https://github.com/huggingface/smolagents/issues/2992
+        # Closures defined inside a comprehension must capture the comprehension target
+        # the way CPython does (a single scope shared across iterations, i.e. the final
+        # value), not a fresh scope per iteration.
+        code = "funcs = [lambda: i for i in range(3)]\nresult = [f() for f in funcs]"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"__name__": "__main__"})
+        assert result == [2, 2, 2]
+
+        # Comprehension targets must not leak into the enclosing scope.
+        with pytest.raises(Exception):
+            evaluate_python_code("x = [i for i in range(3)]\ny = i", BASE_PYTHON_TOOLS, state={"__name__": "__main__"})
+
     def test_string_indexing(self):
         code = """text_block = [
     "THESE",
