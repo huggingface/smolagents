@@ -964,3 +964,26 @@ def test_get_safe_serializer_code_compiles_and_round_trips():
     serialized = GeneratedSafeSerializer.dumps(obj, allow_pickle=True)
     assert serialized.startswith("pickle:")
     assert GeneratedSafeSerializer.loads(serialized, allow_pickle=True).value == 42
+
+
+def test_generated_serializer_round_trips_pil_image():
+    """The standalone serializer must keep PIL.Image support working end-to-end.
+
+    The generated code references `BytesIO` in the PIL.Image branch of
+    to_json_safe; the prelude used to omit it, so a dumps(Image) in a fresh
+    exec namespace raised NameError. Regression for review feedback on #2933.
+    """
+    pytest.importorskip("PIL")
+    from PIL import Image
+
+    code = SafeSerializer.get_safe_serializer_code()
+    namespace = {}
+    exec(code, namespace)
+    GeneratedSafeSerializer = namespace["SafeSerializer"]
+
+    image = Image.new("RGB", (2, 3), "red")
+    serialized = GeneratedSafeSerializer.dumps(image, allow_pickle=False)
+    loaded = GeneratedSafeSerializer.loads(serialized, allow_pickle=False)
+
+    assert loaded.size == image.size
+    assert list(loaded.getdata())[0] == (255, 0, 0)
