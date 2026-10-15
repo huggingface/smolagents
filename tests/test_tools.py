@@ -1066,3 +1066,51 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+def test_save_keeps_the_previous_tool_file_when_a_write_fails(tmp_path, monkeypatch):
+    """Re-saving a tool must not destroy the file that is already there."""
+    import os
+
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    tool = Demo()
+    tool.save(tmp_path)
+    target = tmp_path / "tool.py"
+    before = target.read_text(encoding="utf-8")
+    assert before
+
+    def _boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", _boom)
+
+    with pytest.raises(OSError):
+        tool.save(tmp_path)
+
+    # write_text truncated first, so a failure here replaced the tool source with a
+    # prefix of the new one.
+    assert target.read_text(encoding="utf-8") == before
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_save_writes_the_tool_file(tmp_path):
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    Demo().save(tmp_path)
+
+    assert (tmp_path / "tool.py").exists()

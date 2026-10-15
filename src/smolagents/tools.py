@@ -415,8 +415,22 @@ class Tool(BaseTool):
             self._write_file(output_path / "requirements.txt", self._get_requirements())
 
     def _write_file(self, file_path: Path, content: str) -> None:
-        """Writes content to a file with UTF-8 encoding."""
-        file_path.write_text(content, encoding="utf-8")
+        """Writes content to a file with UTF-8 encoding, atomically.
+
+        ``save()`` writes the tool source, the Gradio app and the requirements into
+        a directory the user may already have; a truncating write that failed
+        part-way through would leave the existing file as a prefix of the new one.
+        """
+        fd, temporary = tempfile.mkstemp(dir=str(file_path.parent), prefix=f".{file_path.name}.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, file_path)
+        except BaseException:
+            Path(temporary).unlink(missing_ok=True)
+            raise
 
     def push_to_hub(
         self,
