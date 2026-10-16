@@ -2987,3 +2987,43 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_chained_comparison_short_circuits_on_false_like_result():
+    class FalseLike:
+        def __init__(self, events):
+            self.events = events
+
+        def __bool__(self):
+            self.events.append("bool")
+            return False
+
+    class Left:
+        def __init__(self, events):
+            self.events = events
+
+        def __lt__(self, other):
+            self.events.append("compare")
+            return FalseLike(self.events)
+
+    events = []
+    code = "result = left < middle < later()"
+    state = {"left": Left(events), "middle": object(), "later": lambda: events.append("later")}
+
+    result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS.copy(), state=state)
+
+    assert result.output is state["result"]
+    assert events == ["compare", "bool"]
+
+
+def test_chained_comparison_returns_last_result_when_all_results_are_truthy():
+    class Truthy:
+        def __bool__(self):
+            return True
+
+    code = "result = left < middle < right"
+    state = {"left": 1, "middle": 2, "right": 3}
+
+    result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS.copy(), state=state)
+
+    assert result.output is True
