@@ -940,8 +940,6 @@ def test_complex_ndarray_round_trip_preserves_dtype_and_values():
     np.testing.assert_array_equal(restored, array)
 
 
-
-
 def test_empty_axis_ndarray_round_trip_preserves_shape():
     np = pytest.importorskip("numpy")
 
