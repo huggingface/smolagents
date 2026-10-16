@@ -422,10 +422,24 @@ def evaluate_lambda(
 ) -> Callable:
     args = [arg.arg for arg in lambda_expression.args.args]
 
+    # Defaults are evaluated where the lambda is defined, as CPython does, so that the
+    # `lambda i=i: i` capture-at-definition idiom keeps its own value instead of reading the
+    # enclosing binding when the lambda is finally called (a comprehension target, say).
+    default_values = [
+        evaluate_ast(default, state, static_tools, custom_tools, authorized_imports)
+        for default in lambda_expression.args.defaults
+    ]
+    defaults = dict(zip(args[len(args) - len(default_values) :], default_values))
+
     def lambda_func(*values: Any) -> Any:
         new_state = state.copy()
+        supplied = set()
         for arg, value in zip(args, values):
             new_state[arg] = value
+            supplied.add(arg)
+        for name, value in defaults.items():
+            if name not in supplied:
+                new_state[name] = value
         return evaluate_ast(
             lambda_expression.body,
             new_state,
@@ -1053,6 +1067,61 @@ def evaluate_for(
     return result
 
 
+class _ComprehensionScope(dict):
+    """Scope of a single comprehension, chained to the scope that encloses it.
+
+    CPython compiles a comprehension into its own function whose free variables are cells of the enclosing scope, so a
+    closure built inside a comprehension reads the enclosing binding *live* while the comprehension target stays local
+    to the comprehension. Copying the enclosing scope cannot express that: the copy freezes those reads at the value
+    they had when the copy was made. Names that the comprehension itself does not bind are therefore looked up in the
+    enclosing scope instead of being snapshotted, which is what makes a nested comprehension see the outer one's target
+    (see issue #2992).
+    """
+
+    __slots__ = ("_enclosing",)
+
+    def __init__(self, enclosing: dict[str, Any]) -> None:
+        super().__init__()
+        self._enclosing = enclosing
+
+    def __missing__(self, key: str) -> Any:
+        return self._enclosing[key]
+
+    def __contains__(self, key: object) -> bool:
+        return dict.__contains__(self, key) or key in self._enclosing
+
+    def get(self, key: str, default: Any = None) -> Any:
+        if dict.__contains__(self, key):
+            return dict.__getitem__(self, key)
+        return self._enclosing.get(key, default)
+
+    def setdefault(self, key: str, default: Any = None) -> Any:
+        # A name that already exists in the enclosing scope (e.g. the operation counter) must stay the same object
+        # here rather than being shadowed by a fresh copy.
+        if dict.__contains__(self, key):
+            return dict.__getitem__(self, key)
+        if key in self._enclosing:
+            return self._enclosing[key]
+        dict.__setitem__(self, key, default)
+        return default
+
+    def keys(self) -> list[str]:
+        # The names visible here, local first: helpers that scan the scope by name (such as the close-match
+        # suggestion in `evaluate_name`) must still see the names of the enclosing scopes.
+        names = list(dict.keys(self))
+        seen = set(names)
+        for name in self._enclosing.keys():
+            if name not in seen:
+                seen.add(name)
+                names.append(name)
+        return names
+
+    def copy(self) -> "_ComprehensionScope":
+        clone = _ComprehensionScope(self._enclosing)
+        dict.update(clone, self)
+        return clone
+
+
 def _evaluate_comprehensions(
     comprehensions: list[ast.comprehension],
     evaluate_element: Callable[[dict[str, Any]], Any],
@@ -1083,12 +1152,11 @@ def _evaluate_comprehensions(
     comprehension = comprehensions[0]
     iter_value = evaluate_ast(comprehension.iter, state, static_tools, custom_tools, authorized_imports)
     for value in iter_value:
-        # Mutate the shared comprehension scope *in place* (the scope is created once
-        # by the caller, e.g. via `state.copy()`) so that closures defined inside the
-        # element expression capture the comprehension target the same way CPython
-        # does: a single scope shared across iterations, *not* a fresh scope per
-        # iteration. Using a fresh copy per iteration made lambdas capture the
-        # per-iteration value instead of the final value (see issue #2992).
+        # Mutate the shared comprehension scope *in place* (the scope is created once by the caller as a
+        # `_ComprehensionScope`) so that closures defined inside the element expression capture the comprehension
+        # target the same way CPython does: a single scope shared across iterations, *not* a fresh scope per
+        # iteration. Using a fresh copy per iteration made lambdas capture the per-iteration value instead of the
+        # final value (see issue #2992).
         set_value(comprehension.target, value, state, static_tools, custom_tools, authorized_imports)
         # Check all filter conditions
         if all(
@@ -1108,9 +1176,9 @@ def evaluate_listcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> list[Any]:
-    # Single comprehension scope (copy of the outer state) shared across all
-    # iterations, so that closures capture the comprehension target like CPython does.
-    comp_state = state.copy()
+    # Single comprehension scope chained to the enclosing scope and shared across all iterations, so that closures
+    # capture the comprehension target like CPython does.
+    comp_state = _ComprehensionScope(state)
     return list(
         _evaluate_comprehensions(
             listcomp.generators,
@@ -1130,8 +1198,8 @@ def evaluate_setcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> set[Any]:
-    # Single comprehension scope (copy of the outer state) shared across all iterations.
-    comp_state = state.copy()
+    # Single comprehension scope chained to the enclosing scope, shared across all iterations.
+    comp_state = _ComprehensionScope(state)
     return set(
         _evaluate_comprehensions(
             setcomp.generators,
@@ -1151,8 +1219,8 @@ def evaluate_dictcomp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> dict[Any, Any]:
-    # Single comprehension scope (copy of the outer state) shared across all iterations.
-    comp_state = state.copy()
+    # Single comprehension scope chained to the enclosing scope, shared across all iterations.
+    comp_state = _ComprehensionScope(state)
     return dict(
         _evaluate_comprehensions(
             dictcomp.generators,
@@ -1361,9 +1429,9 @@ def evaluate_generatorexp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Generator[Any]:
-    # Single comprehension scope (copy of the outer state) shared across all
-    # iterations, matching CPython's scoping for closure capture (issue #2992).
-    comp_state = state.copy()
+    # Single comprehension scope chained to the enclosing scope and shared across all iterations, matching CPython's
+    # scoping for closure capture (issue #2992).
+    comp_state = _ComprehensionScope(state)
     return _evaluate_comprehensions(
         genexp.generators,
         lambda comp_state: evaluate_ast(genexp.elt, comp_state, static_tools, custom_tools, authorized_imports),
