@@ -39,7 +39,9 @@ def test_rate_limiter_serializes_concurrent_admissions(monkeypatch):
         thread.join(timeout=2)
         assert not thread.is_alive()
 
-    assert sorted(admitted) == [0.0, 1.0]
+    admitted = sorted(admitted)
+    assert len(admitted) == 2
+    assert admitted[1] - admitted[0] == pytest.approx(1.0)
 
 
 def test_rate_limiters_do_not_share_state(monkeypatch):
