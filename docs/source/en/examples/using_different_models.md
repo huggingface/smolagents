@@ -78,6 +78,37 @@ model = OpenAIModel(
 )
 ```
 
+## Using NVIDIA NIM Models
+
+NVIDIA NIM provides an OpenAI-compatible API for a wide variety of models hosted by NVIDIA.
+You can use the [`OpenAIModel`] to connect to NVIDIA NIM by setting the appropriate base URL.
+
+First, install the required dependencies:
+```bash
+pip install 'smolagents[openai]'
+```
+
+Then, [get an NVIDIA API key](https://build.nvidia.com/) and set it in your code:
+```python
+NVIDIA_API_KEY = <YOUR-NVIDIA-API-KEY>
+```
+
+Now, you can initialize any model available on NVIDIA NIM using the `OpenAIModel` class:
+```python
+from smolagents import OpenAIModel
+
+model = OpenAIModel(
+    # You can use any model ID listed at https://integrate.api.nvidia.com/v1/models
+    model_id="nvidia/nemotron-3-super-120b-a12b",
+    # NVIDIA NIM API base URL
+    api_base="https://integrate.api.nvidia.com/v1",
+    api_key=NVIDIA_API_KEY,
+)
+```
+
+If you run NIM yourself, set `api_base` to the base URL of your self-hosted NIM instead
+(for example `http://localhost:8000/v1`), and pick a model ID from its `<base URL>/models` list.
+
 ## Using xAI's Grok Models
 
 xAI's Grok models can be accessed through [`LiteLLMModel`].
