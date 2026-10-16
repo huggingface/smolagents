@@ -1481,10 +1481,10 @@ class ToolCallingAgent(MultiStepAgent):
             raise AgentToolExecutionError(error_msg, self.logger) from e
 
         try:
-            # final_answer is an identity tool: sanitizing its AgentAudio/
-            # AgentImage argument would strip modality metadata such as
-            # sample rate before it reaches the caller.
-            sanitize = tool_name != "final_answer"
+            # Only the built-in identity tool can safely bypass sanitization.
+            # Custom FinalAnswerTool subclasses may intentionally transform inputs and
+            # therefore must keep the normal input/output sanitization contract.
+            sanitize = type(tool) is not FinalAnswerTool
             if isinstance(arguments, dict):
                 return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=sanitize)
             else:
