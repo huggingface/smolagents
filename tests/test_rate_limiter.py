@@ -65,15 +65,29 @@ def test_rate_limiter_serializes_concurrent_admissions(monkeypatch):
 
 def test_rate_limiters_do_not_share_state(monkeypatch):
     clock = FakeClock()
+    clock.now = 100.0
     monkeypatch.setattr(utils, "time", clock)
 
     first = RateLimiter(requests_per_minute=60)
     second = RateLimiter(requests_per_minute=60)
+    assert first._lock is not second._lock
 
     first.throttle()
-    second.throttle()
+    assert first._last_call == pytest.approx(100.0)
+    assert second._last_call == pytest.approx(0.0)
 
-    assert clock.now == 2.0
+    # A fresh limiter must not inherit the first limiter's reservation.
+    clock.now += 0.5
+    second.throttle()
+    assert clock.now == pytest.approx(100.5)
+    assert second._last_call == pytest.approx(100.5)
+    assert first._last_call == pytest.approx(100.0)
+
+    # The first limiter still enforces its own interval.
+    first.throttle()
+    assert clock.now == pytest.approx(101.0)
+    assert first._last_call == pytest.approx(101.0)
+    assert second._last_call == pytest.approx(100.5)
 
 
 def test_disabled_rate_limiter_does_not_touch_clock(monkeypatch):
