@@ -21,6 +21,7 @@ import inspect
 import json
 import logging
 import os
+import stat
 import sys
 import tempfile
 import textwrap
@@ -421,6 +422,7 @@ class Tool(BaseTool):
         a directory the user may already have; a truncating write that failed
         part-way through would leave the existing file as a prefix of the new one.
         """
+        destination_mode = stat.S_IMODE(file_path.stat().st_mode) if file_path.exists() else None
         fd, temporary = tempfile.mkstemp(dir=str(file_path.parent), prefix=f".{file_path.name}.", suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -428,6 +430,12 @@ class Tool(BaseTool):
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, file_path)
+            if destination_mode is not None:
+                os.chmod(file_path, destination_mode)
+            elif os.name != "nt":
+                current_umask = os.umask(0)
+                os.umask(current_umask)
+                os.chmod(file_path, stat.S_IMODE(0o666 & ~current_umask))
         except BaseException:
             Path(temporary).unlink(missing_ok=True)
             raise

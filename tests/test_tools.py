@@ -1114,3 +1114,36 @@ def test_save_writes_the_tool_file(tmp_path):
     Demo().save(tmp_path)
 
     assert (tmp_path / "tool.py").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file permissions")
+def test_save_preserves_file_permissions(tmp_path):
+    """Atomic writes must not tighten permissions from mkstemp's 0600."""
+    import stat
+
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    tool = Demo()
+    previous_umask = os.umask(0o022)
+    try:
+        target = tmp_path / "tool.py"
+        target.write_text("placeholder", encoding="utf-8")
+        os.chmod(target, 0o644)
+        assert stat.S_IMODE(target.stat().st_mode) == 0o644
+
+        tool.save(tmp_path)
+        assert stat.S_IMODE(target.stat().st_mode) == 0o644
+
+        fresh_dir = tmp_path / "fresh"
+        fresh_dir.mkdir()
+        tool.save(fresh_dir)
+        assert stat.S_IMODE((fresh_dir / "tool.py").stat().st_mode) == 0o644
+    finally:
+        os.umask(previous_umask)
