@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from copy import deepcopy
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -735,6 +736,37 @@ def test_get_clean_message_list_role_conversions():
     assert result[0]["content"][0]["text"] == "Calling tool..."
     assert result[1]["role"] == "user"
     assert result[1]["content"][0]["text"] == "Tool response"
+
+
+def test_get_clean_message_list_does_not_modify_input():
+    messages = [
+        ChatMessage(role=MessageRole.TOOL_CALL, content=[{"type": "text", "text": "Calling tool..."}]),
+        {
+            "role": "tool-response",
+            "content": [{"type": "text", "text": "Tool response"}, {"type": "image_url", "image_url": {"url": "a"}}],
+            "tool_calls": [{"id": "1", "type": "function", "function": {"name": "f", "arguments": {}}}],
+        },
+        ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Next"}]),
+    ]
+    original = deepcopy(messages)
+    result = get_clean_message_list(messages, role_conversions={"tool-call": "assistant", "tool-response": "user"})
+    assert messages == original
+    assert result == [
+        {"role": "assistant", "content": [{"type": "text", "text": "Calling tool..."}]},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Tool response"},
+                {"type": "image_url", "image_url": {"url": "a"}},
+                {"type": "text", "text": "Next"},
+            ],
+        },
+    ]
+    # The output does not share mutable objects with the input
+    result[1]["content"][1]["image_url"]["url"] = "b"
+    result[1]["content"][0]["text"] += "extra"
+    result[1]["content"].append({"type": "text", "text": "extra"})
+    assert messages == original
 
 
 def test_remove_content_after_stop_sequences():
