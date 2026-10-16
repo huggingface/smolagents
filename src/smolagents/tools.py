@@ -429,13 +429,16 @@ class Tool(BaseTool):
                 handle.write(content)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(temporary, file_path)
+            # Set the mode on the temporary file *before* publishing it: chmod-ing
+            # the destination afterwards would leave a window where the file is
+            # 0600, which is exactly what mkstemp created.
             if destination_mode is not None:
-                os.chmod(file_path, destination_mode)
+                os.chmod(temporary, destination_mode)
             elif os.name != "nt":
                 current_umask = os.umask(0)
                 os.umask(current_umask)
-                os.chmod(file_path, stat.S_IMODE(0o666 & ~current_umask))
+                os.chmod(temporary, stat.S_IMODE(0o666 & ~current_umask))
+            os.replace(temporary, file_path)
         except BaseException:
             Path(temporary).unlink(missing_ok=True)
             raise
