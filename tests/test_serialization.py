@@ -926,3 +926,27 @@ class TestConcurrency:
         assert len(errors) == 0, f"Errors occurred: {errors}"
         assert len(results) == 10
         assert all(success for _, success in results)
+
+
+
+def test_complex_ndarray_round_trip_preserves_dtype_and_values():
+    np = pytest.importorskip("numpy")
+
+    array = np.array([1 + 2j, -3.5 + 0.25j], dtype=np.complex128)
+
+    encoded = SafeSerializer.dumps(array)
+    restored = SafeSerializer.loads(encoded)
+
+    assert restored.dtype == array.dtype
+    np.testing.assert_array_equal(restored, array)
+
+
+def test_real_ndarray_round_trip_remains_unchanged():
+    np = pytest.importorskip("numpy")
+
+    array = np.array([[1, 2], [3, 4]], dtype=np.int64)
+
+    restored = SafeSerializer.loads(SafeSerializer.dumps(array))
+
+    assert restored.dtype == array.dtype
+    np.testing.assert_array_equal(restored, array)
