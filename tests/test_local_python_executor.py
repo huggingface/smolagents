@@ -444,6 +444,40 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == "t-h-e-s-e-a-g-u-l-l"
 
+    def test_comprehension_closure_scope_matches_cpython(self):
+        # Regression test for https://github.com/huggingface/smolagents/issues/2992
+        # Closures defined inside a comprehension must capture the comprehension target
+        # the way CPython does (a single scope shared across iterations, i.e. the final
+        # value), not a fresh scope per iteration.
+        code = "funcs = [lambda: i for i in range(3)]\nresult = [f() for f in funcs]"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"__name__": "__main__"})
+        assert result == [2, 2, 2]
+
+        # A comprehension nested in another one must read the enclosing target through the inner
+        # scope, since that target is a single binding shared by every outer iteration.
+        code = (
+            "funcs = [[lambda: i for j in range(2)] for i in range(3)]\n"
+            "result = [[f() for f in group] for group in funcs]"
+        )
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"__name__": "__main__"})
+        assert result == [[2, 2], [2, 2], [2, 2]]
+
+        # The inner comprehension's own target stays local to it and must not clobber the outer
+        # target of the same name.
+        code = "result = [(lambda: x, [x for x in range(2)])[0]() for x in range(3)]"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"__name__": "__main__"})
+        assert result == [0, 1, 2]
+
+        # The `lambda i=i: i` capture-at-definition idiom keeps its own value rather than reading
+        # the comprehension target when it is called.
+        code = "funcs = [lambda i=i: i for i in range(3)]\nresult = [f() for f in funcs]"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={"__name__": "__main__"})
+        assert result == [0, 1, 2]
+
+        # Comprehension targets must not leak into the enclosing scope.
+        with pytest.raises(Exception):
+            evaluate_python_code("x = [i for i in range(3)]\ny = i", BASE_PYTHON_TOOLS, state={"__name__": "__main__"})
+
     def test_string_indexing(self):
         code = """text_block = [
     "THESE",
