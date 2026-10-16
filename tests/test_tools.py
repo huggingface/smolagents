@@ -14,6 +14,7 @@
 # limitations under the License.
 import inspect
 import os
+import stat
 import warnings
 from textwrap import dedent
 from typing import Any, Literal
@@ -1066,3 +1067,152 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+def test_save_keeps_the_previous_tool_file_when_a_write_fails(tmp_path, monkeypatch):
+    """Re-saving a tool must not destroy the file that is already there."""
+    import os
+
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    tool = Demo()
+    tool.save(tmp_path)
+    target = tmp_path / "tool.py"
+    before = target.read_text(encoding="utf-8")
+    assert before
+
+    def _boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", _boom)
+
+    with pytest.raises(OSError):
+        tool.save(tmp_path)
+
+    # write_text truncated first, so a failure here replaced the tool source with a
+    # prefix of the new one.
+    assert target.read_text(encoding="utf-8") == before
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_save_writes_the_tool_file(tmp_path):
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    Demo().save(tmp_path)
+
+    assert (tmp_path / "tool.py").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file permissions")
+def test_save_preserves_file_permissions(tmp_path):
+    """Atomic writes must keep existing modes and honor umask for new files."""
+    import stat
+
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    tool = Demo()
+    previous_umask = os.umask(0o022)
+    try:
+        target = tmp_path / "tool.py"
+        target.write_text("placeholder", encoding="utf-8")
+        os.chmod(target, 0o644)
+        assert stat.S_IMODE(target.stat().st_mode) == 0o644
+
+        tool.save(tmp_path)
+        assert stat.S_IMODE(target.stat().st_mode) == 0o644
+
+        fresh_dir = tmp_path / "fresh"
+        fresh_dir.mkdir()
+        tool.save(fresh_dir)
+        assert stat.S_IMODE((fresh_dir / "tool.py").stat().st_mode) == 0o644
+    finally:
+        os.umask(previous_umask)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_save_preserves_the_destination_file_mode(tmp_path):
+    """Replacing an existing file must not change its permission bits."""
+
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    tool = Demo()
+    tool.save(tmp_path)
+    target = tmp_path / "tool.py"
+    os.chmod(target, 0o644)
+
+    tool.save(tmp_path)
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_save_creates_new_files_with_the_umask_mode(tmp_path):
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    umask = os.umask(0)
+    os.umask(umask)
+
+    Demo().save(tmp_path)
+
+    assert stat.S_IMODE((tmp_path / "tool.py").stat().st_mode) == 0o666 & ~umask
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_save_does_not_modify_process_umask(tmp_path, monkeypatch):
+    """_write_file must not read or change the process umask (not thread-safe)."""
+    umask_calls: list[int] = []
+    real_umask = os.umask
+
+    def tracking_umask(mask: int) -> int:
+        umask_calls.append(mask)
+        return real_umask(mask)
+
+    monkeypatch.setattr(os, "umask", tracking_umask)
+
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    Demo().save(tmp_path)
+
+    assert umask_calls == []

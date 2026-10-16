@@ -21,6 +21,8 @@ import inspect
 import json
 import logging
 import os
+import secrets
+import stat
 import sys
 import tempfile
 import textwrap
@@ -415,8 +417,42 @@ class Tool(BaseTool):
             self._write_file(output_path / "requirements.txt", self._get_requirements())
 
     def _write_file(self, file_path: Path, content: str) -> None:
-        """Writes content to a file with UTF-8 encoding."""
-        file_path.write_text(content, encoding="utf-8")
+        """Writes content to a file with UTF-8 encoding, atomically.
+
+        ``save()`` writes the tool source, the Gradio app and the requirements into
+        a directory the user may already have; a truncating write that failed
+        part-way through would leave the existing file as a prefix of the new one.
+        """
+        destination_mode = stat.S_IMODE(file_path.stat().st_mode) if file_path.exists() else None
+        open_flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        if os.name == "nt":
+            open_flags |= getattr(os, "O_BINARY", 0)
+        else:
+            open_flags |= getattr(os, "O_NOFOLLOW", 0)
+        parent = file_path.parent
+        temporary = None
+        fd = None
+        for _ in range(10):
+            candidate = parent / f".{file_path.name}.{secrets.token_hex(8)}.tmp"
+            try:
+                fd = os.open(candidate, open_flags, 0o666)
+            except FileExistsError:
+                continue
+            temporary = candidate
+            break
+        if temporary is None:
+            raise OSError(f"Could not create a temporary file for {file_path}")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if destination_mode is not None:
+                os.chmod(temporary, destination_mode)
+            os.replace(temporary, file_path)
+        except BaseException:
+            Path(temporary).unlink(missing_ok=True)
+            raise
 
     def push_to_hub(
         self,
