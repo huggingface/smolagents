@@ -940,6 +940,17 @@ def test_complex_ndarray_round_trip_preserves_dtype_and_values():
     np.testing.assert_array_equal(restored, array)
 
 
+
+
+def test_empty_axis_ndarray_round_trip_preserves_shape():
+    np = pytest.importorskip("numpy")
+
+    for shape in [(0, 768), (2, 0, 3), (0, 0), (2, 3, 0)]:
+        array = np.empty(shape, dtype=np.float32)
+        restored = SafeSerializer.loads(SafeSerializer.dumps(array))
+        assert restored.shape == shape
+        assert restored.dtype == array.dtype
+
 def test_real_ndarray_round_trip_remains_unchanged():
     np = pytest.importorskip("numpy")
 
