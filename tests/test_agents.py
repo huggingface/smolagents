@@ -26,8 +26,8 @@ from textwrap import dedent
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
-from PIL import Image
 import pytest
+from PIL import Image
 from huggingface_hub import (
     ChatCompletionOutputFunctionDefinition,
     ChatCompletionOutputMessage,
