@@ -928,7 +928,6 @@ class TestConcurrency:
         assert all(success for _, success in results)
 
 
-
 def test_complex_ndarray_round_trip_preserves_dtype_and_values():
     np = pytest.importorskip("numpy")
 
