@@ -14,6 +14,7 @@
 # limitations under the License.
 import inspect
 import os
+import stat
 import warnings
 from textwrap import dedent
 from typing import Any, Literal
@@ -1147,3 +1148,45 @@ def test_save_preserves_file_permissions(tmp_path):
         assert stat.S_IMODE((fresh_dir / "tool.py").stat().st_mode) == 0o644
     finally:
         os.umask(previous_umask)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_save_preserves_the_destination_file_mode(tmp_path):
+    """mkstemp creates 0600; replacing must not tighten an existing 0644 file."""
+
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    tool = Demo()
+    tool.save(tmp_path)
+    target = tmp_path / "tool.py"
+    os.chmod(target, 0o644)
+
+    tool.save(tmp_path)
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_save_creates_new_files_with_the_umask_mode(tmp_path):
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    umask = os.umask(0)
+    os.umask(umask)
+
+    Demo().save(tmp_path)
+
+    assert stat.S_IMODE((tmp_path / "tool.py").stat().st_mode) == 0o666 & ~umask
