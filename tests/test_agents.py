@@ -27,12 +27,12 @@ from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PIL import Image
 from huggingface_hub import (
     ChatCompletionOutputFunctionDefinition,
     ChatCompletionOutputMessage,
     ChatCompletionOutputToolCall,
 )
+from PIL import Image
 from rich.console import Console
 
 from smolagents import EMPTY_PROMPT_TEMPLATES
