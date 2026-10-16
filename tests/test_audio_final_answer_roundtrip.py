@@ -68,9 +68,7 @@ def test_final_output_converter_does_not_downcast_agent_audio_to_text():
 
 
 def test_tool_calling_agent_preserves_audio_rate_and_type_through_final_answer():
-    agent = ToolCallingAgent(
-        tools=[Waveform()], model=RecordedModel(), max_steps=2, verbosity_level=-1
-    )
+    agent = ToolCallingAgent(tools=[Waveform()], model=RecordedModel(), max_steps=2, verbosity_level=-1)
     result = agent.run("Return the waveform.")
     assert isinstance(result, AgentAudio)
     assert result is agent.state["audio.mp3"]
@@ -93,9 +91,7 @@ class ImageSizeFinalAnswer(FinalAnswerTool):
 
 
 def test_custom_final_answer_tool_still_receives_sanitized_agent_image():
-    agent = ToolCallingAgent(
-        tools=[ImageSizeFinalAnswer()], model=Model(), verbosity_level=-1
-    )
+    agent = ToolCallingAgent(tools=[ImageSizeFinalAnswer()], model=Model(), verbosity_level=-1)
     agent.state["image.png"] = AgentImage(Image.new("RGB", (8, 6)))
 
     assert agent.execute_tool_call("final_answer", {"answer": "image.png"}) == "8x6"
