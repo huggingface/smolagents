@@ -329,6 +329,13 @@ def get_tool_json_schema(tool: Tool) -> dict:
     }
 
 
+def _copy_content_element(element: Any) -> Any:
+    # Text elements only hold strings, so a shallow copy is enough to keep them independent
+    if type(element) is dict and all(isinstance(value, str) for value in element.values()):
+        return element.copy()
+    return deepcopy(element)
+
+
 def get_clean_message_list(
     message_list: list[ChatMessage | dict],
     role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
@@ -346,19 +353,23 @@ def get_clean_message_list(
         flatten_messages_as_text (`bool`, default `False`): Whether to flatten messages as text.
     """
     output_message_list: list[dict[str, Any]] = []
-    message_list = deepcopy(message_list)  # Avoid modifying the original list
+    valid_roles = MessageRole.roles()
     for message in message_list:
         if isinstance(message, dict):
-            message = ChatMessage.from_dict(message)
+            message = ChatMessage.from_dict(dict(message))
         role = message.role
-        if role not in MessageRole.roles():
-            raise ValueError(f"Incorrect role {role}, only {MessageRole.roles()} are supported for now.")
+        if role not in valid_roles:
+            raise ValueError(f"Incorrect role {role}, only {valid_roles} are supported for now.")
 
         if role in role_conversions:
-            message.role = role_conversions[role]  # type: ignore
-        # encode images if needed
-        if isinstance(message.content, list):
-            for element in message.content:
+            role = role_conversions[role]  # type: ignore
+        content = message.content
+        if isinstance(content, list):
+            # Copy only the content elements, which get modified below, instead of deep-copying the whole
+            # message list: that copy grows with the agent memory and dominated the cost of each step.
+            content = [_copy_content_element(element) for element in content]
+            # encode images if needed
+            for element in content:
                 assert isinstance(element, dict), "Error: this element should be a dict:" + str(element)
                 if element["type"] == "image":
                     assert not flatten_messages_as_text, f"Cannot use images with {flatten_messages_as_text=}"
@@ -372,12 +383,12 @@ def get_clean_message_list(
                     else:
                         element["image"] = encode_image_base64(element["image"])
 
-        if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
+        if len(output_message_list) > 0 and role == output_message_list[-1]["role"]:
+            assert isinstance(content, list), "Error: wrong content:" + str(content)
             if flatten_messages_as_text:
-                output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
+                output_message_list[-1]["content"] += "\n" + content[0]["text"]
             else:
-                for el in message.content:
+                for el in content:
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
                         output_message_list[-1]["content"][-1]["text"] += "\n" + el["text"]
@@ -385,12 +396,10 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                content = message.content[0]["text"]
-            else:
-                content = message.content
+                content = content[0]["text"]
             output_message_list.append(
                 {
-                    "role": message.role,
+                    "role": role,
                     "content": content,
                 }
             )
