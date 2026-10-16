@@ -14,9 +14,9 @@
 
 """Ensure final_answer preserves typed audio and original sampling metadata."""
 
-import pytest
-
 from PIL import Image
+
+import pytest
 
 from smolagents import AgentAudio, AgentImage, AgentText, Model, Tool, ToolCallingAgent
 from smolagents.agent_types import handle_agent_output_types
