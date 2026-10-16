@@ -994,8 +994,12 @@ def evaluate_condition(
         else:
             raise InterpreterError(f"Unsupported comparison operator: {op}")
 
-        if current_result is False:
-            return False
+        # Python's chained comparisons short-circuit on the truth value of
+        # each intermediate comparison result, not only on the singleton False.
+        # A user-defined false-like object must therefore stop evaluation and be
+        # returned unchanged, just as CPython's comparison bytecode does.
+        if not current_result:
+            return current_result
         result = current_result if i == 0 else (result and current_result)
         left = right
     return result
