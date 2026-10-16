@@ -16,8 +16,11 @@
 
 import pytest
 
-from smolagents import AgentAudio, AgentText, Model, Tool, ToolCallingAgent
+from PIL import Image
+
+from smolagents import AgentAudio, AgentImage, AgentText, Model, Tool, ToolCallingAgent
 from smolagents.agent_types import handle_agent_output_types
+from smolagents.default_tools import FinalAnswerTool
 from smolagents.models import ChatMessage
 
 
@@ -79,3 +82,17 @@ def test_generic_plain_string_still_becomes_agent_text():
     result = handle_agent_output_types("finished")
     assert isinstance(result, AgentText)
     assert str(result) == "finished"
+
+
+class ImageSizeFinalAnswer(FinalAnswerTool):
+    output_type = "string"
+
+    def forward(self, answer):
+        return f"{answer.width}x{answer.height}"
+
+
+def test_custom_final_answer_tool_still_receives_sanitized_agent_image():
+    agent = ToolCallingAgent(tools=[ImageSizeFinalAnswer()], model=Model(), verbosity_level=-1)
+    agent.state["image.png"] = AgentImage(Image.new("RGB", (8, 6)))
+
+    assert agent.execute_tool_call("final_answer", {"answer": "image.png"}) == "8x6"
