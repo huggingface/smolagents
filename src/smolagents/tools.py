@@ -21,6 +21,7 @@ import inspect
 import json
 import logging
 import os
+import secrets
 import stat
 import sys
 import tempfile
@@ -423,21 +424,31 @@ class Tool(BaseTool):
         part-way through would leave the existing file as a prefix of the new one.
         """
         destination_mode = stat.S_IMODE(file_path.stat().st_mode) if file_path.exists() else None
-        fd, temporary = tempfile.mkstemp(dir=str(file_path.parent), prefix=f".{file_path.name}.", suffix=".tmp")
+        open_flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        if os.name == "nt":
+            open_flags |= getattr(os, "O_BINARY", 0)
+        else:
+            open_flags |= getattr(os, "O_NOFOLLOW", 0)
+        parent = file_path.parent
+        temporary = None
+        fd = None
+        for _ in range(10):
+            candidate = parent / f".{file_path.name}.{secrets.token_hex(8)}.tmp"
+            try:
+                fd = os.open(candidate, open_flags, 0o666)
+            except FileExistsError:
+                continue
+            temporary = candidate
+            break
+        if temporary is None:
+            raise OSError(f"Could not create a temporary file for {file_path}")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 handle.write(content)
                 handle.flush()
                 os.fsync(handle.fileno())
-            # Set the mode on the temporary file *before* publishing it: chmod-ing
-            # the destination afterwards would leave a window where the file is
-            # 0600, which is exactly what mkstemp created.
             if destination_mode is not None:
                 os.chmod(temporary, destination_mode)
-            elif os.name != "nt":
-                current_umask = os.umask(0)
-                os.umask(current_umask)
-                os.chmod(temporary, stat.S_IMODE(0o666 & ~current_umask))
             os.replace(temporary, file_path)
         except BaseException:
             Path(temporary).unlink(missing_ok=True)

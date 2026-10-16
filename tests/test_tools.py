@@ -1119,7 +1119,7 @@ def test_save_writes_the_tool_file(tmp_path):
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX file permissions")
 def test_save_preserves_file_permissions(tmp_path):
-    """Atomic writes must not tighten permissions from mkstemp's 0600."""
+    """Atomic writes must keep existing modes and honor umask for new files."""
     import stat
 
     class Demo(Tool):
@@ -1152,7 +1152,7 @@ def test_save_preserves_file_permissions(tmp_path):
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
 def test_save_preserves_the_destination_file_mode(tmp_path):
-    """mkstemp creates 0600; replacing must not tighten an existing 0644 file."""
+    """Replacing an existing file must not change its permission bits."""
 
     class Demo(Tool):
         name = "demo"
@@ -1190,3 +1190,29 @@ def test_save_creates_new_files_with_the_umask_mode(tmp_path):
     Demo().save(tmp_path)
 
     assert stat.S_IMODE((tmp_path / "tool.py").stat().st_mode) == 0o666 & ~umask
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_save_does_not_modify_process_umask(tmp_path, monkeypatch):
+    """_write_file must not read or change the process umask (not thread-safe)."""
+    umask_calls: list[int] = []
+    real_umask = os.umask
+
+    def tracking_umask(mask: int) -> int:
+        umask_calls.append(mask)
+        return real_umask(mask)
+
+    monkeypatch.setattr(os, "umask", tracking_umask)
+
+    class Demo(Tool):
+        name = "demo"
+        description = "demo"
+        inputs = {"task": {"type": "string", "description": "task"}}
+        output_type = "string"
+
+        def forward(self, task: str) -> str:
+            return task
+
+    Demo().save(tmp_path)
+
+    assert umask_calls == []
