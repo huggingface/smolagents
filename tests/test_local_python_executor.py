@@ -2987,3 +2987,35 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_with_unwinds_earlier_contexts_when_later_enter_fails():
+    events = []
+
+    class First:
+        def __enter__(self):
+            events.append("first_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("first_exit", exc_type.__name__ if exc_type else None))
+            return False
+
+    class Failing:
+        def __enter__(self):
+            events.append("failing_enter")
+            raise RuntimeError("enter failed")
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append("failing_exit")
+            return False
+
+    state = {"First": First, "Failing": Failing, "events": events}
+    result, _ = evaluate_python_code(
+        "with First(), Failing():\n    pass",
+        BASE_PYTHON_TOOLS.copy(),
+        state=state,
+    )
+
+    assert isinstance(result.error, RuntimeError)
+    assert events == ["first_enter", "failing_enter", ("first_exit", "RuntimeError")]
