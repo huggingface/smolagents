@@ -769,6 +769,15 @@ def test_get_clean_message_list_does_not_modify_input():
     assert messages == original
 
 
+def test_get_clean_message_list_shared_content_element():
+    # Regression test for #3005: merging consecutive messages must not alias a content element shared between them
+    shared = {"type": "text", "text": "x"}
+    messages = [ChatMessage(role=MessageRole.USER, content=[shared]) for _ in range(3)]
+    result = get_clean_message_list(messages)
+    assert result == [{"role": "user", "content": [{"type": "text", "text": "x\nx\nx"}]}]
+    assert shared == {"type": "text", "text": "x"}
+
+
 def test_remove_content_after_stop_sequences():
     content = "Hello<code>world!"
     stop_sequences = ["<code>"]
