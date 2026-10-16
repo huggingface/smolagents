@@ -17,30 +17,50 @@ class FakeClock:
         self.now += seconds
 
 
+class ControlledClock(FakeClock):
+    def __init__(self):
+        super().__init__()
+        self.sleep_entered = threading.Event()
+        self.release_sleep = threading.Event()
+        self.second_time_called = threading.Event()
+        self.time_calls = 0
+
+    def time(self):
+        self.time_calls += 1
+        if self.time_calls >= 2:
+            self.second_time_called.set()
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleep_entered.set()
+        self.release_sleep.wait(timeout=5)
+        self.now += seconds
+
+
 def test_rate_limiter_serializes_concurrent_admissions(monkeypatch):
-    clock = FakeClock()
+    clock = ControlledClock()
     monkeypatch.setattr(utils, "time", clock)
 
     limiter = RateLimiter(requests_per_minute=60)
-    start = threading.Barrier(3)
-    admitted = []
+    first = threading.Thread(target=limiter.throttle)
+    first.start()
+    assert clock.sleep_entered.wait(timeout=2)
 
-    def worker():
-        start.wait()
-        limiter.throttle()
-        admitted.append(clock.time())
+    second = threading.Thread(target=limiter.throttle)
+    second.start()
 
-    threads = [threading.Thread(target=worker) for _ in range(2)]
-    for thread in threads:
-        thread.start()
-    start.wait()
-    for thread in threads:
-        thread.join(timeout=2)
-        assert not thread.is_alive()
+    # The first call is deliberately blocked inside sleep(). A second caller
+    # must not enter the critical section until the first reservation completes.
+    assert not clock.second_time_called.wait(timeout=0.1)
 
-    admitted = sorted(admitted)
-    assert len(admitted) == 2
-    assert admitted[1] - admitted[0] == pytest.approx(1.0)
+    clock.release_sleep.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert clock.time_calls == 4
+    assert limiter._last_call == pytest.approx(2.0)
 
 
 def test_rate_limiters_do_not_share_state(monkeypatch):
@@ -53,7 +73,7 @@ def test_rate_limiters_do_not_share_state(monkeypatch):
     first.throttle()
     second.throttle()
 
-    assert clock.now == 0.0
+    assert clock.now == 2.0
 
 
 def test_disabled_rate_limiter_does_not_touch_clock(monkeypatch):
@@ -81,7 +101,6 @@ def test_rate_limiter_releases_lock_when_sleep_raises(monkeypatch):
     monkeypatch.setattr(utils, "time", clock)
 
     limiter = RateLimiter(requests_per_minute=60)
-    limiter._last_call = 0.0
 
     with pytest.raises(RuntimeError, match="interrupted"):
         limiter.throttle()
