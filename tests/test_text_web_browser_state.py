@@ -1,24 +1,29 @@
-"""Regression test for text-browser find state reset."""
+"""Regression tests for text-browser find state."""
 
-from pathlib import Path
-import importlib.util
-
-
-MODULE_PATH = Path(__file__).parents[1] / "examples" / "open_deep_research" / "scripts" / "text_web_browser.py"
+from examples.open_deep_research.scripts.text_web_browser import SimpleTextBrowser
 
 
-def _load_browser_module():
-    package_dir = MODULE_PATH.parent
-    spec = importlib.util.spec_from_file_location("text_web_browser_test_module", MODULE_PATH)
-    module = importlib.util.module_from_spec(spec)
-    module.__package__ = "examples.open_deep_research.scripts"
-    module.__path__ = [str(package_dir)]
-    raise RuntimeError("The example uses relative imports; run this regression from its example package context.")
+class FakeBrowser(SimpleTextBrowser):
+    pages = {
+        "https://a.example": "alpha one two three four",
+        "https://b.example": "alpha " + ("x" * 40) + " alpha second",
+    }
+
+    def _fetch_page(self, url: str) -> None:
+        self._set_page_content(self.pages[url])
 
 
-def test_source_resets_actual_find_state_attributes():
-    source = MODULE_PATH.read_text(encoding="utf-8")
-    assert "self._find_on_page_query = None" in source
-    assert "self._find_on_page_last_result = None" in source
-    assert "self.find_on_page_query = None" not in source
-    assert "self.find_on_page_viewport = None" not in source
+def test_find_state_is_reset_after_navigation():
+    browser = FakeBrowser(viewport_size=10, request_kwargs={})
+
+    browser.visit_page("https://a.example")
+    assert browser.find_on_page("alpha") is not None
+    assert browser._find_on_page_query == "alpha"
+
+    browser.visit_page("https://b.example")
+
+    assert browser._find_on_page_query is None
+    assert browser._find_on_page_last_result is None
+    assert browser.find_next() is None
+    assert browser.find_on_page("alpha") is not None
+    assert browser._find_on_page_last_result == 0
