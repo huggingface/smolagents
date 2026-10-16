@@ -541,6 +541,17 @@ class TestOpenAIModel:
         )
         assert model.client == MockOpenAI.return_value
 
+    def test_client_kwargs_for_nvidia_nim(self):
+        model_id = "nvidia/nemotron-3-super-120b-a12b"
+        api_base = "https://integrate.api.nvidia.com/v1"
+        api_key = "test_api_key"
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            model = OpenAIModel(model_id=model_id, api_base=api_base, api_key=api_key)
+        MockOpenAI.assert_called_once_with(base_url=api_base, api_key=api_key, organization=None, project=None)
+        assert model.client == MockOpenAI.return_value
+        assert model.model_id == model_id
+
     @require_run_all
     def test_streaming_tool_calls(self):
         model = OpenAIModel(model_id="gpt-4o-mini")
