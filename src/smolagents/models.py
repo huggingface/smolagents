@@ -190,13 +190,15 @@ def _coerce_tool_call(tool_call: Any) -> ChatMessageToolCall:
     )
 
 
-def parse_json_if_needed(arguments: str | dict) -> str | dict:
+def parse_json_if_needed(arguments: str | dict, *, raise_on_error: bool = False) -> str | dict:
     if isinstance(arguments, dict):
         return arguments
     else:
         try:
             return json.loads(arguments)
-        except Exception:
+        except json.JSONDecodeError:
+            if raise_on_error:
+                raise
             return arguments
 
 
