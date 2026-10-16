@@ -75,8 +75,8 @@ class SimpleTextBrowser:
             self._fetch_page(uri_or_path)
 
         self.viewport_current_page = 0
-        self.find_on_page_query = None
-        self.find_on_page_viewport = None
+        self._find_on_page_query = None
+        self._find_on_page_last_result = None
 
     @property
     def viewport(self) -> str:
