@@ -27,6 +27,7 @@ from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
+from PIL import Image
 from huggingface_hub import (
     ChatCompletionOutputFunctionDefinition,
     ChatCompletionOutputMessage,
@@ -1640,6 +1641,19 @@ class TestMultiStepAgent:
             assert "InvalidAgentClass" in error_message
             assert "Unknown agent class" in error_message
             assert "Supported agents:" in error_message
+
+
+def test_custom_final_answer_tool_receives_sanitized_agent_image():
+    class ImageSizeFinalAnswer(FinalAnswerTool):
+        output_type = "string"
+
+        def forward(self, answer) -> str:
+            return f"{answer.width}x{answer.height}"
+
+    agent = ToolCallingAgent(tools=[ImageSizeFinalAnswer()], model=MagicMock(), verbosity_level=-1)
+    agent.state["image.png"] = AgentImage(Image.new("RGB", (8, 6)))
+
+    assert agent.execute_tool_call("final_answer", {"answer": "image.png"}) == "8x6"
 
 
 class TestToolCallingAgent:
