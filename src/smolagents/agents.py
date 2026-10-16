@@ -1484,7 +1484,7 @@ class ToolCallingAgent(MultiStepAgent):
             # Only the built-in identity tool can safely bypass sanitization.
             # Custom FinalAnswerTool subclasses may intentionally transform inputs and
             # therefore must keep the normal input/output sanitization contract.
-            sanitize = type(tool) is not FinalAnswerTool
+            sanitize = tool.__class__ is not FinalAnswerTool
             if isinstance(arguments, dict):
                 return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=sanitize)
             else:
