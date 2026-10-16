@@ -949,6 +949,7 @@ def test_empty_axis_ndarray_round_trip_preserves_shape():
         assert restored.shape == shape
         assert restored.dtype == array.dtype
 
+
 def test_real_ndarray_round_trip_remains_unchanged():
     np = pytest.importorskip("numpy")
 
