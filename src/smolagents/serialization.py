@@ -155,6 +155,7 @@ class SafeSerializer:
                     "__type__": "ndarray",
                     "data": SafeSerializer.to_json_safe(obj.tolist()),
                     "dtype": str(obj.dtype),
+                    "shape": list(obj.shape),
                 }
             np_integer = SafeSerializer._get_optional_type("numpy", "integer")
             np_floating = SafeSerializer._get_optional_type("numpy", "floating")
@@ -237,7 +238,11 @@ class SafeSerializer:
                         import numpy as np
 
                         data = SafeSerializer.from_json_safe(obj["data"])
-                        return np.array(data, dtype=obj["dtype"])
+                        array = np.array(data, dtype=obj["dtype"])
+                        shape = obj.get("shape")
+                        if shape is not None:
+                            array = array.reshape(tuple(shape))
+                        return array
                     except ImportError:
                         return obj["data"]  # Return as list if numpy not available
                 elif obj_type == "dataclass":
