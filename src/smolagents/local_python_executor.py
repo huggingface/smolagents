@@ -966,7 +966,6 @@ def evaluate_condition(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> bool | object:
-    result = True
     left = evaluate_ast(condition.left, state, static_tools, custom_tools, authorized_imports)
     for i, (op, comparator) in enumerate(zip(condition.ops, condition.comparators)):
         op = type(op)
@@ -994,15 +993,13 @@ def evaluate_condition(
         else:
             raise InterpreterError(f"Unsupported comparison operator: {op}")
 
-        # Python's chained comparisons short-circuit on the truth value of
-        # each intermediate comparison result, not only on the singleton False.
-        # A user-defined false-like object must therefore stop evaluation and be
-        # returned unchanged, just as CPython's comparison bytecode does.
-        if not current_result:
+        # CPython truth-tests only intermediate comparison results. The final
+        # result is returned untouched, and each intermediate result is tested
+        # exactly once before deciding whether to evaluate the next operand.
+        if i < len(condition.ops) - 1 and not current_result:
             return current_result
-        result = current_result if i == 0 else (result and current_result)
         left = right
-    return result
+    return current_result
 
 
 def evaluate_if(
