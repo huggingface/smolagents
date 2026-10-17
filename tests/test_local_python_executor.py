@@ -2198,6 +2198,25 @@ class TestTimeout:
         with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
             long_task()
 
+    def test_timeout_decorator_returns_control_at_timeout(self):
+        """Test that the caller regains control at the timeout, not when the code finishes.
+
+        Regression test: the executor was used as a context manager, so leaving
+        the block called shutdown(wait=True) and blocked until the timed-out
+        code completed before the error could reach the caller.
+        """
+
+        @timeout(1)
+        def long_task():
+            time.sleep(5)
+            return "should not complete"
+
+        start = time.time()
+        with pytest.raises(ExecutionTimeoutError, match="Code execution exceeded the maximum execution time"):
+            long_task()
+        elapsed = time.time() - start
+        assert elapsed < 4, f"Timeout error took {elapsed:.1f}s to reach the caller, expected about 1s"
+
     def test_evaluate_python_code_with_timeout_completes(self):
         """Test that evaluate_python_code completes within timeout for quick code."""
         code = "result = 2 + 2"
