@@ -73,6 +73,7 @@ from smolagents.utils import (
     BASE_BUILTIN_MODULES,
     AgentExecutionError,
     AgentGenerationError,
+    AgentParsingError,
     AgentToolExecutionError,
 )
 
@@ -1676,6 +1677,41 @@ class TestToolCallingAgent:
         assert "final_answer" in tools_to_call_from_names  # The final_answer tool (added by default)
 
     @patch("huggingface_hub.InferenceClient")
+    def test_toolcalling_agent_rejects_malformed_native_tool_arguments(self):
+        calls = []
+
+        class RecordingTool(Tool):
+            name = "record"
+            description = "Record a call."
+            inputs = {"status": {"type": "string", "description": "Status"}}
+            output_type = "string"
+
+            def forward(self, status):
+                calls.append(status)
+                return status
+
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_0",
+                    type="function",
+                    function=ChatMessageToolCallFunction(
+                        name="record",
+                        arguments='{"status": "archived"',
+                    ),
+                )
+            ],
+        )
+        agent = ToolCallingAgent(tools=[RecordingTool()], model=model, max_steps=1)
+
+        with pytest.raises(AgentParsingError, match="Error while parsing tool call arguments"):
+            agent.run("Record archived items.")
+
+        assert calls == []
+
     def test_toolcalling_agent_api(self, mock_inference_client):
         mock_client = mock_inference_client.return_value
         mock_response = mock_client.chat_completion.return_value
