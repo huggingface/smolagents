@@ -1429,16 +1429,13 @@ class ToolCallingAgent(MultiStepAgent):
             # original call index separate from the provider-supplied ID so
             # duplicate or missing IDs cannot overwrite another result.
             with ThreadPoolExecutor(self.max_tool_threads) as executor:
-                futures = []
+                future_to_index = {}
                 for call_index, tool_call in enumerate(parallel_calls):
                     ctx = copy_context()
-                    futures.append(
-                        (
-                            call_index,
-                            executor.submit(ctx.run, process_single_tool_call, tool_call),
-                        )
-                    )
-                for call_index, future in as_completed(futures):
+                    future = executor.submit(ctx.run, process_single_tool_call, tool_call)
+                    future_to_index[future] = call_index
+                for future in as_completed(future_to_index):
+                    call_index = future_to_index[future]
                     tool_output = future.result()
                     outputs[call_index] = tool_output
                     yield tool_output
