@@ -95,6 +95,23 @@ AUTHORIZED_TYPES = [
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
 
 
+def _get_input_types(input_content: dict) -> list[str]:
+    """Return the flat list of type names declared by a tool input schema.
+
+    The types can be declared either via a top-level `"type"` (a string or a list of
+    strings) or via `"anyOf"` branches (as produced by the annotation parser for
+    union type hints), each branch declaring its own `"type"`.
+    """
+    if "anyOf" in input_content:
+        input_types = []
+        for subtype in input_content["anyOf"]:
+            subtype_type = subtype.get("type", []) if isinstance(subtype, dict) else []
+            input_types.extend(subtype_type if isinstance(subtype_type, list) else [subtype_type])
+        return input_types
+    input_type = input_content.get("type", [])
+    return input_type if isinstance(input_type, list) else [input_type]
+
+
 class BaseTool(ABC):
     name: str
 
@@ -171,11 +188,18 @@ class Tool(BaseTool):
         # Validate inputs
         for input_name, input_content in self.inputs.items():
             assert isinstance(input_content, dict), f"Input '{input_name}' should be a dictionary."
-            assert "type" in input_content and "description" in input_content, (
-                f"Input '{input_name}' should have keys 'type' and 'description', has only {list(input_content.keys())}."
+            assert ("type" in input_content or "anyOf" in input_content) and "description" in input_content, (
+                f"Input '{input_name}' should have keys 'type' (or 'anyOf') and 'description', has only {list(input_content.keys())}."
             )
-            # Get input_types as a list, whether from a string or list
-            if isinstance(input_content["type"], str):
+            # Get input_types as a list, whether from a string, a list, or "anyOf" branches
+            if "anyOf" in input_content:
+                input_types = _get_input_types(input_content)
+                # Check if all branch types are strings
+                if not all(isinstance(t, str) for t in input_types):
+                    raise TypeError(
+                        f"Input '{input_name}': when using 'anyOf', all branch types must be strings, got {input_content['anyOf']}"
+                    )
+            elif isinstance(input_content["type"], str):
                 input_types = [input_content["type"]]
             elif isinstance(input_content["type"], list):
                 input_types = input_content["type"]
@@ -256,7 +280,14 @@ class Tool(BaseTool):
         self.is_initialized = True
 
     def to_code_prompt(self) -> str:
-        args_signature = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
+        def _input_type_str(arg_schema: dict) -> str:
+            if "anyOf" in arg_schema:
+                return " | ".join(_get_input_types(arg_schema))
+            return arg_schema["type"]
+
+        args_signature = ", ".join(
+            f"{arg_name}: {_input_type_str(arg_schema)}" for arg_name, arg_schema in self.inputs.items()
+        )
 
         # Use dict type for tools with output schema to indicate structured return
         has_schema = hasattr(self, "output_schema") and self.output_schema is not None
@@ -1388,18 +1419,22 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
                 raise ValueError(f"Argument {key} is not in the tool's input schema")
 
             actual_type = _get_json_schema_type(type(value))["type"]
-            expected_type = tool.inputs[key]["type"]
-            expected_type_is_nullable = tool.inputs[key].get("nullable", False)
+            input_schema = tool.inputs[key]
+            expected_type_is_nullable = input_schema.get("nullable", False)
+            # Collect the expected types, whether from a top-level "type" or "anyOf" branches
+            expected_types = _get_input_types(input_schema)
 
-            # Type is valid if it matches, is "any", or is null for nullable parameters
+            # Type is valid if it matches one of the expected types, is "any",
+            # or is null for nullable parameters
             if (
-                (actual_type != expected_type if isinstance(expected_type, str) else actual_type not in expected_type)
-                and expected_type != "any"
+                actual_type not in expected_types
+                and "any" not in expected_types
                 and not (actual_type == "null" and expected_type_is_nullable)
             ):
-                if actual_type == "integer" and expected_type == "number":
+                if actual_type == "integer" and "number" in expected_types:
                     continue
-                raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{tool.inputs[key]['type']}'")
+                expected_type_str = input_schema["type"] if "type" in input_schema else input_schema["anyOf"]
+                raise TypeError(f"Argument {key} has type '{actual_type}' but should be '{expected_type_str}'")
 
         for key, schema in tool.inputs.items():
             key_is_nullable = schema.get("nullable", False)
@@ -1407,9 +1442,13 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
                 raise ValueError(f"Argument {key} is required")
         return None
     else:
-        expected_type = list(tool.inputs.values())[0]["type"]
-        if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
-            raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
+        first_input_schema = list(tool.inputs.values())[0]
+        expected_types = _get_input_types(first_input_schema)
+        if _get_json_schema_type(type(arguments))["type"] not in expected_types and "any" not in expected_types:
+            expected_type_str = (
+                first_input_schema["type"] if "type" in first_input_schema else first_input_schema["anyOf"]
+            )
+            raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type_str}'")
 
 
 __all__ = [
