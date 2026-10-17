@@ -16,7 +16,7 @@ import inspect
 import os
 import warnings
 from textwrap import dedent
-from typing import Any, Literal
+from typing import Any, Literal, Union
 from unittest.mock import MagicMock, patch
 
 import mcp
@@ -968,6 +968,37 @@ def test_validate_tool_arguments(tool_input_type, expected_input, expects_error)
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, {"argument_a": expected_input})
+
+
+def test_tool_decorator_accepts_anyof_input_schema():
+    """Regression test for https://github.com/huggingface/smolagents/issues/2973.
+
+    `@tool` must accept the `anyOf` input schemas produced by its own annotation
+    parser for union type hints, preserving the alternatives.
+    """
+
+    @tool
+    def calculate(selection: Union[Literal[2, "double"], list[int]]) -> int:
+        """Calculate the selected quantities.
+
+        Args:
+            selection: A doubling selector or an explicit integer list to sum.
+        """
+        return sum(selection) if isinstance(selection, list) else 74
+
+    assert "anyOf" in calculate.inputs["selection"]
+    assert calculate(selection=[23, 31, 47]) == 101
+
+    # Call-time validation accepts values matching any branch of the union...
+    validate_tool_arguments(calculate, {"selection": [1, 2]})
+    validate_tool_arguments(calculate, {"selection": "double"})
+    validate_tool_arguments(calculate, {"selection": 2})
+    # ... and rejects values matching none of them
+    with pytest.raises(TypeError):
+        validate_tool_arguments(calculate, {"selection": 1.5})
+
+    # Prompt rendering supports anyOf inputs
+    assert "integer | string | array" in calculate.to_code_prompt()
 
 
 @pytest.mark.parametrize(
