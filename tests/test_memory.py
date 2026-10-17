@@ -271,3 +271,25 @@ def test_memory_step_json_serialization():
     # Raw field should be present but serializable
     assert "raw" in json_str
     assert "MockChatCompletion" in json_str
+
+
+def test_detailed_replay_with_image_content():
+    from PIL import Image
+    from rich.console import Console
+    from smolagents.monitoring import AgentLogger
+
+    memory = AgentMemory(system_prompt="system")
+    memory.steps.append(
+        ActionStep(
+            step_number=1,
+            timing=Timing(start_time=0.0, end_time=1.0),
+            model_input_messages=[
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[{"type": "image", "image": Image.new("RGB", (1, 1))}],
+                )
+            ],
+        )
+    )
+    # detailed replay must log messages without raising TypeError (#3007)
+    memory.replay(AgentLogger(console=Console(record=True)), detailed=True)
