@@ -1260,8 +1260,12 @@ def evaluate_with(
         exc_info = (type(e), e, e.__traceback__)
         for context in reversed(contexts):
             try:
-                if context.__exit__(*exc_info):
-                    exc_info = (None, None, None)  # suppressed; outer CMs see no exception
+                suppressed = context.__exit__(*exc_info)
+                # FinalAnswerException is an agent termination signal, not a
+                # user exception. Always run __exit__ for resource cleanup,
+                # but do not allow a context manager to swallow final_answer.
+                if suppressed and not isinstance(exc_info[1], FinalAnswerException):
+                    exc_info = (None, None, None)  # ordinary exception suppressed
             except BaseException as exit_exc:
                 exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)  # new exc replaces active
         if exc_info[1] is not None:
