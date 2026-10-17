@@ -305,15 +305,23 @@ def timeout(timeout_seconds: int):
         @wraps(func)
         def wrapper(*args, **kwargs):
             # Create a new ThreadPoolExecutor for each call to avoid threading issues
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
-                try:
-                    result = future.result(timeout=timeout_seconds)
-                    return result
-                except FuturesTimeoutError:
-                    raise ExecutionTimeoutError(
-                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
-                    )
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(func, *args, **kwargs)
+            try:
+                result = future.result(timeout=timeout_seconds)
+                return result
+            except FuturesTimeoutError:
+                raise ExecutionTimeoutError(
+                    f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                )
+            finally:
+                # Shut the executor down without waiting. Using it as a context
+                # manager (or shutdown(wait=True)) blocks until the worker thread
+                # finishes, so on timeout the caller would only regain control
+                # once the code completed, defeating the timeout. The worker
+                # thread cannot be killed and keeps running in the background
+                # until completion, as documented above.
+                executor.shutdown(wait=False, cancel_futures=True)
 
         return wrapper
 
