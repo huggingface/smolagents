@@ -1,13 +1,26 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from smolagents import ToolCallingAgent
+from smolagents.agents import ToolOutput
 from smolagents.memory import ActionStep, ToolCall
 from smolagents.models import ChatMessage, ChatMessageToolCall, ChatMessageToolCallFunction
+from smolagents.tools import Tool
+
+
+class EchoTool(Tool):
+    name = "echo"
+    description = "Return the provided integer unchanged."
+    inputs = {"value": {"type": "integer", "description": "Integer to return."}}
+    output_type = "integer"
+
+    def forward(self, value: int) -> int:
+        return value
 
 
 def _agent():
-    model = MagicMock()
-    return ToolCallingAgent(tools=[], model=model)
+    return ToolCallingAgent(tools=[EchoTool()], model=MagicMock())
 
 
 def _message(ids):
@@ -17,6 +30,7 @@ def _message(ids):
         tool_calls=[
             ChatMessageToolCall(
                 id=tool_id,
+                type="function",
                 function=ChatMessageToolCallFunction(name="echo", arguments={"value": i}),
             )
             for i, tool_id in enumerate(ids)
@@ -24,35 +38,36 @@ def _message(ids):
     )
 
 
-def test_duplicate_tool_call_ids_are_not_dropped():
+@pytest.mark.parametrize(
+    "ids",
+    [
+        ["first", "second", "third"],
+        ["same-id", "same-id", "same-id"],
+        [None, None, None],
+        ["one-id"],
+    ],
+    ids=["distinct-ids", "duplicate-ids", "missing-ids", "single-call"],
+)
+def test_tool_calls_preserve_order_and_do_not_drop_duplicate_ids(ids):
     agent = _agent()
-    agent.tools["echo"] = MagicMock(side_effect=lambda value, sanitize_inputs_outputs=True: value)
-
-    message = _message(["same-id", "same-id"])
     step = ActionStep(step_number=0, timing=MagicMock())
-    outputs = list(agent.process_tool_calls(message, step))
+    events = list(agent.process_tool_calls(_message(ids), step))
 
-    calls = [item for item in outputs if isinstance(item, ToolCall)]
-    results = [item for item in outputs if hasattr(item, "output")]
+    calls = [event for event in events if isinstance(event, ToolCall)]
+    results = [event for event in events if isinstance(event, ToolOutput)]
 
-    assert len(calls) == 2
-    assert [call.id for call in calls] == ["same-id", "same-id"]
-    assert len(results) == 2
-    assert [result.output for result in results] == [0, 1]
-    assert len(step.tool_calls) == 2
+    assert len(calls) == len(ids)
+    assert len(results) == len(ids)
+    assert [call.id for call in calls] == ids
+    assert [call.arguments["value"] for call in calls] == list(range(len(ids)))
 
+    # Tool outputs are yielded in completion order, not necessarily call order.
+    # Verify every result, rather than imposing a scheduler-dependent ordering.
+    assert sorted(result.output for result in results) == list(range(len(ids)))
+    for result in results:
+        assert result.output == result.tool_call.arguments["value"]
 
-def test_missing_tool_call_ids_are_not_dropped():
-    agent = _agent()
-    agent.tools["echo"] = MagicMock(side_effect=lambda value, sanitize_inputs_outputs=True: value)
-
-    message = _message([None, None])
-    step = ActionStep(step_number=0, timing=MagicMock())
-    outputs = list(agent.process_tool_calls(message, step))
-
-    calls = [item for item in outputs if isinstance(item, ToolCall)]
-    results = [item for item in outputs if hasattr(item, "output")]
-
-    assert len(calls) == 2
-    assert len(results) == 2
-    assert [result.output for result in results] == [0, 1]
+    # Memory must retain the original provider IDs and deterministic call order.
+    assert [call.id for call in step.tool_calls] == ids
+    assert [call.arguments["value"] for call in step.tool_calls] == list(range(len(ids)))
+    assert step.observations == "\n".join(str(i) for i in range(len(ids)))
