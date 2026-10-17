@@ -3027,3 +3027,60 @@ def test_chained_comparison_returns_last_result_when_all_results_are_truthy():
     result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS.copy(), state=state)
 
     assert result.output is True
+
+def test_single_comparison_returns_final_result_without_truth_testing():
+    events = []
+
+    class FinalResult:
+        def __bool__(self):
+            events.append("final_bool")
+            raise AssertionError("a single comparison result must not be truth-tested")
+
+    class Left:
+        def __lt__(self, other):
+            events.append("compare")
+            return final_result
+
+    final_result = FinalResult()
+    state = {"left": Left(), "right": object()}
+    result, _ = evaluate_python_code(
+        "result = left < right", BASE_PYTHON_TOOLS.copy(), state=state
+    )
+
+    assert result.output is final_result
+    assert events == ["compare"]
+
+
+def test_chained_comparison_truth_tests_only_intermediate_result_once():
+    events = []
+
+    class IntermediateResult:
+        def __bool__(self):
+            events.append("intermediate_bool")
+            return True
+
+    class FinalResult:
+        def __bool__(self):
+            events.append("final_bool")
+            raise AssertionError("the final comparison result must not be truth-tested")
+
+    class Left:
+        def __lt__(self, other):
+            events.append("first_compare")
+            return intermediate_result
+
+    class Middle:
+        def __lt__(self, other):
+            events.append("second_compare")
+            return final_result
+
+    intermediate_result = IntermediateResult()
+    final_result = FinalResult()
+    state = {"left": Left(), "middle": Middle(), "right": object()}
+    result, _ = evaluate_python_code(
+        "result = left < middle < right", BASE_PYTHON_TOOLS.copy(), state=state
+    )
+
+    assert result.output is final_result
+    assert events == ["first_compare", "intermediate_bool", "second_compare"]
+
