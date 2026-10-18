@@ -1913,6 +1913,52 @@ class TestToolCallingAgent:
         assert "Error while parsing" in capture.get()
         assert len(agent.memory.steps) == 4
 
+    def test_toolcalling_agent_keeps_rejected_tool_call_in_memory(self):
+        """A tool call rejected by argument validation must stay on the memory step, so the
+        next prompt shows the model which call it made instead of an empty assistant turn."""
+
+        class FakeToolCallModelRejectedFirst(Model):
+            def __init__(self):
+                super().__init__(model_id="fake")
+                self.requests = []
+
+            def generate(self, messages, stop_sequences=None, response_format=None, tools_to_call_from=None, **kwargs):
+                self.requests.append(messages)
+                if len(self.requests) == 1:
+                    # Wrap the answer in an "arguments" field: not in the tool's input schema.
+                    arguments = {"arguments": '{"answer": 81}'}
+                else:
+                    arguments = {"answer": 81}
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id=f"call_{len(self.requests)}",
+                            type="function",
+                            function=ChatMessageToolCallFunction(name="final_answer", arguments=arguments),
+                        )
+                    ],
+                )
+
+        model = FakeToolCallModelRejectedFirst()
+        agent = ToolCallingAgent(tools=[], model=model, max_steps=3)
+        assert agent.run("Return 81.") == 81
+
+        step = agent.memory.steps[1]
+        assert step.error is not None
+        assert "not in the tool's input schema" in str(step.error)
+        assert step.tool_calls is not None
+        assert [tool_call.name for tool_call in step.tool_calls] == ["final_answer"]
+
+        # The second request replays the rejected call before the error, not an empty turn.
+        second_request_texts = [
+            part.get("text", "")
+            for message in model.requests[1]
+            for part in (message.content if isinstance(message.content, list) else [])
+        ]
+        assert any("Calling tools:" in text and "final_answer" in text for text in second_request_texts)
+
     @pytest.mark.skip(
         reason="Test is not properly implemented (GH-1255) because fake_tools should have the same name. "
         "Additionally, it uses CodeAgent instead of ToolCallingAgent (GH-1409)"
