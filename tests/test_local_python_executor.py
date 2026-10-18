@@ -3123,7 +3123,7 @@ def test_with_unwinds_earlier_context_when_later_context_expression_fails():
     state = {"First": First, "failing_expression": failing_expression, "events": events}
     with pytest.raises(InterpreterError, match="RuntimeError: context expression failed"):
         evaluate_python_code(
-            "with First(), failing_expression():\\n    pass",
+            "with First(), failing_expression():\n    pass",
             BASE_PYTHON_TOOLS.copy(),
             state=state,
         )
@@ -3154,7 +3154,7 @@ def test_outer_context_can_suppress_later_context_enter_failure():
 
     state = {"First": First, "Failing": Failing, "events": events}
     result, _ = evaluate_python_code(
-        "with First(), Failing():\\n    marker = 'body'\\nanswer = 42",
+        "with First(), Failing():\n    marker = 'body'\nanswer = 42",
         BASE_PYTHON_TOOLS.copy(),
         state=state,
     )
