@@ -1241,25 +1241,32 @@ def evaluate_with(
     authorized_imports: list[str],
 ) -> None:
     contexts = []
-    for item in with_node.items:
-        context_expr = evaluate_ast(item.context_expr, state, static_tools, custom_tools, authorized_imports)
-        enter_result = context_expr.__enter__()
-        contexts.append(context_expr)
-        if item.optional_vars:
-            state[item.optional_vars.id] = enter_result
-
     try:
+        # Enter contexts inside the same protected region as the body. Python
+        # guarantees that managers already entered are unwound when a later
+        # context expression or __enter__ fails.
+        for item in with_node.items:
+            context_expr = evaluate_ast(item.context_expr, state, static_tools, custom_tools, authorized_imports)
+            enter_result = context_expr.__enter__()
+            contexts.append(context_expr)
+            if item.optional_vars:
+                state[item.optional_vars.id] = enter_result
+
         for stmt in with_node.body:
             evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
-    except Exception as e:
+    except BaseException as e:
         # exc_info tracks the active exception as we unwind (from innermost context manager)
-        # Resetting it to (None, None, None) signals suppression to the remaining outer managers
+        # Resetting it to (None, None, None) signals suppression to the remaining outer managers.
         exc_info = (type(e), e, e.__traceback__)
         for context in reversed(contexts):
             try:
-                if context.__exit__(*exc_info):
-                    exc_info = (None, None, None)  # suppressed; outer CMs see no exception
-            except Exception as exit_exc:
+                suppressed = context.__exit__(*exc_info)
+                # FinalAnswerException is an agent termination signal, not a
+                # user exception. Always run __exit__ for resource cleanup,
+                # but do not allow a context manager to swallow final_answer.
+                if suppressed and not isinstance(exc_info[1], FinalAnswerException):
+                    exc_info = (None, None, None)  # ordinary exception suppressed
+            except BaseException as exit_exc:
                 exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)  # new exc replaces active
         if exc_info[1] is not None:
             raise exc_info[1].with_traceback(exc_info[2])
