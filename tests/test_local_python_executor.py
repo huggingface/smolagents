@@ -477,6 +477,21 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert list(result) == [2, 2, 2]
 
+    def test_generatorexp_resolves_outer_names_against_live_state(self):
+        # Regression test: a generator expression is lazy, so outer names must be
+        # resolved against the live enclosing state on each iteration, not against
+        # a snapshot taken when the generator was created.
+        code = """
+x = 0
+g = (x for _ in range(2))
+first = next(g)
+x = 1
+second = next(g)
+(first, second)
+"""
+        result, _ = evaluate_python_code(code, {"range": range, "next": next}, state={})
+        assert result == (0, 1)
+
     def test_string_indexing(self):
         code = """text_block = [
     "THESE",
