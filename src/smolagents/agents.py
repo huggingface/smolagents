@@ -1379,6 +1379,11 @@ class ToolCallingAgent(MultiStepAgent):
             yield tool_call
             parallel_calls[tool_call.id] = tool_call
 
+        # Record the tool calls on the memory step before executing any of them, so that a call
+        # rejected during validation or execution still shows up in the next prompt instead of
+        # leaving an empty assistant turn.
+        memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
+
         # Helper function to process a single tool call
         def process_single_tool_call(tool_call: ToolCall) -> ToolOutput:
             tool_name = tool_call.name
@@ -1433,7 +1438,6 @@ class ToolCallingAgent(MultiStepAgent):
                     outputs[tool_output.id] = tool_output
                     yield tool_output
 
-        memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
             memory_step.observations += tool_output.observation + "\n"
