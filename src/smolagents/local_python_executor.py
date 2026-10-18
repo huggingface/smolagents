@@ -1062,7 +1062,12 @@ def _evaluate_comprehensions(
     authorized_imports: list[str],
 ) -> Generator[Any, None, None]:
     """
-    Recursively evaluate nested comprehensions and yields elements.
+    Evaluate comprehensions, yielding elements.
+
+    The whole comprehension shares a single scope, like CPython: the state is copied once here
+    and every `for` clause rebinds its target in that shared scope on each iteration, so closures
+    created inside the comprehension capture the shared loop variable instead of per-iteration
+    snapshots.
 
     Args:
         comprehensions (`list[ast.comprehension]`): Comprehensions to evaluate.
@@ -1075,24 +1080,62 @@ def _evaluate_comprehensions(
     Yields:
         `Any`: Individual elements produced by the comprehension
     """
+    yield from _evaluate_comprehension_clauses(
+        comprehensions, evaluate_element, state.copy(), static_tools, custom_tools, authorized_imports
+    )
+
+
+def _evaluate_comprehension_clauses(
+    comprehensions: list[ast.comprehension],
+    evaluate_element: Callable[[dict[str, Any]], Any],
+    comprehension_state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Generator[Any, None, None]:
+    """
+    Recursively evaluate the `for` clauses of a comprehension within its shared scope.
+
+    Args:
+        comprehensions (`list[ast.comprehension]`): Remaining `for` clauses to evaluate.
+        evaluate_element (`Callable`): Function that evaluates the final element when comprehensions are exhausted.
+        comprehension_state (`dict[str, Any]`): The comprehension's shared scope: loop targets are
+            rebound in it on each iteration.
+        static_tools (`dict[str, Callable]`): Static tools.
+        custom_tools (`dict[str, Callable]`): Custom tools.
+        authorized_imports (`list[str]`): Authorized imports.
+
+    Yields:
+        `Any`: Individual elements produced by the comprehension
+    """
     # Base case: no more comprehensions
     if not comprehensions:
-        yield evaluate_element(state)
+        yield evaluate_element(comprehension_state)
         return
-    # Evaluate first comprehension
+    # Evaluate first comprehension clause
     comprehension = comprehensions[0]
-    iter_value = evaluate_ast(comprehension.iter, state, static_tools, custom_tools, authorized_imports)
+    iter_value = evaluate_ast(
+        comprehension.iter,
+        comprehension_state,
+        static_tools,
+        custom_tools,
+        authorized_imports,
+    )
     for value in iter_value:
-        new_state = state.copy()
-        set_value(comprehension.target, value, new_state, static_tools, custom_tools, authorized_imports)
+        set_value(comprehension.target, value, comprehension_state, static_tools, custom_tools, authorized_imports)
         # Check all filter conditions
         if all(
-            evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+            evaluate_ast(if_clause, comprehension_state, static_tools, custom_tools, authorized_imports)
             for if_clause in comprehension.ifs
         ):
-            # Recurse with remaining comprehensions
-            yield from _evaluate_comprehensions(
-                comprehensions[1:], evaluate_element, new_state, static_tools, custom_tools, authorized_imports
+            # Recurse with remaining clauses, sharing the same scope
+            yield from _evaluate_comprehension_clauses(
+                comprehensions[1:],
+                evaluate_element,
+                comprehension_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
             )
 
 
@@ -1350,25 +1393,36 @@ def evaluate_generatorexp(
     authorized_imports: list[str],
 ) -> Generator[Any]:
     def generator():
+        # Like CPython, a generator expression has its own scope for the loop variable,
+        # shared across iterations so closures capture it (not per-iteration snapshots).
+        # But the generator is lazy: outer names must resolve against the *live*
+        # enclosing state on each iteration, so the per-iteration evaluation state is
+        # rebuilt from the current state with the shared loop bindings overlaid.
+        gen_bindings: dict[str, Any] = {}
         for gen in genexp.generators:
             iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
             for value in iter_value:
-                new_state = state.copy()
                 set_value(
                     gen.target,
                     value,
-                    new_state,
+                    gen_bindings,
                     static_tools,
                     custom_tools,
                     authorized_imports,
                 )
                 if all(
-                    evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                    evaluate_ast(
+                        if_clause,
+                        {**state, **gen_bindings},
+                        static_tools,
+                        custom_tools,
+                        authorized_imports,
+                    )
                     for if_clause in gen.ifs
                 ):
                     yield evaluate_ast(
                         genexp.elt,
-                        new_state,
+                        {**state, **gen_bindings},
                         static_tools,
                         custom_tools,
                         authorized_imports,
