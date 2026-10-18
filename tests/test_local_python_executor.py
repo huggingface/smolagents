@@ -3102,3 +3102,63 @@ def test_nested_with_unwinds_final_answer_even_if_inner_exit_suppresses():
         ("inner_exit", "FinalAnswerException"),
         ("outer_exit", "FinalAnswerException"),
     ]
+
+
+def test_with_unwinds_earlier_context_when_later_context_expression_fails():
+    events = []
+
+    class First:
+        def __enter__(self):
+            events.append("first_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("first_exit", exc_type.__name__ if exc_type else None))
+            return False
+
+    def failing_expression():
+        events.append("expression")
+        raise RuntimeError("context expression failed")
+
+    state = {"First": First, "failing_expression": failing_expression, "events": events}
+    with pytest.raises(InterpreterError, match="RuntimeError: context expression failed"):
+        evaluate_python_code(
+            "with First(), failing_expression():\\n    pass",
+            BASE_PYTHON_TOOLS.copy(),
+            state=state,
+        )
+
+    assert events == ["first_enter", "expression", ("first_exit", "RuntimeError")]
+
+
+def test_outer_context_can_suppress_later_context_enter_failure():
+    events = []
+
+    class First:
+        def __enter__(self):
+            events.append("first_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("first_exit", exc_type.__name__ if exc_type else None))
+            return True
+
+    class Failing:
+        def __enter__(self):
+            events.append("failing_enter")
+            raise RuntimeError("enter failed")
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append("failing_exit")
+            return False
+
+    state = {"First": First, "Failing": Failing, "events": events}
+    result, _ = evaluate_python_code(
+        "with First(), Failing():\\n    marker = 'body'\\nanswer = 42",
+        BASE_PYTHON_TOOLS.copy(),
+        state=state,
+    )
+
+    assert result == 42
+    assert "marker" not in state
+    assert events == ["first_enter", "failing_enter", ("first_exit", "RuntimeError")]
