@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ast
+import sys
 import time
 import types
 from contextlib import nullcontext as does_not_raise
@@ -2172,6 +2173,55 @@ Input:    {input_code}
 Expected: {expected}
 Got:      {result}
 """
+
+
+def test_fix_final_answer_code_ignores_strings_and_keyword_arguments():
+    """Text inside strings and keyword arguments must never trigger or be rewritten (#3019)."""
+    test_cases = [
+        # `final_answer =` appears inside a string literal only: unchanged.
+        (
+            'final_answer("In the settings file, set final_answer = true to enable it.")',
+            'final_answer("In the settings file, set final_answer = true to enable it.")',
+        ),
+        # `final_answer=` is a keyword argument, not an assignment: unchanged.
+        (
+            "final_answer(format_result(x, final_answer=True))",
+            "final_answer(format_result(x, final_answer=True))",
+        ),
+        # Real assignment + keyword argument: only the real one is renamed.
+        (
+            "final_answer = 1\nfinal_answer(format_result(x, final_answer=True))",
+            "final_answer_variable = 1\nfinal_answer(format_result(x, final_answer=True))",
+        ),
+        # Attribute assignment is not a real assignment.
+        (
+            "obj.final_answer = 5\nfinal_answer(obj.final_answer)",
+            "obj.final_answer = 5\nfinal_answer(obj.final_answer)",
+        ),
+    ]
+
+    for i, (input_code, expected) in enumerate(test_cases, 1):
+        result = fix_final_answer_code(input_code)
+        assert result == expected, f"""
+Test case {i} failed:
+Input:    {input_code}
+Expected: {expected}
+Got:      {result}
+"""
+
+
+def test_fix_final_answer_code_invalid_syntax_is_unchanged():
+    """Code that cannot be tokenized is returned unchanged."""
+    for invalid_code in ["final_answer = 1\nfinal_answer(((", 'final_answer = """unterminated\nfinal_answer(1)']:
+        assert fix_final_answer_code(invalid_code) == invalid_code
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="f-string fields are NAME tokens only on Python 3.12+")
+def test_fix_final_answer_code_in_fstring():
+    """A name inside f-string replacement fields is renamed like a regular name."""
+    input_code = 'final_answer = "x"\nfinal_answer(f"{final_answer}")'
+    expected = 'final_answer_variable = "x"\nfinal_answer(f"{final_answer_variable}")'
+    assert fix_final_answer_code(input_code) == expected
 
 
 class TestTimeout:

@@ -18,9 +18,10 @@ import ast
 import builtins
 import difflib
 import inspect
+import io
 import logging
 import math
-import re
+import tokenize
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -334,27 +335,58 @@ def fix_final_answer_code(code: str) -> str:
     Sometimes an LLM can try to assign a variable to final_answer, which would break the final_answer() tool.
     This function fixes this behaviour by replacing variable assignments to final_answer with final_answer_variable,
     while preserving function calls to final_answer().
+
+    The code is analysed as Python tokens rather than raw text, so occurrences inside string literals, comments,
+    attributes (`obj.final_answer`) or keyword arguments (`f(final_answer=True)`) are never rewritten. If the code
+    cannot be tokenized, it is returned unchanged.
     """
-    # First, find if there's a direct assignment to final_answer
-    # Use word boundary and negative lookbehind to ensure it's not an object attribute
-    assignment_pattern = r"(?<!\.)(?<!\w)\bfinal_answer\s*="
-    if "final_answer(" not in code or not re.search(assignment_pattern, code):
-        # If final_answer tool is not called in this blob, then doing the replacement is hazardous because it could false the model's memory for next steps.
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(code).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return code
+
+    ignored_types = (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT, tokenize.DEDENT)
+    significant_tokens = [token for token in tokens if token.type not in ignored_types]
+
+    to_rename: list[tokenize.TokenInfo] = []
+    is_called = False
+    is_assigned = False
+    depth = 0
+    for i, token in enumerate(significant_tokens):
+        if token.type == tokenize.OP and token.string in ("(", "[", "{"):
+            depth += 1
+        elif token.type == tokenize.OP and token.string in (")", "]", "}"):
+            depth -= 1
+
+        if token.type != tokenize.NAME or token.string != "final_answer":
+            continue
+
+        previous = significant_tokens[i - 1].string if i > 0 else ""
+        following = significant_tokens[i + 1].string if i + 1 < len(significant_tokens) else ""
+        if previous == ".":
+            continue  # attribute access, e.g. obj.final_answer
+        if following == "(":
+            is_called = True
+            continue  # the final_answer tool call, to be preserved
+        if following == "=":
+            if depth > 0:
+                continue  # keyword argument or default parameter, not an assignment
+            is_assigned = True
+        to_rename.append(token)
+
+    if not (is_called and is_assigned):
+        # If the final_answer tool is not called (or the variable is never assigned) in this blob, then doing the
+        # replacement is hazardous because it could false the model's memory for next steps.
         # Let's not modify the code and leave the subsequent assignment error happen.
         return code
 
-    # Pattern for replacing variable assignments
-    # Looks for 'final_answer' followed by '=' with optional whitespace
-    # Negative lookbehind ensures we don't match object attributes
-    assignment_regex = r"(?<!\.)(?<!\w)(\bfinal_answer)(\s*=)"
-    code = re.sub(assignment_regex, r"final_answer_variable\2", code)
-
-    # Pattern for replacing variable usage but not function calls
-    # Negative lookahead (?!\s*\() ensures we don't match function calls
-    # Negative lookbehind (?<!\.|\w) ensures we don't match object methods or other variables
-    variable_regex = r"(?<!\.)(?<!\w)(\bfinal_answer\b)(?!\s*\()"
-    code = re.sub(variable_regex, "final_answer_variable", code)
-    return code
+    # Splice the replacements at exact token positions to preserve the rest of the formatting byte-for-byte.
+    lines = io.StringIO(code).readlines()
+    for token in reversed(to_rename):
+        row, col = token.start
+        line = lines[row - 1]
+        lines[row - 1] = line[:col] + "final_answer_variable" + line[col + len("final_answer") :]
+    return "".join(lines)
 
 
 def build_import_tree(authorized_imports: list[str]) -> dict[str, Any]:
