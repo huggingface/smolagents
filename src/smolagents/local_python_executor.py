@@ -1115,7 +1115,11 @@ def _evaluate_comprehension_clauses(
     # Evaluate first comprehension clause
     comprehension = comprehensions[0]
     iter_value = evaluate_ast(
-        comprehension.iter, comprehension_state, static_tools, custom_tools, authorized_imports
+        comprehension.iter,
+        comprehension_state,
+        static_tools,
+        custom_tools,
+        authorized_imports,
     )
     for value in iter_value:
         set_value(comprehension.target, value, comprehension_state, static_tools, custom_tools, authorized_imports)
@@ -1389,28 +1393,36 @@ def evaluate_generatorexp(
     authorized_imports: list[str],
 ) -> Generator[Any]:
     def generator():
-        # Like CPython, the generator expression shares a single scope: copy the state once and
-        # rebind the loop target in that scope on each iteration, so closures capture the shared
-        # loop variable instead of per-iteration snapshots.
-        gen_state = state.copy()
+        # Like CPython, a generator expression has its own scope for the loop variable,
+        # shared across iterations so closures capture it (not per-iteration snapshots).
+        # But the generator is lazy: outer names must resolve against the *live*
+        # enclosing state on each iteration, so the per-iteration evaluation state is
+        # rebuilt from the current state with the shared loop bindings overlaid.
+        gen_bindings: dict[str, Any] = {}
         for gen in genexp.generators:
-            iter_value = evaluate_ast(gen.iter, gen_state, static_tools, custom_tools, authorized_imports)
+            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
             for value in iter_value:
                 set_value(
                     gen.target,
                     value,
-                    gen_state,
+                    gen_bindings,
                     static_tools,
                     custom_tools,
                     authorized_imports,
                 )
                 if all(
-                    evaluate_ast(if_clause, gen_state, static_tools, custom_tools, authorized_imports)
+                    evaluate_ast(
+                        if_clause,
+                        {**state, **gen_bindings},
+                        static_tools,
+                        custom_tools,
+                        authorized_imports,
+                    )
                     for if_clause in gen.ifs
                 ):
                     yield evaluate_ast(
                         genexp.elt,
-                        gen_state,
+                        {**state, **gen_bindings},
                         static_tools,
                         custom_tools,
                         authorized_imports,
