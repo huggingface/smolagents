@@ -23,6 +23,7 @@ from IPython.core.interactiveshell import InteractiveShell
 from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
+    Retrying,
     create_agent_gradio_app_template,
     get_source,
     instance_to_source,
@@ -552,3 +553,104 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+class _FakeResponse:
+    def __init__(self, headers):
+        self.headers = headers
+
+
+class _RateLimited(Exception):
+    def __init__(self, message, headers=None):
+        super().__init__(message)
+        if headers is not None:
+            self.response = _FakeResponse(headers)
+
+
+class TestRetryingSchedule:
+    """Retrying must sleep wait_seconds first, and honour a server's Retry-After."""
+
+    def test_first_retry_waits_wait_seconds(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleeps.append(seconds))
+        calls = {"count": 0}
+
+        def flaky():
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise ValueError("transient")
+            return "ok"
+
+        retrying = Retrying(
+            max_attempts=2, wait_seconds=2.0, exponential_base=2.0, jitter=False, retry_predicate=lambda _: True
+        )
+        assert retrying(flaky) == "ok"
+        assert sleeps == [2.0]
+
+    def test_schedule_doubles_after_the_first_wait(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleeps.append(seconds))
+        calls = {"count": 0}
+
+        def flaky():
+            calls["count"] += 1
+            if calls["count"] <= 3:
+                raise ValueError("transient")
+            return "ok"
+
+        retrying = Retrying(
+            max_attempts=4, wait_seconds=1.0, exponential_base=2.0, jitter=False, retry_predicate=lambda _: True
+        )
+        assert retrying(flaky) == "ok"
+        assert sleeps == [1.0, 2.0, 4.0]
+
+    def test_retry_after_header_is_honoured(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleeps.append(seconds))
+        calls = {"count": 0}
+
+        def flaky():
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise _RateLimited("429 Too Many Requests", {"retry-after": "7"})
+            return "ok"
+
+        retrying = Retrying(
+            max_attempts=2, wait_seconds=1.0, exponential_base=2.0, jitter=False, retry_predicate=lambda _: True
+        )
+        assert retrying(flaky) == "ok"
+        assert sleeps == [7.0]
+
+    def test_retry_after_never_shortens_the_configured_wait(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleeps.append(seconds))
+        calls = {"count": 0}
+
+        def flaky():
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise _RateLimited("429 Too Many Requests", {"retry-after": "1"})
+            return "ok"
+
+        retrying = Retrying(
+            max_attempts=2, wait_seconds=10.0, exponential_base=2.0, jitter=False, retry_predicate=lambda _: True
+        )
+        assert retrying(flaky) == "ok"
+        assert sleeps == [10.0]
+
+    def test_ignores_the_http_date_form_and_missing_headers(self, monkeypatch):
+        sleeps = []
+        monkeypatch.setattr("smolagents.utils.time.sleep", lambda seconds: sleeps.append(seconds))
+        calls = {"count": 0}
+
+        def flaky():
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise _RateLimited("429 Too Many Requests", {"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"})
+            return "ok"
+
+        retrying = Retrying(
+            max_attempts=2, wait_seconds=3.0, exponential_base=2.0, jitter=False, retry_predicate=lambda _: True
+        )
+        assert retrying(flaky) == "ok"
+        assert sleeps == [3.0]
+

@@ -525,6 +525,28 @@ class RateLimiter:
         self._last_call = time.time()
 
 
+def _retry_after_seconds(error: BaseException) -> float | None:
+    """Return the cooldown a server asked for in a `Retry-After` header, if any.
+
+    Only the numeric/seconds form is read; the HTTP-date form is ignored rather than
+    guessed at. Errors that do not carry an HTTP response simply yield `None`.
+    """
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", None) if response is not None else None
+    if headers is None:
+        return None
+    try:
+        raw = headers.get("retry-after") or headers.get("Retry-After")
+    except Exception:
+        return None
+    if raw is None:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return None
+
+
 class Retrying:
     """Simple retrying controller. Inspired from library [tenacity](https://github.com/jd/tenacity/)."""
 
@@ -588,6 +610,15 @@ class Retrying:
                         f"Finished call to '{fn_name}' after {seconds:.3f}(s), this was attempt n°{attempt_number}/{self.max_attempts}.",
                     )
 
+                # The configured wait is the first sleep; the multiplier applies to the
+                # retries after it. Multiplying before the first sleep made wait_seconds
+                # mean "half of the first wait".
+                sleep_seconds = delay
+                retry_after = _retry_after_seconds(e)
+                if retry_after is not None:
+                    # Never sleep less than the server asked for.
+                    sleep_seconds = max(sleep_seconds, retry_after)
+
                 # Exponential backoff with jitter
                 # https://cookbook.openai.com/examples/how_to_handle_rate_limits#example-3-manual-backoff-implementation
                 delay *= self.exponential_base * (1 + self.jitter * random.random())
@@ -598,9 +629,9 @@ class Retrying:
                     fn_name = getattr(fn, "__name__", repr(fn))
                     logger.log(
                         log_level,
-                        f"Retrying {fn_name} in {delay} seconds as it raised {e.__class__.__name__}: {e}.",
+                        f"Retrying {fn_name} in {sleep_seconds} seconds as it raised {e.__class__.__name__}: {e}.",
                     )
 
                 # Sleep before next attempt
-                if delay > 0:
-                    time.sleep(delay)
+                if sleep_seconds > 0:
+                    time.sleep(sleep_seconds)
