@@ -30,8 +30,8 @@ import pydub
 import requests
 import speech_recognition as sr
 from bs4 import BeautifulSoup
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.formatters import SRTFormatter
+
+from .youtube_transcript import fetch_transcript_srt
 
 
 class _CustomMarkdownify(markdownify.MarkdownConverter):
@@ -311,10 +311,7 @@ class YouTubeConverter(DocumentConverter):
             video_id = str(params["v"][0])
             try:
                 # Must be a single transcript.
-                transcript = YouTubeTranscriptApi.get_transcript(video_id)  # type: ignore
-                # transcript_text = " ".join([part["text"] for part in transcript])  # type: ignore
-                # Alternative formatting:
-                transcript_text = SRTFormatter().format_transcript(transcript)
+                transcript_text = fetch_transcript_srt(video_id)
             except Exception:
                 pass
         if transcript_text:
