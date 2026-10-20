@@ -412,20 +412,30 @@ _BASE_TYPE_MAPPING = {
 }
 
 
+def _type_name(param_type: type, module_prefix: str, name: str) -> bool:
+    # str(PIL.Image.Image) is "<class 'PIL.Image.Image'>", not "Image".
+    return getattr(param_type, "__name__", None) == name and str(getattr(param_type, "__module__", "")).startswith(
+        module_prefix
+    )
+
+
 def _get_json_schema_type(param_type: type) -> dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
-    if str(param_type) == "Image":
-        from PIL.Image import Image
-
-        if param_type == Image:
-            return {"type": "image"}
-    if str(param_type) == "Tensor":
+    if _type_name(param_type, "PIL", "Image"):
         try:
-            from torch import Tensor
-
-            if param_type == Tensor:
-                return {"type": "audio"}
+            from PIL.Image import Image
         except ModuleNotFoundError:
             pass
+        else:
+            if isinstance(param_type, type) and issubclass(param_type, Image):
+                return {"type": "image"}
+    if _type_name(param_type, "torch", "Tensor"):
+        try:
+            from torch import Tensor
+        except ModuleNotFoundError:
+            pass
+        else:
+            if param_type is Tensor:
+                return {"type": "audio"}
     return {"type": "object"}
