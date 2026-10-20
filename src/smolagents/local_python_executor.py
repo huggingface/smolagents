@@ -878,9 +878,17 @@ def evaluate_call(
             starred_dict = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
             if not isinstance(starred_dict, dict):
                 raise InterpreterError(f"Cannot unpack non-dict value in **kwargs: {type(starred_dict).__name__}")
-            kwargs.update(starred_dict)
+            # CPython rejects a keyword that arrives twice. update() would keep the last one.
+            for key, value in starred_dict.items():
+                if key in kwargs:
+                    called = func_name or "function"
+                    raise InterpreterError(f"{called}() got multiple values for keyword argument '{key}'")
+                kwargs[key] = value
         else:
             # Normal keyword argument
+            if keyword.arg in kwargs:
+                called = func_name or "function"
+                raise InterpreterError(f"{called}() got multiple values for keyword argument '{keyword.arg}'")
             kwargs[keyword.arg] = evaluate_ast(keyword.value, state, static_tools, custom_tools, authorized_imports)
 
     if func_name == "super":
