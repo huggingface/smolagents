@@ -206,6 +206,20 @@ test_func(**None)
             evaluate_python_code(code, {"sum": sum}, state={})
         assert expected_error_message in str(exception_info.value)
 
+    @pytest.mark.parametrize(
+        "code, expected_error_message",
+        [
+            ('dict(x=1, **{"x": 2})', "dict() got multiple values for keyword argument 'x'"),
+            ('dict(**{"x": 1}, **{"x": 2})', "dict() got multiple values for keyword argument 'x'"),
+            ('dict(**{"x": 1}, x=2)', "dict() got multiple values for keyword argument 'x'"),
+        ],
+    )
+    def test_evaluate_call_duplicate_kwargs_errors(self, code, expected_error_message):
+        """Test that duplicate keyword arguments across explicit keywords and **kwargs raise TypeError."""
+        with pytest.raises(InterpreterError) as exception_info:
+            evaluate_python_code(code, {"dict": dict}, state={})
+        assert expected_error_message in str(exception_info.value)
+
     def test_evaluate_class_def(self):
         code = dedent('''\
             class MyClass:
