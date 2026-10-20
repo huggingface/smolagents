@@ -512,3 +512,15 @@ class TestGetCode:
     )
     def test_get_imports(self, code: str, expected: list[str]):
         assert sorted(get_imports(code)) == sorted(expected)
+
+
+def test_pil_image_and_torch_tensor_keep_their_media_types():
+    import PIL.Image
+
+    from smolagents._function_type_hints_utils import _get_json_schema_type
+
+    assert _get_json_schema_type(PIL.Image.Image) == {"type": "image"}
+    assert _get_json_schema_type(type(PIL.Image.new("RGB", (2, 2)))) == {"type": "image"}
+
+    torch = pytest.importorskip("torch")
+    assert _get_json_schema_type(torch.Tensor) == {"type": "audio"}
