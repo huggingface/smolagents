@@ -17,7 +17,7 @@ import os
 import re
 import uuid
 import warnings
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -1704,6 +1704,24 @@ class OpenAIModel(ApiModel):
 
         return openai.OpenAI(**self.client_kwargs)
 
+    def _completions_create(self) -> Callable:
+        """Return the `chat.completions.create` callable for one `self.retryer` call.
+
+        The first attempt uses the client as configured, with its own retries. The retryer's replays use a copy
+        of the client with `max_retries=0`, so the two retry layers do not multiply.
+        """
+        attempt = 0
+
+        def create(**kwargs):
+            nonlocal attempt
+            attempt += 1
+            client = self.client
+            if attempt > 1 and hasattr(client, "with_options"):
+                client = client.with_options(max_retries=0)
+            return client.chat.completions.create(**kwargs)
+
+        return create
+
     def generate_stream(
         self,
         messages: list[ChatMessage | dict],
@@ -1724,7 +1742,7 @@ class OpenAIModel(ApiModel):
         )
         self._apply_rate_limit()
         for event in self.retryer(
-            self.client.chat.completions.create,
+            self._completions_create(),
             **completion_kwargs,
             stream=True,
             stream_options={"include_usage": True},
@@ -1777,7 +1795,7 @@ class OpenAIModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        response = self.retryer(self.client.chat.completions.create, **completion_kwargs)
+        response = self.retryer(self._completions_create(), **completion_kwargs)
         content = response.choices[0].message.content
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)

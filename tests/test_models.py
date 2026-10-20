@@ -590,6 +590,70 @@ class TestOpenAIModel:
             assert "<STOP>" not in result.content
             assert "and this should be removed" not in result.content
 
+    @staticmethod
+    def _mock_response():
+        response = MagicMock()
+        response.choices = [MagicMock()]
+        response.choices[0].message.role = "assistant"
+        response.choices[0].message.content = "Success response"
+        response.choices[0].message.tool_calls = None
+        response.usage.prompt_tokens = 10
+        response.usage.completion_tokens = 20
+        return response
+
+    def test_retry_replays_disable_client_retries(self):
+        """The client's own retries run on the first attempt only; the retryer's replays use max_retries=0,
+        so the two retry layers do not multiply."""
+        rate_limit_error = Exception("Error code: 429 - Rate limit exceeded")
+        with patch("openai.OpenAI"), patch("smolagents.models.RETRY_WAIT", 0):
+            model = OpenAIModel(model_id="test-model")
+        replay_client = model.client.with_options.return_value
+        model.client.chat.completions.create.side_effect = rate_limit_error
+        replay_client.chat.completions.create.side_effect = [rate_limit_error, self._mock_response()]
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+
+        result = model.generate(messages)
+
+        assert result.content == "Success response"
+        assert model.client.chat.completions.create.call_count == 1
+        model.client.with_options.assert_called_with(max_retries=0)
+        assert replay_client.chat.completions.create.call_count == 2
+
+    def test_retry_replays_disable_client_retries_stream(self):
+        rate_limit_error = Exception("Error code: 429 - Rate limit exceeded")
+        event = MagicMock()
+        event.usage = None
+        event.choices = [MagicMock()]
+        event.choices[0].delta.content = "Success response"
+        event.choices[0].delta.tool_calls = None
+        with patch("openai.OpenAI"), patch("smolagents.models.RETRY_WAIT", 0):
+            model = OpenAIModel(model_id="test-model")
+        replay_client = model.client.with_options.return_value
+        model.client.chat.completions.create.side_effect = rate_limit_error
+        replay_client.chat.completions.create.return_value = iter([event])
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+
+        deltas = list(model.generate_stream(messages))
+
+        assert [d.content for d in deltas] == ["Success response"]
+        assert model.client.chat.completions.create.call_count == 1
+        model.client.with_options.assert_called_with(max_retries=0)
+        assert replay_client.chat.completions.create.call_count == 1
+
+    def test_first_attempt_keeps_client_retries(self):
+        """Without a replay the client is used as configured: success, or an error the retryer does not retry."""
+        with patch("openai.OpenAI"):
+            model = OpenAIModel(model_id="test-model")
+        model.client.chat.completions.create.side_effect = [self._mock_response(), Exception("Error code: 500")]
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+
+        assert model.generate(messages).content == "Success response"
+        with pytest.raises(Exception, match="500"):
+            model.generate(messages)
+
+        assert model.client.chat.completions.create.call_count == 2
+        model.client.with_options.assert_not_called()
+
 
 class TestAmazonBedrockModel:
     def test_client_for_bedrock(self):
