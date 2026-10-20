@@ -2175,6 +2175,25 @@ Got:      {result}
 """
 
 
+def test_fix_final_answer_code_renames_local_function_parameters_and_keywords():
+    code = (
+        "final_answer = 1\n"
+        "def describe(final_answer=2):\n"
+        "    return final_answer\n"
+        "final_answer(describe(final_answer=2))"
+    )
+    rewritten = fix_final_answer_code(code)
+    expected = (
+        "final_answer_variable = 1\n"
+        "def describe(final_answer_variable=2):\n"
+        "    return final_answer_variable\n"
+        "final_answer(describe(final_answer_variable=2))"
+    )
+
+    assert rewritten == expected
+    assert evaluate_python_code(rewritten, {"final_answer": lambda answer: answer}, state={}) == (2, True)
+
+
 def test_fix_final_answer_code_ignores_strings_and_keyword_arguments():
     """Text inside strings and keyword arguments must never trigger or be rewritten (#3019)."""
     test_cases = [
