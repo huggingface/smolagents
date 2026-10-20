@@ -953,10 +953,11 @@ def evaluate_name(
         return custom_tools[name.id]
     elif name.id in ERRORS:
         return ERRORS[name.id]
+    message = f"The variable `{name.id}` is not defined."
     close_matches = difflib.get_close_matches(name.id, list(state.keys()))
     if len(close_matches) > 0:
-        return state[close_matches[0]]
-    raise InterpreterError(f"The variable `{name.id}` is not defined.")
+        message += f" Maybe you meant `{close_matches[0]}`?"
+    raise InterpreterError(message)
 
 
 def evaluate_condition(
