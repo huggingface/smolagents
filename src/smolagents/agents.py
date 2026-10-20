@@ -67,7 +67,7 @@ from .models import (
     ChatMessageToolCall,
     MessageRole,
     Model,
-    agglomerate_stream_deltas,
+    StreamDeltaAccumulator,
     parse_json_if_needed,
 )
 from .monitoring import (
@@ -97,6 +97,24 @@ from .utils import (
 
 
 logger = getLogger(__name__)
+
+# Rich markdown parses the whole string. Doing that on every token is quadratic.
+_STREAM_DRAW_EVERY = 512
+
+
+def _yield_stream_display(output_stream, console, message_out: list):
+    accumulator = StreamDeltaAccumulator()
+    pending = 0
+    with Live("", console=console, vertical_overflow="visible") as live:
+        for event in output_stream:
+            pending += accumulator.add(event)
+            if pending >= _STREAM_DRAW_EVERY:
+                live.update(Text(accumulator.to_message().render_as_markdown()))
+                pending = 0
+            yield event
+        message = accumulator.to_message()
+        live.update(Markdown(message.render_as_markdown()))
+        message_out.append(message)
 
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
@@ -1296,15 +1314,10 @@ class ToolCallingAgent(MultiStepAgent):
                     tools_to_call_from=self.tools_and_managed_agents,
                 )
 
-                chat_message_stream_deltas: list[ChatMessageStreamDelta] = []
-                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
-                    for event in output_stream:
-                        chat_message_stream_deltas.append(event)
-                        live.update(
-                            Markdown(agglomerate_stream_deltas(chat_message_stream_deltas).render_as_markdown())
-                        )
-                        yield event
-                chat_message = agglomerate_stream_deltas(chat_message_stream_deltas)
+                message_out: list[ChatMessage] = []
+                for event in _yield_stream_display(output_stream, self.logger.console, message_out):
+                    yield event
+                chat_message = message_out[0]
             else:
                 chat_message: ChatMessage = self.model.generate(
                     input_messages,
@@ -1662,15 +1675,10 @@ class CodeAgent(MultiStepAgent):
                     stop_sequences=stop_sequences,
                     **additional_args,
                 )
-                chat_message_stream_deltas: list[ChatMessageStreamDelta] = []
-                with Live("", console=self.logger.console, vertical_overflow="visible") as live:
-                    for event in output_stream:
-                        chat_message_stream_deltas.append(event)
-                        live.update(
-                            Markdown(agglomerate_stream_deltas(chat_message_stream_deltas).render_as_markdown())
-                        )
-                        yield event
-                chat_message = agglomerate_stream_deltas(chat_message_stream_deltas)
+                message_out: list[ChatMessage] = []
+                for event in _yield_stream_display(output_stream, self.logger.console, message_out):
+                    yield event
+                chat_message = message_out[0]
                 memory_step.model_output_message = chat_message
                 output_text = chat_message.content
             else:

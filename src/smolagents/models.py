@@ -217,66 +217,83 @@ class ChatMessageStreamDelta:
     token_usage: TokenUsage | None = None
 
 
+class StreamDeltaAccumulator:
+    """Fold stream deltas one at a time.
+
+    Rebuilding the message from the whole list on every token is quadratic.
+    """
+
+    def __init__(self, role: MessageRole = MessageRole.ASSISTANT):
+        self.role = role
+        self._content_parts: list[str] = []
+        self._tool_calls: dict[int, ChatMessageToolCallStreamDelta] = {}
+        self._input_tokens = 0
+        self._output_tokens = 0
+
+    def add(self, stream_delta: ChatMessageStreamDelta) -> int:
+        added = 0
+        if stream_delta.token_usage:
+            self._input_tokens += stream_delta.token_usage.input_tokens
+            self._output_tokens += stream_delta.token_usage.output_tokens
+        if stream_delta.content:
+            self._content_parts.append(stream_delta.content)
+            added += len(stream_delta.content)
+        if stream_delta.tool_calls:
+            for tool_call_delta in stream_delta.tool_calls:
+                if tool_call_delta.index is None:
+                    raise ValueError(f"Tool call index is not provided in tool delta: {tool_call_delta}")
+                if tool_call_delta.index not in self._tool_calls:
+                    self._tool_calls[tool_call_delta.index] = ChatMessageToolCallStreamDelta(
+                        id=tool_call_delta.id,
+                        type=tool_call_delta.type,
+                        function=ChatMessageToolCallFunction(name="", arguments=""),
+                    )
+                tool_call = self._tool_calls[tool_call_delta.index]
+                if tool_call_delta.id:
+                    tool_call.id = tool_call_delta.id
+                if tool_call_delta.type:
+                    tool_call.type = tool_call_delta.type
+                if tool_call_delta.function:
+                    if tool_call_delta.function.name:
+                        tool_call.function.name = tool_call_delta.function.name
+                    if tool_call_delta.function.arguments:
+                        tool_call.function.arguments += tool_call_delta.function.arguments
+                        added += len(tool_call_delta.function.arguments)
+        return added
+
+    def to_message(self) -> ChatMessage:
+        return ChatMessage(
+            role=self.role,
+            content="".join(self._content_parts),
+            tool_calls=[
+                ChatMessageToolCall(
+                    function=ChatMessageToolCallFunction(
+                        name=tool_call.function.name,
+                        arguments=tool_call.function.arguments,
+                    ),
+                    id=tool_call.id or "",
+                    type="function",
+                )
+                for tool_call in self._tool_calls.values()
+                if tool_call.function
+            ],
+            token_usage=TokenUsage(
+                input_tokens=self._input_tokens,
+                output_tokens=self._output_tokens,
+            ),
+        )
+
+
 def agglomerate_stream_deltas(
     stream_deltas: list[ChatMessageStreamDelta], role: MessageRole = MessageRole.ASSISTANT
 ) -> ChatMessage:
     """
     Agglomerate a list of stream deltas into a single stream delta.
     """
-    accumulated_tool_calls: dict[int, ChatMessageToolCallStreamDelta] = {}
-    accumulated_content = ""
-    total_input_tokens = 0
-    total_output_tokens = 0
+    accumulator = StreamDeltaAccumulator(role)
     for stream_delta in stream_deltas:
-        if stream_delta.token_usage:
-            total_input_tokens += stream_delta.token_usage.input_tokens
-            total_output_tokens += stream_delta.token_usage.output_tokens
-        if stream_delta.content:
-            accumulated_content += stream_delta.content
-        if stream_delta.tool_calls:
-            for tool_call_delta in stream_delta.tool_calls:  # ?ormally there should be only one call at a time
-                # Extend accumulated_tool_calls list to accommodate the new tool call if needed
-                if tool_call_delta.index is not None:
-                    if tool_call_delta.index not in accumulated_tool_calls:
-                        accumulated_tool_calls[tool_call_delta.index] = ChatMessageToolCallStreamDelta(
-                            id=tool_call_delta.id,
-                            type=tool_call_delta.type,
-                            function=ChatMessageToolCallFunction(name="", arguments=""),
-                        )
-                    # Update the tool call at the specific index
-                    tool_call = accumulated_tool_calls[tool_call_delta.index]
-                    if tool_call_delta.id:
-                        tool_call.id = tool_call_delta.id
-                    if tool_call_delta.type:
-                        tool_call.type = tool_call_delta.type
-                    if tool_call_delta.function:
-                        if tool_call_delta.function.name and len(tool_call_delta.function.name) > 0:
-                            tool_call.function.name = tool_call_delta.function.name
-                        if tool_call_delta.function.arguments:
-                            tool_call.function.arguments += tool_call_delta.function.arguments
-                else:
-                    raise ValueError(f"Tool call index is not provided in tool delta: {tool_call_delta}")
-
-    return ChatMessage(
-        role=role,
-        content=accumulated_content,
-        tool_calls=[
-            ChatMessageToolCall(
-                function=ChatMessageToolCallFunction(
-                    name=tool_call_stream_delta.function.name,
-                    arguments=tool_call_stream_delta.function.arguments,
-                ),
-                id=tool_call_stream_delta.id or "",
-                type="function",
-            )
-            for tool_call_stream_delta in accumulated_tool_calls.values()
-            if tool_call_stream_delta.function
-        ],
-        token_usage=TokenUsage(
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-        ),
-    )
+        accumulator.add(stream_delta)
+    return accumulator.to_message()
 
 
 tool_role_conversions = {
