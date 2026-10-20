@@ -60,6 +60,7 @@ from smolagents.memory import (
 )
 from smolagents.models import (
     ChatMessage,
+    ChatMessageStreamDelta,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
     InferenceClientModel,
@@ -2376,6 +2377,41 @@ print("Ok, calculation done!")""")
             agent._step_stream(ActionStep(step_number=1, timing="mock_timing", model_output=""))
         )
         assert tool_call.arguments == expected_code
+
+    def test_stream_parses_markdown_once(self, monkeypatch):
+        # A few kilobytes of comment padding, in small chunks. The live view
+        # should not reparse markdown on every chunk.
+        text = "<code>\n" + ("# " + "y" * 400 + "\n") * 4 + "x = 1\n"
+        chunks = [text[i : i + 8] for i in range(0, len(text), 8)]
+
+        class StreamingModel(Model):
+            def generate(self, messages, stop_sequences=None, **kwargs):
+                raise AssertionError("stream path should not call generate")
+
+            def generate_stream(self, messages, stop_sequences=None, **kwargs):
+                for chunk in chunks:
+                    yield ChatMessageStreamDelta(content=chunk)
+
+        from rich.markdown import Markdown as RichMarkdown
+
+        markdown_calls = []
+
+        class CountingMarkdown(RichMarkdown):
+            def __init__(self, markup, **kwargs):
+                markdown_calls.append(markup)
+                super().__init__(markup, **kwargs)
+
+        monkeypatch.setattr("smolagents.agents.Markdown", CountingMarkdown)
+        agent = CodeAgent(
+            tools=[],
+            model=StreamingModel(),
+            verbosity_level=LogLevel.ERROR,
+            stream_outputs=True,
+        )
+        step = ActionStep(step_number=1, timing=Timing(start_time=0))
+        list(agent._step_stream(step))
+        assert len(markdown_calls) == 1
+        assert text in markdown_calls[0]
 
 
 class TestMultiAgents:
