@@ -18,9 +18,10 @@ import ast
 import builtins
 import difflib
 import inspect
+import io
 import logging
 import math
-import re
+import tokenize
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -331,30 +332,160 @@ def get_iterable(obj):
 
 def fix_final_answer_code(code: str) -> str:
     """
-    Sometimes an LLM can try to assign a variable to final_answer, which would break the final_answer() tool.
-    This function fixes this behaviour by replacing variable assignments to final_answer with final_answer_variable,
-    while preserving function calls to final_answer().
+    Sometimes an LLM can assign a variable to final_answer, which would break the final_answer() tool. Rename
+    assignments and function parameters to final_answer_variable, preserving the tool call and local parameter
+    keyword arguments. Other keyword arguments, strings, comments, and attributes are left untouched.
+    If the code cannot be tokenized, it is returned unchanged.
     """
-    # First, find if there's a direct assignment to final_answer
-    # Use word boundary and negative lookbehind to ensure it's not an object attribute
-    assignment_pattern = r"(?<!\.)(?<!\w)\bfinal_answer\s*="
-    if "final_answer(" not in code or not re.search(assignment_pattern, code):
-        # If final_answer tool is not called in this blob, then doing the replacement is hazardous because it could false the model's memory for next steps.
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(code).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return code
+
+    ignored_types = (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT, tokenize.DEDENT)
+    significant_tokens = [token for token in tokens if token.type not in ignored_types]
+    opening_delimiters = {"(": ")", "[": "]", "{": "}"}
+
+    def find_closing_delimiter(start: int) -> int | None:
+        delimiters = []
+        for index in range(start, len(significant_tokens)):
+            value = significant_tokens[index].string
+            if value in opening_delimiters:
+                delimiters.append(opening_delimiters[value])
+            elif value in opening_delimiters.values():
+                if delimiters and value == delimiters[-1]:
+                    delimiters.pop()
+                    if not delimiters:
+                        return index
+        return None
+
+    parameter_indices: set[int] = set()
+    renamed_param_funcs: set[str] = set()
+
+    def collect_parameters(start: int, end: int) -> bool:
+        """Collect final_answer parameter token indices in a comma-separated parameter list."""
+        found_final_answer = False
+        segment_start = start
+        delimiters = []
+        for index in range(start, end + 1):
+            value = significant_tokens[index].string if index < end else ","
+            if value in opening_delimiters:
+                delimiters.append(opening_delimiters[value])
+            elif value in opening_delimiters.values():
+                if delimiters and value == delimiters[-1]:
+                    delimiters.pop()
+            elif value == "," and not delimiters:
+                parameter_index = segment_start
+                while parameter_index < index and significant_tokens[parameter_index].string in ("*", "**"):
+                    parameter_index += 1
+                if (
+                    parameter_index < index
+                    and significant_tokens[parameter_index].type == tokenize.NAME
+                    and significant_tokens[parameter_index].string == "final_answer"
+                ):
+                    parameter_indices.add(parameter_index)
+                    found_final_answer = True
+                segment_start = index + 1
+        return found_final_answer
+
+    # First pass: find parameters before classifying keyword arguments, so calls before their definitions work too.
+    for index, token in enumerate(significant_tokens):
+        if token.type == tokenize.NAME and token.string == "def":
+            name_index = index + 1
+            if name_index >= len(significant_tokens) or significant_tokens[name_index].type != tokenize.NAME:
+                continue
+            params_open = name_index + 1
+            if params_open < len(significant_tokens) and significant_tokens[params_open].string == "[":
+                type_params_close = find_closing_delimiter(params_open)
+                if type_params_close is None:
+                    continue
+                params_open = type_params_close + 1
+            if params_open >= len(significant_tokens) or significant_tokens[params_open].string != "(":
+                continue
+            params_close = find_closing_delimiter(params_open)
+            if params_close is not None and collect_parameters(params_open + 1, params_close):
+                renamed_param_funcs.add(significant_tokens[name_index].string)
+
+        if token.type != tokenize.NAME or token.string != "lambda":
+            continue
+        lambda_depth = 1
+        delimiters = []
+        params_close = None
+        for candidate in range(index + 1, len(significant_tokens)):
+            value = significant_tokens[candidate].string
+            if value in opening_delimiters:
+                delimiters.append(opening_delimiters[value])
+            elif value in opening_delimiters.values():
+                if delimiters and value == delimiters[-1]:
+                    delimiters.pop()
+            elif not delimiters:
+                if value == "lambda":
+                    lambda_depth += 1
+                elif value == ":":
+                    lambda_depth -= 1
+                    if lambda_depth == 0:
+                        params_close = candidate
+                        break
+        if params_close is not None:
+            collect_parameters(index + 1, params_close)
+
+    to_rename: set[int] = set(parameter_indices)
+    is_called = False
+    is_assigned = False
+    depth = 0
+    paren_callees: list[str | None] = []
+    for i, token in enumerate(significant_tokens):
+        previous = significant_tokens[i - 1].string if i > 0 else ""
+        if token.type == tokenize.OP and token.string in ("(", "[", "{"):
+            depth += 1
+            if token.string == "(":
+                callee = significant_tokens[i - 1] if i > 0 else None
+                if callee is not None and callee.type == tokenize.NAME:
+                    if i > 1 and significant_tokens[i - 2].string == ".":
+                        callee = None
+                    else:
+                        callee = callee.string
+                else:
+                    callee = None
+                paren_callees.append(callee)
+        elif token.type == tokenize.OP and token.string in (")", "]", "}"):
+            depth -= 1
+            if token.string == ")" and paren_callees:
+                paren_callees.pop()
+
+        if token.type != tokenize.NAME or token.string != "final_answer":
+            continue
+        if i in parameter_indices:
+            continue
+        if previous == ".":
+            continue  # attribute access, e.g. obj.final_answer
+
+        following = significant_tokens[i + 1].string if i + 1 < len(significant_tokens) else ""
+        if following == "(":
+            is_called = True
+            continue  # the final_answer tool call, to be preserved
+        if following == "=":
+            if paren_callees and paren_callees[-1] in renamed_param_funcs:
+                to_rename.add(i)  # keyword argument for a local function with a renamed parameter
+                continue
+            if depth > 0:
+                continue  # unrelated keyword argument or nested expression
+            is_assigned = True
+        to_rename.add(i)
+
+    if not (is_called and is_assigned):
+        # If the final_answer tool is not called (or the variable is never assigned) in this blob, then doing the
+        # replacement is hazardous because it could false the model's memory for next steps.
         # Let's not modify the code and leave the subsequent assignment error happen.
         return code
 
-    # Pattern for replacing variable assignments
-    # Looks for 'final_answer' followed by '=' with optional whitespace
-    # Negative lookbehind ensures we don't match object attributes
-    assignment_regex = r"(?<!\.)(?<!\w)(\bfinal_answer)(\s*=)"
-    code = re.sub(assignment_regex, r"final_answer_variable\2", code)
-
-    # Pattern for replacing variable usage but not function calls
-    # Negative lookahead (?!\s*\() ensures we don't match function calls
-    # Negative lookbehind (?<!\.|\w) ensures we don't match object methods or other variables
-    variable_regex = r"(?<!\.)(?<!\w)(\bfinal_answer\b)(?!\s*\()"
-    code = re.sub(variable_regex, "final_answer_variable", code)
-    return code
+    # Splice the replacements at exact token positions to preserve the rest of the formatting byte-for-byte.
+    lines = io.StringIO(code).readlines()
+    for index in sorted(to_rename, reverse=True):
+        row, col = significant_tokens[index].start
+        line = lines[row - 1]
+        lines[row - 1] = line[:col] + "final_answer_variable" + line[col + len("final_answer") :]
+    return "".join(lines)
 
 
 def build_import_tree(authorized_imports: list[str]) -> dict[str, Any]:
