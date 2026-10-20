@@ -208,6 +208,29 @@ agent.run(
 )
 ```
 </hfoption>
+<hfoption id="Custom OpenAI-compatible (Fikra API)">
+
+Any endpoint that implements the OpenAI Chat Completions surface works through `OpenAIModel` with `api_base` and `api_key`.
+
+```python
+# !pip install 'smolagents[openai]'
+from smolagents import CodeAgent, OpenAIModel
+
+model = OpenAIModel(
+    model_id="deepseek-v4.1-flash",
+    api_base="https://api.fikraapi.co.ke/v1",
+    api_key="YOUR_FIKRA_API_KEY",
+)
+agent = CodeAgent(tools=[], model=model, add_base_tools=True)
+
+agent.run(
+    "Could you give me the 118th number in the Fibonacci sequence?",
+)
+```
+
+[Fikra API](https://fikraapi.co.ke) serves open-weight models DeepSeek-first (`deepseek-v4.1-flash`, $0.045 per 1M input and $0.09 per 1M output on a 1M context; 1017 build $0.05/$0.11, 0731 build $0.045/$0.10, prices verified 2026-10-19), plus GLM 5.3, Kimi K3, Qwen 3.8 27B and more behind one key.
+</hfoption>
+
 <hfoption id="Azure OpenAI">
 
 To connect to Azure OpenAI, you can either use `AzureOpenAIModel` directly, or use `LiteLLMModel` and configure it accordingly.
