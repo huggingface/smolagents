@@ -1985,12 +1985,18 @@ class AmazonBedrockModel(ApiModel):
         """
         completion_kwargs = super()._prepare_completion_kwargs(
             messages=messages,
-            stop_sequences=None,  # Bedrock support stop_sequence using Inference Config
+            stop_sequences=None,  # Bedrock supports stop sequences using Inference Config, handled below
             tools_to_call_from=tools_to_call_from,
             custom_role_conversions=custom_role_conversions,
             convert_images_to_image_urls=convert_images_to_image_urls,
             **kwargs,
         )
+        if stop_sequences is not None and self.supports_stop_parameter:
+            # Copy the dict: it may be the model's own `inferenceConfig` from its kwargs,
+            # which must keep its configured values (e.g. `maxTokens`) across calls.
+            inference_config = dict(completion_kwargs.get("inferenceConfig") or {})
+            inference_config["stopSequences"] = stop_sequences
+            completion_kwargs["inferenceConfig"] = inference_config
         # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
         # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
         completion_kwargs.pop("toolConfig", None)
@@ -2029,6 +2035,7 @@ class AmazonBedrockModel(ApiModel):
             raise ValueError("Amazon Bedrock does not support response_format")
         completion_kwargs: dict = self._prepare_completion_kwargs(
             messages=messages,
+            stop_sequences=stop_sequences,
             tools_to_call_from=tools_to_call_from,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
