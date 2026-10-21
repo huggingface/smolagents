@@ -1,5 +1,6 @@
 import importlib
 import io
+import json
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
@@ -17,6 +18,7 @@ from smolagents.remote_executors import (
     E2BExecutor,
     ModalExecutor,
     RemotePythonExecutor,
+    _websocket_run_code_raise_errors,
 )
 from smolagents.serialization import SerializationError
 from smolagents.utils import AgentError
@@ -85,6 +87,77 @@ class TestRemotePythonExecutor:
         assert executor.run_code_raise_errors.call_count == 2
         assert "!pip install wikipedia-api" == executor.run_code_raise_errors.call_args_list[0].args[0]
         assert "class WikipediaSearchTool(Tool)" in executor.run_code_raise_errors.call_args_list[1].args[0]
+
+
+class FakeKernelWebSocket:
+    """Websocket stand-in that replays a fixed sequence of kernel replies."""
+
+    def __init__(self, replies):
+        self.replies = replies
+        self.frames = []
+
+    def send(self, data):
+        parent = {"msg_id": json.loads(data)["header"]["msg_id"]}
+
+        def reply(msg_type, content):
+            return json.dumps({"parent_header": parent, "msg_type": msg_type, "content": content})
+
+        self.frames = [reply("status", {"execution_state": "busy"})]
+        self.frames += [reply(msg_type, content) for msg_type, content in self.replies]
+        self.frames.append(reply("status", {"execution_state": "idle"}))
+
+    def recv(self):
+        return self.frames.pop(0)
+
+
+class TestWebsocketRunCodeRaiseErrors:
+    def run_code(self, replies):
+        return _websocket_run_code_raise_errors(
+            "...", FakeKernelWebSocket(replies), AgentLogger(level=LogLevel.OFF), False
+        )
+
+    def test_final_answer_survives_a_later_execute_result(self):
+        # A real kernel sends the FinalAnswerException error first, then an
+        # execute_result for a trailing expression in the same request.
+        output = self.run_code(
+            [
+                (
+                    "error",
+                    {
+                        "ename": RemotePythonExecutor.FINAL_ANSWER_EXCEPTION,
+                        "evalue": 'safe:"FINAL"',
+                        "traceback": [],
+                    },
+                ),
+                ("execute_result", {"data": {"text/plain": "'OVERWRITE'"}, "execution_count": 1, "metadata": {}}),
+            ]
+        )
+        assert output.is_final_answer is True
+        assert output.output == "FINAL"
+
+    def test_final_answer_replaces_an_earlier_execute_result(self):
+        output = self.run_code(
+            [
+                ("execute_result", {"data": {"text/plain": "'EARLIER'"}, "execution_count": 1, "metadata": {}}),
+                (
+                    "error",
+                    {
+                        "ename": RemotePythonExecutor.FINAL_ANSWER_EXCEPTION,
+                        "evalue": 'safe:"FINAL"',
+                        "traceback": [],
+                    },
+                ),
+            ]
+        )
+        assert output.is_final_answer is True
+        assert output.output == "FINAL"
+
+    def test_execute_result_without_final_answer(self):
+        output = self.run_code(
+            [("execute_result", {"data": {"text/plain": "'RESULT'"}, "execution_count": 1, "metadata": {}})]
+        )
+        assert output.is_final_answer is False
+        assert output.output == "'RESULT'"
 
 
 class TestE2BExecutorUnit:

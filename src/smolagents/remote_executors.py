@@ -510,7 +510,10 @@ def _websocket_run_code_raise_errors(code: str, ws, logger, allow_pickle: bool =
             if msg_type == "stream":
                 outputs.append(msg_content["text"])
             elif msg_type == "execute_result":
-                result = msg_content["data"].get("text/plain", None)
+                # Once the final answer has been received, a later result for the same
+                # request must not overwrite it (the E2B executor returns it directly).
+                if not is_final_answer:
+                    result = msg_content["data"].get("text/plain", None)
             elif msg_type == "error":
                 if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
                     result = RemotePythonExecutor._deserialize_final_answer(
