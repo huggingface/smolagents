@@ -784,7 +784,10 @@ You have been provided with these additional arguments, that you can access dire
         Perform one step in the ReAct framework: the agent thinks, acts, and observes the result.
         Returns either None if the step is not final, or the final answer.
         """
-        return list(self._step_stream(memory_step))[-1]
+        last_output = list(self._step_stream(memory_step))[-1]
+        if isinstance(last_output, ActionOutput) and last_output.is_final_answer:
+            return last_output.output
+        return None
 
     def extract_action(self, model_output: str, split_token: str) -> tuple[str, str]:
         """
