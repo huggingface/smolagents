@@ -37,6 +37,7 @@ from rich.console import Console
 from smolagents import EMPTY_PROMPT_TEMPLATES
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
+    ActionOutput,
     AgentError,
     AgentMaxStepsError,
     AgentToolCallError,
@@ -1640,6 +1641,39 @@ class TestMultiStepAgent:
             assert "InvalidAgentClass" in error_message
             assert "Unknown agent class" in error_message
             assert "Supported agents:" in error_message
+
+    def test_step_returns_final_answer_or_none(self):
+        """Test that step() returns the final answer when the step is final, else None."""
+
+        class CannedStepAgent(MultiStepAgent):
+            def __init__(self, canned_outputs):
+                self._canned_outputs = canned_outputs
+
+            def _step_stream(self, memory_step):
+                yield from self._canned_outputs
+
+            def initialize_system_prompt(self):
+                pass
+
+        memory_step = ActionStep(step_number=1, timing=Timing(start_time=0.0, end_time=1.0))
+
+        # A final step returns its answer.
+        agent = CannedStepAgent([ActionOutput(output="42", is_final_answer=True)])
+        assert agent.step(memory_step) == "42"
+
+        # A non-final step returns None.
+        agent = CannedStepAgent([ActionOutput(output=None, is_final_answer=False)])
+        assert agent.step(memory_step) is None
+
+        # A final answer of None is returned as None, like a non-final step.
+        agent = CannedStepAgent([ActionOutput(output=None, is_final_answer=True)])
+        assert agent.step(memory_step) is None
+
+        # Falsy final answers are returned as-is, not None.
+        for answer in (0, "", False, [], {}):
+            agent = CannedStepAgent([ActionOutput(output=answer, is_final_answer=True)])
+            result = agent.step(memory_step)
+            assert result == answer and type(result) is type(answer)
 
 
 class TestToolCallingAgent:
