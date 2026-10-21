@@ -602,6 +602,52 @@ class TestAmazonBedrockModel:
 
         assert model.client == MockBoto3.return_value
 
+    def get_bedrock_model(self, **kwargs):
+        return AmazonBedrockModel(
+            model_id="anthropic.claude-3-haiku-20240307-v1:0",
+            client=MagicMock(),
+            **kwargs,
+        )
+
+    def test_stop_sequences_sent_as_inference_config(self):
+        model = self.get_bedrock_model()
+        completion_kwargs = model._prepare_completion_kwargs(
+            messages=[{"role": "user", "content": [{"type": "text", "text": "Hi"}]}],
+            stop_sequences=["STOP"],
+        )
+        assert completion_kwargs["inferenceConfig"] == {"stopSequences": ["STOP"]}
+        assert "stop" not in completion_kwargs
+
+    def test_stop_sequences_preserve_configured_inference_config(self):
+        model = self.get_bedrock_model(inferenceConfig={"maxTokens": 100})
+        completion_kwargs = model._prepare_completion_kwargs(
+            messages=[{"role": "user", "content": [{"type": "text", "text": "Hi"}]}],
+            stop_sequences=["STOP"],
+        )
+        assert completion_kwargs["inferenceConfig"] == {"maxTokens": 100, "stopSequences": ["STOP"]}
+        # The model's own configured inferenceConfig must not gain stop sequences from a single call
+        assert model.kwargs["inferenceConfig"] == {"maxTokens": 100}
+
+    def test_no_stop_sequences_no_inference_config(self):
+        model = self.get_bedrock_model()
+        completion_kwargs = model._prepare_completion_kwargs(
+            messages=[{"role": "user", "content": [{"type": "text", "text": "Hi"}]}],
+        )
+        assert "inferenceConfig" not in completion_kwargs
+
+    def test_generate_passes_stop_sequences_to_converse(self):
+        model = self.get_bedrock_model()
+        model.client.converse.return_value = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Hello"}], "tool_calls": []}},
+            "usage": {"inputTokens": 1, "outputTokens": 1},
+        }
+        model.generate(
+            [{"role": "user", "content": [{"type": "text", "text": "Hi"}]}],
+            stop_sequences=["STOP"],
+        )
+        _, converse_kwargs = model.client.converse.call_args
+        assert converse_kwargs["inferenceConfig"] == {"stopSequences": ["STOP"]}
+
 
 class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
