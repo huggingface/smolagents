@@ -564,7 +564,10 @@ def evaluate_class_def(
 
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
-            class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+            # Keep methods on the class only — do not register them in custom_tools
+            # (module-level function map), or a method named like a global would
+            # overwrite it / leak into module scope (see #3048).
+            class_dict[stmt.name] = create_function(stmt, state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value:
                 value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)

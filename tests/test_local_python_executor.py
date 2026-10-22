@@ -2987,3 +2987,41 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_class_methods_do_not_overwrite_or_leak_into_globals():
+    """Regression for #3048: methods must not land in custom_tools / module scope."""
+    from smolagents.local_python_executor import BASE_PYTHON_TOOLS, evaluate_python_code
+
+    code = """
+def foo():
+    return "global"
+class A:
+    def foo(self):
+        return "method"
+foo()
+"""
+    result, _ = evaluate_python_code(code, dict(BASE_PYTHON_TOOLS), state={})
+    assert result == "global"
+
+    code2 = """
+class A:
+    def foo(self):
+        return 1
+foo
+"""
+    try:
+        evaluate_python_code(code2, dict(BASE_PYTHON_TOOLS), state={})
+        raised = False
+    except Exception:
+        raised = True
+    assert raised, "bare method name must not be defined at module scope"
+
+    code3 = """
+class A:
+    def foo(self):
+        return "method"
+A().foo()
+"""
+    result3, _ = evaluate_python_code(code3, dict(BASE_PYTHON_TOOLS), state={})
+    assert result3 == "method"
