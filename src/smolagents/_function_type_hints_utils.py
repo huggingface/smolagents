@@ -415,17 +415,32 @@ _BASE_TYPE_MAPPING = {
 def _get_json_schema_type(param_type: type) -> dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
-    if str(param_type) == "Image":
-        from PIL.Image import Image
+    if _is_pil_image_type(param_type):
+        return {"type": "image"}
+    try:
+        from torch import Tensor
 
-        if param_type == Image:
-            return {"type": "image"}
-    if str(param_type) == "Tensor":
-        try:
-            from torch import Tensor
-
-            if param_type == Tensor:
-                return {"type": "audio"}
-        except ModuleNotFoundError:
-            pass
+        if param_type is Tensor:
+            return {"type": "audio"}
+    except ModuleNotFoundError:
+        pass
     return {"type": "object"}
+
+
+def _is_pil_image_type(param_type: Any) -> bool:
+    """Whether *param_type* is a class derived from `PIL.Image.Image`.
+
+    Media types are matched by subclass, not by identity: an image returned by `Image.open` has
+    class `PngImageFile`, so an identity check would keep classifying it as `"object"`. The
+    previous guard compared `str(param_type)` with `"Image"`, which can never match - `str()` of a
+    class is `"<class 'PIL.Image.Image'>"` - so the branch has been dead code since #253.
+    """
+    if not isinstance(param_type, type):
+        return False
+    if not (getattr(param_type, "__module__", "") or "").startswith("PIL."):
+        return False
+    # The hint comes from Pillow, so Pillow is imported already; importing it here does not change
+    # the import graph and keeps the lazy-import intent of #253 for every other annotation.
+    from PIL.Image import Image
+
+    return issubclass(param_type, Image)
