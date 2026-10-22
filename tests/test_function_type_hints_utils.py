@@ -452,6 +452,46 @@ class TestGetJsonSchema:
         assert schema["function"]["description"] == "Function with Args: or Returns: keywords in its description."
 
 
+class TestGetJsonSchemaImageTypes:
+    """PIL image annotations get the `image` type instead of falling through to `object`."""
+
+    def test_pil_image_parameter_uses_image_type(self):
+        Image = pytest.importorskip("PIL.Image").Image
+
+        def make_image(width: int) -> Image:
+            """
+            Create a blank square image.
+
+            Args:
+                width: Side length in pixels.
+            """
+            return Image.new("RGB", (width, width))
+
+        schema = get_json_schema(make_image)
+        assert schema["function"]["parameters"]["properties"]["width"]["type"] == "integer"
+        assert schema["function"]["return"]["type"] == "image"
+
+    def test_pil_image_subclass_parameter_uses_image_type(self, tmp_path):
+        PIL = pytest.importorskip("PIL.Image")
+
+        # A value returned by `Image.open` has class `PngImageFile`, a subclass of `Image.Image`.
+        image_path = tmp_path / "pixel.png"
+        pytest.importorskip("PIL.Image").new("RGB", (1, 1)).save(image_path)
+        png_image_type = type(PIL.open(image_path))
+
+        def describe(image: png_image_type) -> str:
+            """
+            Describe an image.
+
+            Args:
+                image: The image.
+            """
+            return str(image.size)
+
+        schema = get_json_schema(describe)
+        assert schema["function"]["parameters"]["properties"]["image"]["type"] == "image"
+
+
 class TestGetCode:
     @pytest.mark.parametrize(
         "code, expected",
