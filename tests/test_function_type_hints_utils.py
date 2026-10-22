@@ -12,11 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import builtins
 from typing import Any
 
 import pytest
 
-from smolagents._function_type_hints_utils import DocstringParsingException, get_imports, get_json_schema
+from smolagents._function_type_hints_utils import (
+    DocstringParsingException,
+    _get_json_schema_type,
+    get_imports,
+    get_json_schema,
+)
 
 
 @pytest.fixture
@@ -450,6 +456,81 @@ class TestGetJsonSchema:
     def test_with_special_words_in_description_func(self, keywords_in_description_func):
         schema = get_json_schema(keywords_in_description_func)
         assert schema["function"]["description"] == "Function with Args: or Returns: keywords in its description."
+
+
+class TestGetJsonSchemaImageTypes:
+    """PIL image annotations get the `image` type instead of falling through to `object`."""
+
+    def test_pil_image_parameter_uses_image_type(self):
+        Image = pytest.importorskip("PIL.Image").Image
+
+        def make_image(width: int) -> Image:
+            """
+            Create a blank square image.
+
+            Args:
+                width: Side length in pixels.
+            """
+            return Image.new("RGB", (width, width))
+
+        schema = get_json_schema(make_image)
+        assert schema["function"]["parameters"]["properties"]["width"]["type"] == "integer"
+        assert schema["function"]["return"]["type"] == "image"
+
+    def test_pil_image_subclass_parameter_uses_image_type(self, tmp_path):
+        PIL = pytest.importorskip("PIL.Image")
+
+        # A value returned by `Image.open` has class `PngImageFile`, a subclass of `Image.Image`.
+        image_path = tmp_path / "pixel.png"
+        pytest.importorskip("PIL.Image").new("RGB", (1, 1)).save(image_path)
+        png_image_type = type(PIL.open(image_path))
+
+        def describe(image: png_image_type) -> str:
+            """
+            Describe an image.
+
+            Args:
+                image: The image.
+            """
+            return str(image.size)
+
+        schema = get_json_schema(describe)
+        assert schema["function"]["parameters"]["properties"]["image"]["type"] == "image"
+
+    def test_agent_image_subclass_uses_image_type(self):
+        pytest.importorskip("PIL.Image")
+        from smolagents.agent_types import AgentImage
+
+        def describe(image: AgentImage) -> str:
+            """
+            Describe an agent image.
+
+            Args:
+                image: The image to describe.
+            """
+            return str(image.size)
+
+        schema = get_json_schema(describe)
+        assert schema["function"]["parameters"]["properties"]["image"]["type"] == "image"
+
+
+class TestGetJsonSchemaOptionalImports:
+    def test_non_media_class_does_not_import_optional_packages(self, monkeypatch):
+        imported = []
+        real_import = builtins.__import__
+
+        def tracking_import(name, *args, **kwargs):
+            if name in {"PIL", "torch"}:
+                imported.append(name)
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", tracking_import)
+        assert _get_json_schema_type(type("Plain", (), {})) == {"type": "object"}
+        assert imported == []
+
+    def test_torch_tensor_uses_audio_type(self):
+        torch = pytest.importorskip("torch")
+        assert _get_json_schema_type(torch.Tensor) == {"type": "audio"}
 
 
 class TestGetCode:
