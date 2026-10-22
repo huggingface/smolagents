@@ -562,9 +562,20 @@ def evaluate_class_def(
     else:
         class_dict = {}
 
+    # evaluate_function_def registers every function in the shared custom_tools
+    # namespace. A method must not stay there: it would leak as a global and
+    # overwrite a function of the same name.
+    missing_tool = object()
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
-            class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+            previous_tool = custom_tools.get(stmt.name, missing_tool)
+            try:
+                class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+            finally:
+                if previous_tool is missing_tool:
+                    custom_tools.pop(stmt.name, None)
+                else:
+                    custom_tools[stmt.name] = previous_tool
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value:
                 value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
