@@ -225,6 +225,32 @@ test_func(**None)
         assert result == 42
         assert state["instance"].__doc__ == "A class with a value."
 
+    def test_class_method_does_not_replace_global_function(self):
+        code = dedent("""\
+            def foo():
+                return "global"
+
+            class Box:
+                def foo(self):
+                    return "method"
+                def call_global(self):
+                    return foo()
+
+            (foo(), Box().foo(), Box().call_global())
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == ("global", "method", "global")
+
+    def test_class_method_is_not_defined_globally(self):
+        code = dedent("""\
+            class Box:
+                def foo(self):
+                    return 1
+            foo
+        """)
+        with pytest.raises(InterpreterError, match="not defined"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
     def test_evaluate_class_def_with_assign_attribute_target(self):
         """
         Test evaluate_class_def function when stmt is an instance of ast.Assign with ast.Attribute target.
