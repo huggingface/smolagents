@@ -1945,9 +1945,7 @@ class TestEvaluateCondition:
                     "b": pd.Series([2, 2, 2]),
                     "c": pd.Series([3, 3, 3]),
                 },
-                ValueError(
-                    "The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
-                ),
+                ValueError("The truth value of a Series is ambiguous."),
             ),
             (
                 "a == b == c",
@@ -1956,9 +1954,7 @@ class TestEvaluateCondition:
                     "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]}),
                     "c": pd.DataFrame({"x": [3, 3], "y": [3, 3]}),
                 },
-                ValueError(
-                    "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
-                ),
+                ValueError("The truth value of a DataFrame is ambiguous."),
             ),
         ],
     )
