@@ -506,10 +506,12 @@ def create_function(
                 func_state["self"] = args[0]
                 func_state["__class__"] = args[0].__class__
 
+        # Only an explicit ``return`` sets the function result. Body statement
+        # evaluator values must not leak out — CPython returns None on fallthrough.
         result = None
         try:
             for stmt in func_def.body:
-                result = evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
+                evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
         except ReturnException as e:
             result = e.value
 
