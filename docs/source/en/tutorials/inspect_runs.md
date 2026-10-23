@@ -84,6 +84,35 @@ You can then navigate to `http://0.0.0.0:6006/projects/` to inspect your run!
 
 You can see that the CodeAgent called its managed ToolCallingAgent (by the way, the managed agent could have been a CodeAgent as well) to ask it to run the web search for the U.S. 2024 growth rate. Then the managed agent returned its report and the manager agent acted upon it to calculate the economy doubling time! Sweet, isn't it?
 
+
+## Setting up telemetry with any OTLP backend
+
+Phoenix, MLflow, and Langfuse below use vendor helpers. For any other OpenTelemetry-compatible backend (Jaeger, an OpenTelemetry Collector, [LangWatch](https://langwatch.ai), etc.), configure the standard OTLP exporter with `OTEL_EXPORTER_OTLP_*` environment variables and instrument with `SmolagentsInstrumentor`. `smolagents[telemetry]` already installs `opentelemetry-sdk` and `opentelemetry-exporter-otlp`.
+
+```shell
+pip install 'smolagents[telemetry,toolkit]'
+
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://app.langwatch.ai/api/otel"  # swap for your collector
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer%20<your-api-key>"
+```
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+
+provider = TracerProvider()
+# OTLPSpanExporter reads OTEL_EXPORTER_OTLP_* and appends /v1/traces to the endpoint
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+
+SmolagentsInstrumentor().instrument(tracer_provider=provider)
+```
+
+Then run your agents the same way as in the Phoenix example above. Change the endpoint and headers for whichever OTLP-over-HTTP backend you use.
+
 ## Setting up telemetry with MLflow
 
 MLflow has one-line autologging for Smolagents: it tracks runs, spans, inputs/outputs, and token usage in the MLflow UI.
