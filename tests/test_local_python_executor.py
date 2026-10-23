@@ -830,15 +830,6 @@ def function():
         evaluate_python_code(code, {"print": print, "range": range}, state=state)
         assert state["_print_outputs"].value == "1\n2\n2\n2\n2\n2\n2\n2\n2\n2\n2\n"
 
-    def test_undefined_name_is_not_swapped_for_a_close_match(self):
-        code = "unpaid_total = sum(invoices_unpaid)\nunpaid_total"
-        state = {"invoices": [120, 80, 15], "invoices_paid": [120]}
-        with pytest.raises(InterpreterError, match="invoices_unpaid"):
-            evaluate_python_code(code, {"sum": sum}, state=state)
-
-        result, _ = evaluate_python_code("sum(invoices_paid)", {"sum": sum}, state=state)
-        assert result == 120
-
     def test_tuple_target_in_iterator(self):
         code = "for a, b in [('Ralf Weikert', 'Austria'), ('Samuel Seungwon Lee', 'South Korea')]:res = a.split()[0]"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
@@ -1392,6 +1383,15 @@ shift_intervals
         with pytest.raises(Exception) as e:
             evaluate_python_code(code)
         assert "Maybe you meant one of these indexes instead" in str(e) and "['Bhutan']" in str(e).replace("\\", "")
+
+    def test_undefined_name_is_not_swapped_for_a_close_match(self):
+        code = "unpaid_total = sum(invoices_unpaid)\nunpaid_total"
+        state = {"invoices": [120, 80, 15], "invoices_paid": [120]}
+        with pytest.raises(InterpreterError, match="invoices_unpaid"):
+            evaluate_python_code(code, {"sum": sum}, state=state)
+
+        result, _ = evaluate_python_code("sum(invoices_paid)", {"sum": sum}, state=state)
+        assert result == 120
 
     def test_dangerous_builtins_calls_are_blocked(self):
         unsafe_code = "import os"
