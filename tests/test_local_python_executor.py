@@ -611,6 +611,50 @@ simple_set = {
         # If this were a list, the code would hang indefinitely trying to
         # evaluate the entire infinite sequence upfront
 
+    def test_generatorexp_evaluates_outer_iterable_at_creation(self):
+        # The leftmost iterable must be captured when the generator is
+        # created, not when it is first consumed.
+        code = dedent(
+            """            items = [1, 2]
+            values = (x for x in items)
+            items = [9]
+            result = list(values)
+            result
+            """
+        )
+        result, _ = evaluate_python_code(code, {"list": list}, state={})
+        assert result == [1, 2]
+
+    def test_generatorexp_rejects_non_iterable_at_creation(self):
+        # Like CPython, a non-iterable leftmost iterable fails the creation
+        # itself, instead of erroring on first use.
+        code = "values = (x for x in 1)"
+        with pytest.raises(InterpreterError, match="TypeError: 'int' object is not iterable"):
+            evaluate_python_code(code, {}, state={})
+
+    def test_generatorexp_with_multiple_for_clauses(self):
+        # Inner `for` clauses iterate per outer element, like list
+        # comprehensions, and may reference the outer target.
+        code = dedent(
+            """            result = list((a, b) for a in [1, 2] for b in [a, a + 10])
+            result
+            """
+        )
+        result, _ = evaluate_python_code(code, {"list": list}, state={})
+        assert result == [(1, 1), (1, 11), (2, 2), (2, 12)]
+
+    def test_generatorexp_skips_inner_clauses_when_outer_is_empty(self):
+        # An inner clause that would fail is never evaluated when the outer
+        # loop produces nothing.
+        code = dedent(
+            """            values = (b for a in [] for b in 1)
+            result = list(values)
+            result
+            """
+        )
+        result, _ = evaluate_python_code(code, {"list": list}, state={})
+        assert result == []
+
     def test_break(self):
         code = "for i in range(10):\n    if i == 5:\n        break\ni"
         result, _ = evaluate_python_code(code, {"range": range}, state={})

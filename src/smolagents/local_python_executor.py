@@ -1349,25 +1349,44 @@ def evaluate_generatorexp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Generator[Any]:
+    # Like CPython, evaluate the leftmost iterable eagerly, when the generator
+    # expression is created: rebinding the iterable before the generator is
+    # consumed must not change the generated values, and a non-iterable must
+    # raise TypeError right away instead of at first use. The remaining `for`
+    # clauses keep the lazy evaluation CPython gives them, so element
+    # production stays lazy as well.
+    outer_generator = genexp.generators[0]
+    outer_iterator = iter(evaluate_ast(outer_generator.iter, state, static_tools, custom_tools, authorized_imports))
+
     def generator():
-        for gen in genexp.generators:
-            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
-            for value in iter_value:
-                new_state = state.copy()
-                set_value(
-                    gen.target,
-                    value,
-                    new_state,
-                    static_tools,
-                    custom_tools,
-                    authorized_imports,
-                )
-                if all(
-                    evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                    for if_clause in gen.ifs
-                ):
+        for value in outer_iterator:
+            new_state = state.copy()
+            set_value(
+                outer_generator.target,
+                value,
+                new_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            if all(
+                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                for if_clause in outer_generator.ifs
+            ):
+                if len(genexp.generators) == 1:
                     yield evaluate_ast(
                         genexp.elt,
+                        new_state,
+                        static_tools,
+                        custom_tools,
+                        authorized_imports,
+                    )
+                else:
+                    yield from _evaluate_comprehensions(
+                        genexp.generators[1:],
+                        lambda comp_state: evaluate_ast(
+                            genexp.elt, comp_state, static_tools, custom_tools, authorized_imports
+                        ),
                         new_state,
                         static_tools,
                         custom_tools,
