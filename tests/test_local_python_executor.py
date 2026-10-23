@@ -1384,6 +1384,15 @@ shift_intervals
             evaluate_python_code(code)
         assert "Maybe you meant one of these indexes instead" in str(e) and "['Bhutan']" in str(e).replace("\\", "")
 
+    def test_undefined_name_is_not_swapped_for_a_close_match(self):
+        code = "unpaid_total = sum(invoices_unpaid)\nunpaid_total"
+        state = {"invoices": [120, 80, 15], "invoices_paid": [120]}
+        with pytest.raises(InterpreterError, match="invoices_unpaid"):
+            evaluate_python_code(code, {"sum": sum}, state=state)
+
+        result, _ = evaluate_python_code("sum(invoices_paid)", {"sum": sum}, state=state)
+        assert result == 120
+
     def test_dangerous_builtins_calls_are_blocked(self):
         unsafe_code = "import os"
         dangerous_code = f"""
