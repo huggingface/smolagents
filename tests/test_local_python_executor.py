@@ -1267,6 +1267,43 @@ returns_none(1)
         )
         assert result is None
 
+    def test_function_fallthrough_returns_none(self):
+        # Ordinary functions that reach the end without ``return`` must yield None,
+        # matching CPython (see https://github.com/huggingface/smolagents/issues/3060).
+        code = """
+def find_positive(values):
+    for value in values:
+        candidate = value
+        if candidate > 0:
+            return candidate
+
+def assignment_only():
+    value = 42
+
+def explicit_none():
+    return None
+
+result = find_positive([-3, -2])
+assigned = assignment_only()
+none_result = explicit_none()
+"""
+        state = {}
+        evaluate_python_code(code, {"print": print, "range": range}, state=state)
+        assert state["result"] is None
+        assert state["assigned"] is None
+        assert state["none_result"] is None
+
+        # Top-level expression output should still be the last expression value.
+        code = """
+def identity(x):
+    return x
+
+identity(7)
+"""
+        state = {}
+        result, _ = evaluate_python_code(code, {"print": print, "range": range}, state=state)
+        assert result == 7
+
     def test_nested_for_loop(self):
         code = """
 all_res = []
