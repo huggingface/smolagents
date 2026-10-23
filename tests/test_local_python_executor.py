@@ -576,7 +576,21 @@ simple_set = {
         assert isinstance(result, types.GeneratorType)
         assert list(result) == [0, 1, 2]
 
+    def test_generatorexp_evaluates_leftmost_iterable_eagerly(self):
+        """Leftmost iterable is captured at genexp creation, matching CPython (#3062)."""
+        code = dedent(
+            """\
+            items = [1, 2]
+            values = (x for x in items)
+            items = [9]
+            result = list(values)
+            """
+        )
+        result, _ = evaluate_python_code(code, {"list": list}, state={})
+        assert result == [1, 2]
+
     def test_generatorexp_with_infinite_sequence(self):
+
         """Test that generator expressions handle infinite sequences correctly without hanging."""
         code = dedent(
             """\
