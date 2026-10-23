@@ -1349,30 +1349,39 @@ def evaluate_generatorexp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Generator[Any]:
+    # CPython evaluates the leftmost iterable when the generator expression is
+    # *created*, not when iteration starts. Rebinding that name afterwards must
+    # not change the generated values (see #3062). Nested iters stay deferred.
+    generators = genexp.generators
+    first = generators[0]
+    first_iter_value = evaluate_ast(first.iter, state, static_tools, custom_tools, authorized_imports)
+
+    def evaluate_element(local_state: dict[str, Any]) -> Any:
+        return evaluate_ast(genexp.elt, local_state, static_tools, custom_tools, authorized_imports)
+
     def generator():
-        for gen in genexp.generators:
-            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
-            for value in iter_value:
-                new_state = state.copy()
-                set_value(
-                    gen.target,
-                    value,
+        for value in first_iter_value:
+            new_state = state.copy()
+            set_value(
+                first.target,
+                value,
+                new_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+            )
+            if all(
+                evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
+                for if_clause in first.ifs
+            ):
+                yield from _evaluate_comprehensions(
+                    generators[1:],
+                    evaluate_element,
                     new_state,
                     static_tools,
                     custom_tools,
                     authorized_imports,
                 )
-                if all(
-                    evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
-                    for if_clause in gen.ifs
-                ):
-                    yield evaluate_ast(
-                        genexp.elt,
-                        new_state,
-                        static_tools,
-                        custom_tools,
-                        authorized_imports,
-                    )
 
     return generator()
 
