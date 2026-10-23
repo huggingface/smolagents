@@ -187,3 +187,26 @@ class TestMethodChecker:
         method_checker = MethodChecker(set())
         method_checker.visit(ast.parse(source_code))
         assert method_checker.errors == []
+
+
+def test_method_checker_tracks_top_level_name_for_dotted_import():
+    source_code = dedent(
+        """
+        def forward(self):
+            import xml.etree
+            import json
+            import xml.dom as dom
+            import os.path, collections.abc
+            return xml.etree, json, dom, os.path, collections.abc
+        """
+    )
+    method_checker = MethodChecker(set())
+    method_checker.visit(ast.parse(source_code))
+    assert method_checker.errors == []
+    assert method_checker.imports == {
+        "xml": "xml.etree",
+        "json": "json",
+        "dom": "xml.dom",
+        "os": "os.path",
+        "collections": "collections.abc",
+    }

@@ -37,7 +37,7 @@ class MethodChecker(ast.NodeVisitor):
 
     def visit_Import(self, node):
         for name in node.names:
-            actual_name = name.asname or name.name
+            actual_name = name.asname or name.name.split(".", 1)[0]
             self.imports[actual_name] = name.name
 
     def visit_ImportFrom(self, node):
