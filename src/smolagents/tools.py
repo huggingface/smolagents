@@ -335,9 +335,15 @@ class Tool(BaseTool):
 
                 return re.sub(pattern, replacement, source_code)
 
-            forward_source_code = forward_source_code.replace(self.name, "forward")
-            forward_source_code = add_self_argument(forward_source_code)
             forward_source_code = forward_source_code.replace("@tool", "").strip()
+            forward_source_code = re.sub(
+                rf"^(\s*def\s+){re.escape(self.name)}(\s*\()",
+                r"\g<1>forward\g<2>",
+                forward_source_code,
+                count=1,
+                flags=re.MULTILINE,
+            )
+            forward_source_code = add_self_argument(forward_source_code)
             tool_code += "\n\n" + textwrap.indent(forward_source_code, "    ")
 
         else:  # If the tool was not created by the @tool decorator, it was made by subclassing Tool
