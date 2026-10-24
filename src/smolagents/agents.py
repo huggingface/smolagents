@@ -1481,11 +1481,14 @@ class ToolCallingAgent(MultiStepAgent):
             raise AgentToolExecutionError(error_msg, self.logger) from e
 
         try:
-            # Call tool with appropriate arguments
+            # Only the built-in identity tool can safely bypass sanitization.
+            # Custom FinalAnswerTool subclasses may intentionally transform inputs and
+            # therefore must keep the normal input/output sanitization contract.
+            sanitize = tool.__class__ is not FinalAnswerTool
             if isinstance(arguments, dict):
-                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
+                return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=sanitize)
             else:
-                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=sanitize)
 
         except Exception as e:
             # Handle execution errors
