@@ -606,6 +606,39 @@ class TestTool:
         test_input = "Hello, world!"
         assert recreated_tool(test_input) == test_input.upper()
 
+    def test_from_dict_roundtrip_preserves_tool_name_in_body(self):
+        @tool
+        def search(query: str) -> str:
+            """Search the knowledge base.
+
+            Args:
+                query: The search query.
+            """
+            return f"https://api.example.com/search?q={query}"
+
+        tool_dict = search.to_dict()
+        assert "api.example.com/search" in tool_dict["code"]
+        assert "The search query." in tool_dict["code"]
+        assert "forward query" not in tool_dict["code"]
+        assert "api.example.com/forward" not in tool_dict["code"]
+
+        recreated = Tool.from_dict(tool_dict)
+        assert recreated("cats") == "https://api.example.com/search?q=cats"
+
+        # Also verify tool named forward works seamlessly
+        @tool
+        def forward(text: str) -> str:
+            """Forward a message.
+
+            Args:
+                text: Message to forward.
+            """
+            return f"forwarded: {text}"
+
+        fwd_dict = forward.to_dict()
+        recreated_fwd = Tool.from_dict(fwd_dict)
+        assert recreated_fwd("test") == "forwarded: test"
+
     def test_tool_from_dict_invalid(self):
         # Missing code key
         with pytest.raises(ValueError) as e:
