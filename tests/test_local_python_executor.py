@@ -952,6 +952,13 @@ except ValueError as e:
         evaluate_python_code(code, {"min": min, "print": print}, state=state)
         assert state["_print_outputs"].value == "1\n"
 
+    def test_print_honors_sep_and_end(self):
+        code = """print("name", "score", sep=",")
+print("Ada", "42", sep=",", end="")"""
+        state = {}
+        evaluate_python_code(code, {"print": print}, state=state)
+        assert state["_print_outputs"].value == "name,score\nAda,42"
+
     def test_types_as_objects(self):
         code = "type_a = float(2); type_b = str; type_c = int"
         state = {}
