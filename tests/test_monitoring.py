@@ -32,7 +32,7 @@ from smolagents.models import (
     MessageRole,
     Model,
 )
-from smolagents.monitoring import AgentLogger, TokenUsage
+from smolagents.monitoring import AgentLogger, LogLevel, TokenUsage
 
 
 class FakeLLMModel(Model):
@@ -233,3 +233,30 @@ class AgentLoggerLogTaskTester(unittest.TestCase):
         rendered = console.export_text()
         self.assertIn("k", rendered)
         self.assertIn("also", rendered)
+
+
+class AgentLoggerLogRuleTester(unittest.TestCase):
+    def test_log_rule_honors_level(self):
+        console = Console(record=True, width=120)
+        logger = AgentLogger(level=LogLevel.ERROR, console=console)
+
+        # Log rule at LogLevel.ERROR should be rendered
+        logger.log_rule("Step 1", level=LogLevel.ERROR)
+        rendered = console.export_text()
+        self.assertIn("Step 1", rendered)
+
+        # Log rule at LogLevel.INFO should be filtered out by logger at ERROR level
+        console = Console(record=True, width=120)
+        logger = AgentLogger(level=LogLevel.ERROR, console=console)
+        logger.log_rule("Step 2", level=LogLevel.INFO)
+        rendered = console.export_text()
+        self.assertNotIn("Step 2", rendered)
+
+    def test_memory_replay_renders_step_rules_at_error_level(self):
+        console = Console(record=True, width=120)
+        logger = AgentLogger(level=LogLevel.ERROR, console=console)
+        memory = AgentMemory(system_prompt="test")
+        memory.steps.append(ActionStep(step_number=1, timing=0))
+        memory.replay(logger)
+        rendered = console.export_text()
+        self.assertIn("Step 1", rendered)
