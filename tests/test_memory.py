@@ -14,7 +14,7 @@ from smolagents.memory import (
     SystemPromptStep,
     TaskStep,
 )
-from smolagents.monitoring import Timing, TokenUsage
+from smolagents.monitoring import AgentLogger, Timing, TokenUsage
 
 
 class TestAgentMemory:
@@ -154,6 +154,36 @@ def test_action_step_to_messages():
     observation_message = messages[3]
     assert observation_message.role == MessageRole.TOOL_RESPONSE
     assert "Observation:\nThis is a nice observation" in observation_message.content[0]["text"]
+
+
+def test_action_step_to_messages_preserves_structured_model_output():
+    model_output = [
+        {"type": "text", "text": "  I will inspect the image.  "},
+        {"type": "image", "image": Image.new("RGB", (100, 100))},
+    ]
+    action_step = ActionStep(
+        timing=Timing(start_time=0.0, end_time=1.0),
+        step_number=1,
+        model_output=model_output,
+    )
+
+    messages = action_step.to_messages()
+
+    assert len(messages) == 1
+    assert messages[0].role == MessageRole.ASSISTANT
+    assert messages[0].content == model_output
+
+
+def test_agent_memory_replay_handles_structured_model_output():
+    memory = AgentMemory(system_prompt="system")
+    action_step = ActionStep(
+        timing=Timing(start_time=0.0, end_time=1.0),
+        step_number=1,
+        model_output=[{"type": "text", "text": "I am thinking."}],
+    )
+    memory.steps.append(action_step)
+    logger = AgentLogger()
+    memory.replay(logger=logger)
 
 
 def test_action_step_to_messages_no_tool_calls_with_observations():

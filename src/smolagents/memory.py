@@ -92,9 +92,13 @@ class ActionStep(MemoryStep):
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         messages = []
         if self.model_output is not None and not summary_mode:
-            messages.append(
-                ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.model_output.strip()}])
+            # Preserve structured content verbatim; whitespace normalization applies only to plain strings.
+            model_output_content = (
+                [{"type": "text", "text": self.model_output.strip()}]
+                if isinstance(self.model_output, str)
+                else self.model_output
             )
+            messages.append(ChatMessage(role=MessageRole.ASSISTANT, content=model_output_content))
 
         if self.tool_calls is not None:
             messages.append(
@@ -263,7 +267,11 @@ class AgentMemory:
                 if detailed and step.model_input_messages is not None:
                     logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
                 if step.model_output is not None:
-                    logger.log_markdown(title="Agent output:", content=step.model_output, level=LogLevel.ERROR)
+                    logger.log_markdown(
+                        title="Agent output:",
+                        content=step.model_output if isinstance(step.model_output, str) else str(step.model_output),
+                        level=LogLevel.ERROR,
+                    )
             elif isinstance(step, PlanningStep):
                 logger.log_rule("Planning step", level=LogLevel.ERROR)
                 if detailed and step.model_input_messages is not None:

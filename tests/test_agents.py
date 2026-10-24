@@ -142,6 +142,14 @@ class FakeToolCallModel(Model):
             )
 
 
+class FakeStructuredContentToolCallModel(FakeToolCallModel):
+    def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+        message = super().generate(messages, tools_to_call_from, stop_sequences)
+        if len(messages) < 3:
+            message.content = [{"type": "text", "text": "I will call the python interpreter."}]
+        return message
+
+
 class FakeToolCallModelImage(Model):
     def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
         if len(messages) < 3:
@@ -422,6 +430,16 @@ class TestAgent:
         assert "7.2904" in output
         assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
         assert "7.2904" in agent.memory.steps[1].observations
+        assert agent.memory.steps[2].model_output == "I will return the final answer."
+
+    def test_toolcalling_agent_replays_structured_model_content(self):
+        agent = ToolCallingAgent(tools=[PythonInterpreterTool()], model=FakeStructuredContentToolCallModel())
+
+        output = agent.run("What is 2 multiplied by 3.6452?")
+
+        assert isinstance(output, str)
+        assert "7.2904" in output
+        assert agent.memory.steps[1].model_output == [{"type": "text", "text": "I will call the python interpreter."}]
         assert agent.memory.steps[2].model_output == "I will return the final answer."
 
     def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
