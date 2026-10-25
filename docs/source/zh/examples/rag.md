@@ -14,7 +14,7 @@ Retrieval-Augmented-Generation (RAG) 是“使用大语言模型（LLM）来回�
 
 因此，它将比普通 RAG 更智能，因为它可以自己构建查询，而不是直接使用用户查询作为参考。这样，它可以更
 接近目标文档，从而提高检索的准确性， [HyDE](https://huggingface.co/papers/2212.10496)。此 agent 可以
-使用生成的片段，并在需要时重新检索，就像 [Self-Query](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/)。
+使用生成的片段，并在需要时重新检索，就像 [Self-Query](https://developers.llamaindex.ai/python/examples/evaluation/retryquery/)。
 
 我们现在开始构建这个系统. 🛠️
 
