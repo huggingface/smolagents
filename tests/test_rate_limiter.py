@@ -1,3 +1,5 @@
+import copy
+import pickle
 import threading
 
 import pytest
@@ -121,3 +123,31 @@ def test_rate_limiter_releases_lock_when_sleep_raises(monkeypatch):
 
     limiter._last_call = -1.0
     limiter.throttle()
+
+
+@pytest.mark.parametrize("rate", [None, 60, 600])
+def test_rate_limiter_restores_new_lock_after_pickle_or_deepcopy(monkeypatch, rate):
+    clock = FakeClock()
+    monkeypatch.setattr(utils, "time", clock)
+
+    limiter = RateLimiter(requests_per_minute=rate)
+    limiter._last_call = 100.0
+
+    for restored in (pickle.loads(pickle.dumps(limiter)), copy.deepcopy(limiter)):
+        assert restored._enabled == limiter._enabled
+        assert restored._interval == limiter._interval
+        assert restored._last_call == limiter._last_call
+        assert restored._lock is not limiter._lock
+
+        # Copies must not retain an acquired or shared synchronization lock.
+        assert restored._lock.acquire(blocking=False)
+        try:
+            assert limiter._lock.acquire(blocking=False)
+            limiter._lock.release()
+        finally:
+            restored._lock.release()
+
+        clock.now = 100.5
+        restored.throttle()
+        assert clock.now == pytest.approx(101.0 if rate == 60 else 100.5)
+        assert limiter._last_call == pytest.approx(100.0)
