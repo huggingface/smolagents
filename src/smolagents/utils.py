@@ -516,6 +516,16 @@ class RateLimiter:
         self._last_call = 0.0
         self._lock = threading.Lock()
 
+    def __getstate__(self):
+        # Locks are not pickleable. Snapshot the scheduling state under the
+        # lock, but never transfer the lock itself across object copies.
+        with self._lock:
+            return {key: value for key, value in self.__dict__.items() if key != "_lock"}
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._lock = threading.Lock()
+
     def throttle(self):
         """Pause execution to respect the rate limit, if enabled."""
         if not self._enabled:
