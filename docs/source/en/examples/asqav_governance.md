@@ -22,9 +22,10 @@ export HF_TOKEN="hf_..."
 
 ## Signing tool calls
 
-Wrap any `Tool` instance with the Asqav hook. Every invocation then signs
-`tool:start`, `tool:end`, and `tool:error` events; the wrapped tool is
-returned unchanged, so it plugs straight into your agent:
+Wrap any `Tool` instance with the Asqav hook. Every invocation then signs a
+`tool:start` event and either `tool:end` or `tool:error`. `wrap_tool` patches
+the tool's `forward` method and returns the same tool instance, so it plugs
+straight into your agent:
 
 ```python
 import asqav
@@ -58,15 +59,16 @@ never blocks agent execution.
 
 ## Verification
 
-Verify any receipt from the CLI:
+Verify any signature from the CLI, with no API key:
 
 ```bash
-asqav verify <receipt-or-signature-id>
+asqav verify <signature-id>
 ```
 
-The verifier recomputes the record hash, checks the ML-DSA signature against
-the agent's published key, and reports `verified`, `verified_keyed`, or
-`unverified` with a failure class.
+The command asks Asqav's public verify endpoint and prints whether the
+signature is valid, whether the signing key and algorithm match the agent's,
+the chain link and timestamp anchor status, and what the receipt does not
+prove. It exits with code 1 when the signature is rejected.
 
 ## Related
 
