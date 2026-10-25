@@ -151,3 +151,47 @@ def test_rate_limiter_restores_new_lock_after_pickle_or_deepcopy(monkeypatch, ra
         restored.throttle()
         assert clock.now == pytest.approx(101.0 if rate == 60 else 100.5)
         assert limiter._last_call == pytest.approx(100.0)
+
+
+def test_pickle_snapshot_waits_for_inflight_reservation(monkeypatch):
+    # Capturing a rate limiter mid-sleep must not serialize half a reservation
+    # with the old timestamp. The snapshot is linearized after the first
+    # caller releases the admission lock.
+    clock = ControlledClock()
+    monkeypatch.setattr(utils, "time", clock)
+
+    limiter = RateLimiter(requests_per_minute=60)
+    worker = threading.Thread(target=limiter.throttle)
+    worker.start()
+    assert clock.sleep_entered.wait(timeout=2)
+
+    started = threading.Event()
+    done = threading.Event()
+    result = {}
+
+    def snapshot():
+        started.set()
+        try:
+            result["payload"] = pickle.dumps(limiter)
+        except Exception as error:
+            result["error"] = error
+        finally:
+            done.set()
+
+    copy_worker = threading.Thread(target=snapshot)
+    try:
+        copy_worker.start()
+        assert started.wait(timeout=2)
+        # Pickling cannot pass the lock while throttle is still sleeping.
+        assert not done.wait(timeout=0.1)
+    finally:
+        clock.release_sleep.set()
+        worker.join(timeout=2)
+        copy_worker.join(timeout=2)
+
+    assert not worker.is_alive() and not copy_worker.is_alive()
+    assert "error" not in result
+    restored = pickle.loads(result["payload"])
+    assert limiter._last_call == pytest.approx(1.0)
+    assert restored._last_call == pytest.approx(1.0)
+    assert restored._lock is not limiter._lock
