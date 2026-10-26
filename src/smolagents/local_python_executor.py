@@ -1271,8 +1271,18 @@ def evaluate_with(
         if exc_info[1] is not None:
             raise exc_info[1].with_traceback(exc_info[2])
     else:
+        # A successful body may still have an __exit__ that raises. The
+        # remaining outer managers must receive and be able to suppress that
+        # exception, just as they do during exceptional body unwinding.
+        exc_info = (None, None, None)
         for context in reversed(contexts):
-            context.__exit__(None, None, None)
+            try:
+                if context.__exit__(*exc_info):
+                    exc_info = (None, None, None)
+            except BaseException as exit_exc:
+                exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)
+        if exc_info[1] is not None:
+            raise exc_info[1].with_traceback(exc_info[2])
 
 
 def get_safe_module(raw_module, authorized_imports, visited=None):
