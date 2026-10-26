@@ -3188,7 +3188,7 @@ def test_with_unwinds_outer_on_inner_exit_error_after_normal_body(suppress):
             raise RuntimeError("exit failed")
 
     state = {"Outer": Outer, "Inner": Inner, "events": events}
-    code = "with Outer(), Inner():\\n    pass\\nanswer = 42"
+    code = "with Outer(), Inner():\n    pass\nanswer = 42"
     if suppress:
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS.copy(), state=state)
         assert result == 42
