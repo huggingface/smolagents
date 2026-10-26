@@ -32,7 +32,7 @@ from smolagents.models import (
     MessageRole,
     Model,
 )
-from smolagents.monitoring import AgentLogger, TokenUsage
+from smolagents.monitoring import AgentLogger, Monitor, Timing, TokenUsage
 
 
 class FakeLLMModel(Model):
@@ -184,6 +184,34 @@ def test_code_agent_metrics(agent_class):
 
     assert agent.monitor.total_input_token_count == 10
     assert agent.monitor.total_output_token_count == 20
+
+
+def test_monitor_logs_step_token_usage_while_tracking_run_totals():
+    console = Console(record=True, width=200)
+    logger = AgentLogger(console=console)
+    monitor = Monitor(tracked_model=None, logger=logger)
+
+    monitor.update_metrics(
+        ActionStep(
+            step_number=1,
+            timing=Timing(start_time=0.0, end_time=1.0),
+            token_usage=TokenUsage(input_tokens=10, output_tokens=20),
+        )
+    )
+    monitor.update_metrics(
+        ActionStep(
+            step_number=2,
+            timing=Timing(start_time=0.0, end_time=1.0),
+            token_usage=TokenUsage(input_tokens=30, output_tokens=40),
+        )
+    )
+
+    rendered = console.export_text()
+    assert "Step 2: Duration 1.00 seconds| Input tokens: 30 | Output tokens: 40" in rendered
+    assert "Input tokens: 40" not in rendered
+    assert "Output tokens: 60" not in rendered
+    assert monitor.total_input_token_count == 40
+    assert monitor.total_output_token_count == 60
 
 
 class ReplayTester(unittest.TestCase):
