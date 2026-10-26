@@ -830,6 +830,21 @@ def function():
         evaluate_python_code(code, {"print": print, "range": range}, state=state)
         assert state["_print_outputs"].value == "1\n2\n2\n2\n2\n2\n2\n2\n2\n2\n2\n"
 
+    def test_print_respects_sep_and_end(self):
+        code = 'print("name", "score", sep=",")\nprint("Ada", "42", sep=",", end="")'
+        state = {}
+
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert state["_print_outputs"].value == "name,score\nAda,42"
+
+    def test_print_none_sep_and_end_use_defaults(self):
+        state = {}
+
+        evaluate_python_code('print("a", "b", sep=None, end=None)', BASE_PYTHON_TOOLS, state=state)
+
+        assert state["_print_outputs"].value == "a b\n"
+
     def test_tuple_target_in_iterator(self):
         code = "for a, b in [('Ralf Weikert', 'Austria'), ('Samuel Seungwon Lee', 'South Korea')]:res = a.split()[0]"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})

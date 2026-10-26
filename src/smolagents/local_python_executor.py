@@ -900,7 +900,17 @@ def evaluate_call(
         else:
             raise InterpreterError("super() takes at most 2 arguments")
     elif func_name == "print":
-        state["_print_outputs"] += " ".join(map(str, args)) + "\n"
+        sep = kwargs.get("sep", " ")
+        end = kwargs.get("end", "\n")
+        if sep is None:
+            sep = " "
+        if end is None:
+            end = "\n"
+        if not isinstance(sep, str):
+            raise TypeError(f"sep must be None or a string, not {type(sep).__name__}")
+        if not isinstance(end, str):
+            raise TypeError(f"end must be None or a string, not {type(end).__name__}")
+        state["_print_outputs"] += sep.join(map(str, args)) + end
         return None
     else:  # Assume it's a callable object
         if (inspect.getmodule(func) == builtins) and inspect.isbuiltin(func) and (func not in static_tools.values()):
