@@ -299,12 +299,14 @@ def instance_to_source(instance, base_cls=None):
         class_lines.append(f'    """{cls.__doc__}"""')
 
     # Add class-level attributes
+    descriptor_types = (property, staticmethod, classmethod)
     class_attrs = {
         name: value
         for name, value in cls.__dict__.items()
         if not name.startswith("__")
         and not name == "_abc_impl"
         and not callable(value)
+        and not isinstance(value, descriptor_types)
         and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
     }
 
@@ -322,20 +324,24 @@ def instance_to_source(instance, base_cls=None):
     if class_attrs:
         class_lines.append("")
 
-    # Add methods
-    methods = {
-        name: func.__wrapped__ if hasattr(func, "__wrapped__") else func
-        for name, func in cls.__dict__.items()
-        if callable(func)
-        and (
-            not base_cls
-            or not hasattr(base_cls, name)
-            or (
-                isinstance(func, (staticmethod, classmethod))
-                or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code)
-            )
-        )
-    }
+    # Add methods and decorated descriptors
+    methods = {}
+    for name, func in cls.__dict__.items():
+        if isinstance(func, property):
+            method = func.fget
+        elif isinstance(func, (staticmethod, classmethod)):
+            method = func.__func__
+        elif callable(func):
+            method = func.__wrapped__ if hasattr(func, "__wrapped__") else func
+        else:
+            continue
+
+        if base_cls and hasattr(base_cls, name) and not isinstance(func, descriptor_types):
+            base_func = getattr(base_cls, name)
+            if hasattr(base_func, "__code__") and base_func.__code__.co_code == func.__code__.co_code:
+                continue
+
+        methods[name] = method
 
     for name, method in methods.items():
         method_source = get_source(method)
