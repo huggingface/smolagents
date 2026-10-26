@@ -354,6 +354,10 @@ def get_clean_message_list(
         if role not in MessageRole.roles():
             raise ValueError(f"Incorrect role {role}, only {MessageRole.roles()} are supported for now.")
 
+        if flatten_messages_as_text and role == MessageRole.TOOL_CALL:
+            # Do not teach text-only histories the synthetic tool-call serialization.
+            continue
+
         if role in role_conversions:
             message.role = role_conversions[role]  # type: ignore
         # encode images if needed

@@ -805,6 +805,28 @@ def test_get_clean_message_list_flatten_messages_as_text():
     assert result[0]["content"] == "Hello!\nHow are you?"
 
 
+def test_get_clean_message_list_omits_tool_call_dump_when_flattening():
+    messages = [
+        ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": ""}]),
+        ChatMessage(
+            role=MessageRole.TOOL_CALL,
+            content=[{"type": "text", "text": "Calling tools:\n[{'name': 'count', 'arguments': {}}]"}],
+        ),
+        ChatMessage(role=MessageRole.TOOL_RESPONSE, content=[{"type": "text", "text": "Observation:\n1"}]),
+    ]
+
+    result = get_clean_message_list(
+        messages,
+        role_conversions={"tool-call": "assistant", "tool-response": "user"},
+        flatten_messages_as_text=True,
+    )
+
+    assert result == [
+        {"role": "assistant", "content": ""},
+        {"role": "user", "content": "Observation:\n1"},
+    ]
+
+
 @pytest.mark.parametrize(
     "model_class, model_kwargs, patching, expected_flatten_messages_as_text",
     [
