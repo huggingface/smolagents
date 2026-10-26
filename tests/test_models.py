@@ -1173,6 +1173,62 @@ class TestClientSideStop:
         accumulated_text = "".join(d.content for d in result if d.content)
         assert accumulated_text == "<think>Let's test <code>x = 1</code></think>\n<code>result = 42"
 
+    def test_client_side_stop_streaming_with_chunk_split_think_tag(self):
+        """Test reviewer case: opening <think> tag split across chunk boundaries."""
+        deltas = [
+            ChatMessageStreamDelta(content="<thi"),
+            ChatMessageStreamDelta(content="nk>draft </code>"),
+            ChatMessageStreamDelta(content="</think>final"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "<think>draft </code></think>final"
+
+    def test_client_side_stop_streaming_with_chunk_split_close_think_tag(self):
+        """Test that closing </think> tag split across chunk boundaries transitions state properly."""
+        deltas = [
+            ChatMessageStreamDelta(content="<think>draft </code>"),
+            ChatMessageStreamDelta(content="</th"),
+            ChatMessageStreamDelta(content="ink>final </code> trailing"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "<think>draft </code></think>final "
+
+    def test_client_side_stop_streaming_outer_stop_precedence(self):
+        """Test that outer stop sequences occurring before <think> take immediate precedence."""
+        deltas = [
+            ChatMessageStreamDelta(content="stop here </code> <think>not reached</think>"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "stop here "
+
+    def test_client_side_stop_streaming_close_tag_and_outer_stop_in_same_chunk(self):
+        """Test that </think> and an outer stop sequence in the same chunk are correctly handled."""
+        deltas = [
+            ChatMessageStreamDelta(content="<think>draft </code></think>final </code> trailing"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "<think>draft </code></think>final "
+
+    def test_client_side_stop_streaming_metadata_preservation(self):
+        """Test that tool_calls and token_usage are preserved exactly once on buffered chunks."""
+        deltas = [
+            ChatMessageStreamDelta(content="<thi", tool_calls=[{"id": "call_1"}], token_usage={"prompt_tokens": 10}),
+            ChatMessageStreamDelta(content="nk>draft </code>", token_usage={"completion_tokens": 5}),
+            ChatMessageStreamDelta(content="</think>final"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        assert result[0].content == ""
+        assert result[0].tool_calls == [{"id": "call_1"}]
+        assert result[0].token_usage == {"prompt_tokens": 10}
+        total_tool_calls = sum(1 for d in result if d.tool_calls is not None)
+        assert total_tool_calls == 1
+        assembled = "".join(d.content for d in result if d.content)
+        assert assembled == "<think>draft </code></think>final"
+
     def test_client_side_stop_serialization_roundtrip(self):
         """Test that client_side_stop serializes and deserializes cleanly."""
         model_client_stop = Model(model_id="deepseek-r1", client_side_stop=True)

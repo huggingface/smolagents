@@ -298,19 +298,17 @@ def stream_with_client_side_stop(
 ) -> Generator[ChatMessageStreamDelta, None, None]:
     """Filter a stream of ChatMessageStreamDelta chunks client-side, terminating at stop_sequences.
 
-    Properly handles stop sequences split across chunk boundaries and ignores stop sequences
-    contained within inline <think>...</think> blocks.
+    Properly handles stop sequences and <think>...</think> tags split across chunk boundaries,
+    ensuring stop sequences contained within inline thinking blocks are strictly ignored.
     """
     if not stop_sequences:
         yield from stream
         return
 
     buffer = ""
-
-    def is_inside_think(text: str) -> bool:
-        last_open = text.rfind("<think>")
-        last_close = text.rfind("</think>")
-        return last_open != -1 and last_open > last_close
+    in_think = False
+    open_tag = "<think>"
+    close_tag = "</think>"
 
     for delta in stream:
         content = delta.content
@@ -319,52 +317,98 @@ def stream_with_client_side_stop(
             continue
 
         buffer += content
+        yielded_for_delta = False
 
-        # While inside <think>...</think>, do not evaluate stop sequences
-        if is_inside_think(buffer):
-            continue
+        while buffer:
+            if not in_think:
+                open_idx = buffer.find(open_tag)
 
-        if "</think>" in buffer:
-            prefix, think_tag, search_area = buffer.rpartition("</think>")
-            offset = len(prefix) + len(think_tag)
-        else:
-            search_area = buffer
-            offset = 0
+                # Check for stop sequences that occur strictly before <think>
+                earliest_stop_idx = len(buffer)
+                matched_stop = False
+                for stop_seq in stop_sequences:
+                    idx = buffer.find(stop_seq)
+                    if idx != -1:
+                        if (open_idx == -1 or idx < open_idx) and idx < earliest_stop_idx:
+                            earliest_stop_idx = idx
+                            matched_stop = True
 
-        earliest_idx = len(search_area)
-        matched_stop = False
-        for stop_seq in stop_sequences:
-            idx = search_area.find(stop_seq)
-            if idx != -1 and idx < earliest_idx:
-                earliest_idx = idx
-                matched_stop = True
+                if matched_stop:
+                    cutoff = earliest_stop_idx
+                    if cutoff > 0 or (not yielded_for_delta and (delta.tool_calls or delta.token_usage)):
+                        yield ChatMessageStreamDelta(
+                            content=buffer[:cutoff],
+                            tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                            token_usage=delta.token_usage if not yielded_for_delta else None,
+                        )
+                    return
 
-        if matched_stop:
-            cutoff = offset + earliest_idx
-            pre_stop = buffer[:cutoff]
-            if pre_stop:
-                yield ChatMessageStreamDelta(
-                    content=pre_stop,
-                    tool_calls=delta.tool_calls,
-                    token_usage=delta.token_usage,
-                )
-            return
+                if open_idx != -1:
+                    # Transition into think block
+                    emit_len = open_idx + len(open_tag)
+                    yield ChatMessageStreamDelta(
+                        content=buffer[:emit_len],
+                        tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                        token_usage=delta.token_usage if not yielded_for_delta else None,
+                    )
+                    yielded_for_delta = True
+                    buffer = buffer[emit_len:]
+                    in_think = True
+                    continue
 
-        max_prefix_len = 0
-        for stop_seq in stop_sequences:
-            for prefix_len in range(1, min(len(stop_seq), len(search_area)) + 1):
-                if stop_seq.startswith(search_area[-prefix_len:]):
-                    max_prefix_len = max(max_prefix_len, prefix_len)
+                # Buffer suffixes that could be prefixes of <think> or stop_sequences
+                max_prefix_len = 0
+                candidates = list(stop_sequences) + [open_tag]
+                for cand in candidates:
+                    for prefix_len in range(1, min(len(cand), len(buffer)) + 1):
+                        if cand.startswith(buffer[-prefix_len:]):
+                            max_prefix_len = max(max_prefix_len, prefix_len)
 
-        safe_len = len(buffer) - max_prefix_len
-        if safe_len > 0:
-            yield ChatMessageStreamDelta(
-                content=buffer[:safe_len],
-                tool_calls=delta.tool_calls,
-                token_usage=delta.token_usage,
-            )
-            buffer = buffer[safe_len:]
-        elif delta.tool_calls or delta.token_usage:
+                safe_len = len(buffer) - max_prefix_len
+                if safe_len > 0:
+                    yield ChatMessageStreamDelta(
+                        content=buffer[:safe_len],
+                        tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                        token_usage=delta.token_usage if not yielded_for_delta else None,
+                    )
+                    yielded_for_delta = True
+                    buffer = buffer[safe_len:]
+                break
+
+            else:
+                # Inside think block: stop sequences are ignored
+                close_idx = buffer.find(close_tag)
+                if close_idx != -1:
+                    # Transition out of think block
+                    emit_len = close_idx + len(close_tag)
+                    yield ChatMessageStreamDelta(
+                        content=buffer[:emit_len],
+                        tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                        token_usage=delta.token_usage if not yielded_for_delta else None,
+                    )
+                    yielded_for_delta = True
+                    buffer = buffer[emit_len:]
+                    in_think = False
+                    continue
+
+                # Buffer suffixes that could be prefixes of </think>
+                max_prefix_len = 0
+                for prefix_len in range(1, min(len(close_tag), len(buffer)) + 1):
+                    if close_tag.startswith(buffer[-prefix_len:]):
+                        max_prefix_len = max(max_prefix_len, prefix_len)
+
+                safe_len = len(buffer) - max_prefix_len
+                if safe_len > 0:
+                    yield ChatMessageStreamDelta(
+                        content=buffer[:safe_len],
+                        tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                        token_usage=delta.token_usage if not yielded_for_delta else None,
+                    )
+                    yielded_for_delta = True
+                    buffer = buffer[safe_len:]
+                break
+
+        if not yielded_for_delta and (delta.tool_calls or delta.token_usage):
             yield ChatMessageStreamDelta(
                 content="",
                 tool_calls=delta.tool_calls,
