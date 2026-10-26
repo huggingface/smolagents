@@ -106,6 +106,7 @@ class ActionStep(MemoryStep):
                             "text": "Calling tools:\n" + str([tc.dict() for tc in self.tool_calls]),
                         }
                     ],
+                    tool_calls=self.tool_calls,
                 )
             )
 

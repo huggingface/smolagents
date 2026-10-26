@@ -121,6 +121,7 @@ def test_action_step_to_messages():
         model_input_messages=[ChatMessage(role=MessageRole.USER, content="Hello")],
         tool_calls=[
             ToolCall(id="id", name="get_weather", arguments={"location": "Paris"}),
+            ToolCall(id="id2", name="get_time", arguments={"timezone": "Europe/Paris"}),
         ],
         timing=Timing(start_time=0.0, end_time=1.0),
         step_number=1,
@@ -143,6 +144,15 @@ def test_action_step_to_messages():
     assert assistant_message.content[0]["text"] == "Hi"
     message = messages[1]
     assert message.role == MessageRole.TOOL_CALL
+    assert message.tool_calls is not None
+    assert len(message.tool_calls) == 2
+    assert message.tool_calls[0].id == "id"
+    assert message.tool_calls[0].type == "function"
+    assert message.tool_calls[0].function.name == "get_weather"
+    assert message.tool_calls[0].function.arguments == {"location": "Paris"}
+    assert message.tool_calls[1].id == "id2"
+    assert message.tool_calls[1].function.name == "get_time"
+    assert message.tool_calls[1].function.arguments == {"timezone": "Europe/Paris"}
 
     assert len(message.content) == 1
     assert message.content[0]["type"] == "text"
