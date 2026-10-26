@@ -602,6 +602,72 @@ class TestAmazonBedrockModel:
 
         assert model.client == MockBoto3.return_value
 
+    @pytest.mark.parametrize(
+        "tool_choice, expected_tool_choice",
+        [
+            ("required", {"any": {}}),
+            ("auto", {"auto": {}}),
+            ("valid_tool_function", {"tool": {"name": "valid_tool_function"}}),
+            (
+                {"type": "function", "function": {"name": "valid_tool_function"}},
+                {"tool": {"name": "valid_tool_function"}},
+            ),
+        ],
+    )
+    def test_prepare_completion_kwargs_converts_tools_and_tool_choice(
+        self, example_tool, tool_choice, expected_tool_choice
+    ):
+        model = AmazonBedrockModel(model_id="us.amazon.nova-lite-v1:0", client=MagicMock())
+
+        completion_kwargs = model._prepare_completion_kwargs(
+            messages=[ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])],
+            tools_to_call_from=[example_tool],
+            tool_choice=tool_choice,
+        )
+
+        assert "tools" not in completion_kwargs
+        assert "tool_choice" not in completion_kwargs
+        assert completion_kwargs["toolConfig"]["toolChoice"] == expected_tool_choice
+        tool_spec = completion_kwargs["toolConfig"]["tools"][0]["toolSpec"]
+        assert tool_spec["name"] == "valid_tool_function"
+        assert tool_spec["inputSchema"]["json"]["type"] == "object"
+
+    def test_generate_parses_bedrock_tool_use_response(self, example_tool):
+        client = MagicMock()
+        client.converse.return_value = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "toolUse": {
+                                "toolUseId": "tool-call-1",
+                                "name": "valid_tool_function",
+                                "input": {"input": "test"},
+                            }
+                        }
+                    ],
+                }
+            },
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+        }
+        model = AmazonBedrockModel(model_id="us.amazon.nova-lite-v1:0", client=client)
+
+        result = model.generate(
+            messages=[ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Use the tool"}])],
+            tools_to_call_from=[example_tool],
+        )
+
+        assert result.content is None
+        assert result.tool_calls is not None
+        assert result.tool_calls[0].id == "tool-call-1"
+        assert result.tool_calls[0].function.name == "valid_tool_function"
+        assert json.loads(result.tool_calls[0].function.arguments) == {"input": "test"}
+        request = client.converse.call_args.kwargs
+        assert "tools" not in request
+        assert "tool_choice" not in request
+        assert "toolConfig" in request
+
 
 class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
