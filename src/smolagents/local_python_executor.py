@@ -1241,6 +1241,22 @@ def evaluate_with(
     authorized_imports: list[str],
 ) -> None:
     contexts = []
+
+    def unwind_contexts(exc_info):
+        # Use one cleanup contract whether the body or an inner __exit__
+        # generated the first exception. Every entered manager gets __exit__.
+        for context in reversed(contexts):
+            try:
+                suppressed = context.__exit__(*exc_info)
+                # Termination is an agent control signal. Managers may
+                # suppress ordinary exceptions, but never final_answer.
+                if suppressed and not isinstance(exc_info[1], FinalAnswerException):
+                    exc_info = (None, None, None)
+            except BaseException as exit_exc:
+                exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)
+        if exc_info[1] is not None:
+            raise exc_info[1].with_traceback(exc_info[2])
+
     try:
         # Enter contexts inside the same protected region as the body. Python
         # guarantees that managers already entered are unwound when a later
@@ -1255,37 +1271,9 @@ def evaluate_with(
         for stmt in with_node.body:
             evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
     except BaseException as e:
-        # exc_info tracks the active exception as we unwind (from innermost context manager)
-        # Resetting it to (None, None, None) signals suppression to the remaining outer managers.
-        exc_info = (type(e), e, e.__traceback__)
-        for context in reversed(contexts):
-            try:
-                suppressed = context.__exit__(*exc_info)
-                # FinalAnswerException is an agent termination signal, not a
-                # user exception. Always run __exit__ for resource cleanup,
-                # but do not allow a context manager to swallow final_answer.
-                if suppressed and not isinstance(exc_info[1], FinalAnswerException):
-                    exc_info = (None, None, None)  # ordinary exception suppressed
-            except BaseException as exit_exc:
-                exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)  # new exc replaces active
-        if exc_info[1] is not None:
-            raise exc_info[1].with_traceback(exc_info[2])
+        unwind_contexts((type(e), e, e.__traceback__))
     else:
-        # A successful body may still have an __exit__ that raises. The
-        # remaining outer managers must receive and be able to suppress that
-        # exception, just as they do during exceptional body unwinding.
-        exc_info = (None, None, None)
-        for context in reversed(contexts):
-            try:
-                suppressed = context.__exit__(*exc_info)
-                # The agent's final_answer signal must not be consumed by
-                # an outer manager, including when raised by an inner __exit__.
-                if suppressed and not isinstance(exc_info[1], FinalAnswerException):
-                    exc_info = (None, None, None)
-            except BaseException as exit_exc:
-                exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)
-        if exc_info[1] is not None:
-            raise exc_info[1].with_traceback(exc_info[2])
+        unwind_contexts((None, None, None))
 
 
 def get_safe_module(raw_module, authorized_imports, visited=None):
