@@ -138,6 +138,7 @@ class ChatMessage:
 
     @classmethod
     def from_dict(cls, data: dict, raw: Any | None = None, token_usage: TokenUsage | None = None) -> "ChatMessage":
+        tool_calls = None
         if data.get("tool_calls"):
             tool_calls = [
                 ChatMessageToolCall(
@@ -145,11 +146,10 @@ class ChatMessage:
                 )
                 for tc in data["tool_calls"]
             ]
-            data["tool_calls"] = tool_calls
         return cls(
             role=MessageRole(data["role"]),
             content=data.get("content"),
-            tool_calls=data.get("tool_calls"),
+            tool_calls=tool_calls,
             raw=raw,
             token_usage=token_usage,
         )
