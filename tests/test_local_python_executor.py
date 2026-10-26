@@ -29,6 +29,7 @@ from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_MODULES,
     ExecutionTimeoutError,
+    FinalAnswerException,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -3202,4 +3203,42 @@ def test_with_unwinds_outer_on_inner_exit_error_after_normal_body(suppress):
         "inner_enter",
         ("inner_exit", None),
         ("outer_exit", "RuntimeError"),
+    ]
+
+
+def test_with_inner_exit_final_answer_is_not_suppressed():
+    """Even a truthy outer exit must not swallow termination from an inner exit."""
+    events = []
+
+    class Outer:
+        def __enter__(self):
+            events.append("outer_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("outer_exit", exc_type.__name__ if exc_type else None))
+            return True
+
+    class Inner:
+        def __enter__(self):
+            events.append("inner_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("inner_exit", exc_type.__name__ if exc_type else None))
+            raise FinalAnswerException("from_exit")
+
+    state = {"Outer": Outer, "Inner": Inner}
+    result, is_final = evaluate_python_code(
+        'with Outer(), Inner():\n    pass\nfinal_answer("after_exit")',
+        {"final_answer": lambda answer: answer},
+        state=state,
+    )
+    assert is_final is True
+    assert result == "from_exit"
+    assert events == [
+        "outer_enter",
+        "inner_enter",
+        ("inner_exit", None),
+        ("outer_exit", "FinalAnswerException"),
     ]
