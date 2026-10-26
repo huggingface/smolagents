@@ -2101,6 +2101,18 @@ class TestCodeAgent:
         assert agent.instructions == "Test instructions"
         assert "Test instructions" in agent.system_prompt
 
+    @pytest.mark.parametrize("use_structured_outputs_internally", [False, True])
+    def test_code_agent_does_not_guess_truncated_urls(self, use_structured_outputs_internally):
+        agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            use_structured_outputs_internally=use_structured_outputs_internally,
+        )
+
+        assert "Never invent, reconstruct, or guess a URL." in agent.system_prompt
+        assert "treat ellipses or other truncation markers as incomplete URLs" in agent.system_prompt
+        assert "When a webpage-visiting tool is available, use it to verify a URL" in agent.system_prompt
+
     @pytest.mark.parametrize("provide_run_summary", [False, True])
     def test_call_with_provide_run_summary(self, provide_run_summary):
         agent = CodeAgent(tools=[], model=MagicMock(), provide_run_summary=provide_run_summary)
