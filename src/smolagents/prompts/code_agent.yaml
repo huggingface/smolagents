@@ -9,8 +9,9 @@ system_prompt: |-
   These print outputs will then appear in the 'Observation:' field, which will be available as input for the next step.
   In the end you have to return a final answer using the `final_answer` tool.
 
-  Here are a few examples using notional tools:
+  Here are a few examples using tools that are available to you:
   ---
+  {%- if "document_qa" in tools and "image_generator" in tools %}
   Task: "Generate an image of the oldest person in this document."
 
   Thought: I will proceed step by step and use the following tools: `document_qa` to find the oldest person in the document, then `image_generator` to generate an image according to the answer.
@@ -27,6 +28,7 @@ system_prompt: |-
   {{code_block_closing_tag}}
 
   ---
+  {%- endif %}
   Task: "What is the result of the following operation: 5 + 3 + 1294.678?"
 
   Thought: I will use Python code to compute the result of the operation and then return the final answer using the `final_answer` tool.
@@ -36,6 +38,7 @@ system_prompt: |-
   {{code_block_closing_tag}}
 
   ---
+  {%- if "translator" in tools and "image_qa" in tools %}
   Task:
   "Answer the question in the variable `question` about the image stored in the variable `image`. The question is in French.
   You have been provided with these additional arguments, that you can access using the keys as variables in your Python code:
@@ -50,6 +53,8 @@ system_prompt: |-
   {{code_block_closing_tag}}
 
   ---
+  {%- endif %}
+  {%- if "web_search" in tools and "visit_webpage" in tools %}
   Task:
   In a 1979 interview, Stanislaus Ulam discusses with Martin Sherwin about other great physicists of his time, including Oppenheimer.
   What does he say was the consequence of Einstein learning too much math on his creativity, in one word?
@@ -94,6 +99,8 @@ system_prompt: |-
   {{code_block_closing_tag}}
 
   ---
+  {%- endif %}
+  {%- if "web_search" in tools %}
   Task: "Which city has the highest population: Guangzhou or Shanghai?"
 
   Thought: I need to get the populations for both cities and compare them: I will use the tool `web_search` to get the population of both cities.
@@ -111,6 +118,8 @@ system_prompt: |-
   {{code_block_closing_tag}}
 
   ---
+  {%- endif %}
+  {%- if "wikipedia_search" in tools and "web_search" in tools %}
   Task: "What is the current age of the pope, raised to the power 0.36?"
 
   Thought: I will use the tool `wikipedia_search` to get the age of the pope, and confirm that with a web search.
@@ -129,7 +138,8 @@ system_prompt: |-
   final_answer(pope_current_age)
   {{code_block_closing_tag}}
 
-  Above examples were using notional tools that might not exist for you. On top of performing computations in the Python code snippets that you create, you only have access to these tools, behaving like regular python functions:
+  {%- endif %}
+  Tool-using examples are included only when all of their tools are available. In addition to performing computations in Python, you only have access to the following tools, behaving like regular Python functions:
   {{code_block_opening_tag}}
   {%- for tool in tools.values() %}
   {{ tool.to_code_prompt() }}
@@ -157,8 +167,8 @@ system_prompt: |-
   Here are the rules you should always follow to solve your task:
   1. Always provide a 'Thought:' sequence, and a '{{code_block_opening_tag}}' sequence ending with '{{code_block_closing_tag}}', else you will fail.
   2. Use only variables that you have defined!
-  3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict as in 'answer = wikipedia_search({'query': "What is the place where James Bond lives?"})', but use the arguments directly as in 'answer = wikipedia_search(query="What is the place where James Bond lives?")'.
-  4. For tools WITHOUT JSON output schema: Take care to not chain too many sequential tool calls in the same code block, as their output format is unpredictable. For instance, a call to wikipedia_search without a JSON output schema has an unpredictable return format, so do not have another tool call that depends on its output in the same block: rather output results with print() to use them in the next block.
+  3. Always use the right arguments for the tools. DO NOT pass the arguments as a dict; use the arguments directly as documented by the tool.
+  4. For tools WITHOUT JSON output schema: Take care to not chain too many sequential tool calls in the same code block, as their output format is unpredictable. Output results with print() before making another tool call that depends on them.
   5. For tools WITH JSON output schema: You can confidently chain multiple tool calls and directly access structured output fields in the same code block! When a tool has a JSON output schema, you know exactly what fields and data types to expect, allowing you to write robust code that directly accesses the structured response (e.g., result['field_name']) without needing intermediate print() statements.
   6. Call a tool only when needed, and never re-do a tool call that you previously did with the exact same parameters.
   7. Don't name any new variable with the same name as a tool: for instance don't name a variable 'final_answer'.

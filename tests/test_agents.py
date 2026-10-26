@@ -529,6 +529,44 @@ class TestAgent:
         assert f"def {tool.name}(" in agent.system_prompt
         assert f'"""{tool.description}' in agent.system_prompt
 
+    @pytest.mark.parametrize("use_structured_outputs_internally", [False, True])
+    @pytest.mark.parametrize("with_web_search", [False, True])
+    def test_prompt_examples_only_use_available_tools(self, use_structured_outputs_internally, with_web_search):
+        if with_web_search:
+
+            @tool
+            def web_search(query: str) -> str:
+                """Search the web.
+
+                Args:
+                    query: Search query.
+                """
+                return ""
+
+            tools = [web_search]
+        else:
+            tools = []
+        agent = CodeAgent(
+            tools=tools, model=MagicMock(), use_structured_outputs_internally=use_structured_outputs_internally
+        )
+        prompt = agent.system_prompt
+
+        if with_web_search:
+            assert "pages = web_search(" not in prompt
+            assert "Which city has the highest population" in prompt
+        else:
+            assert "web_search(" not in prompt
+            assert "Which city has the highest population" not in prompt
+        for unavailable_tool in (
+            "document_qa",
+            "image_generator",
+            "translator",
+            "image_qa",
+            "visit_webpage",
+            "wikipedia_search",
+        ):
+            assert f"{unavailable_tool}(" not in prompt
+
     def test_module_imports_get_baked_in_system_prompt(self):
         agent = CodeAgent(tools=[], model=FakeCodeModel())
         agent.run("Empty task")
