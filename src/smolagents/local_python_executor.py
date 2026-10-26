@@ -1277,7 +1277,10 @@ def evaluate_with(
         exc_info = (None, None, None)
         for context in reversed(contexts):
             try:
-                if context.__exit__(*exc_info):
+                suppressed = context.__exit__(*exc_info)
+                # The agent's final_answer signal must not be consumed by
+                # an outer manager, including when raised by an inner __exit__.
+                if suppressed and not isinstance(exc_info[1], FinalAnswerException):
                     exc_info = (None, None, None)
             except BaseException as exit_exc:
                 exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)
