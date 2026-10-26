@@ -475,6 +475,22 @@ class TestLiteLLMModel:
             # = 0.704s (allow some tolerance)
             assert 0.67 <= elapsed_time <= 0.73
 
+    def test_retry_uses_provider_retry_delay(self):
+        mock_litellm = MagicMock()
+        retry_info_error = Exception(
+            'VertexAIException - {"error": {"code": 429, "details": ['
+            '{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "3s"}]}}'
+        )
+        mock_litellm.completion.side_effect = [retry_info_error, "success"]
+
+        with patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm):
+            model = LiteLLMModel(model_id="test-model")
+
+        with patch("smolagents.utils.time.sleep") as sleep:
+            assert model.retryer(model.client.completion) == "success"
+
+        sleep.assert_called_once_with(3.0)
+
     def test_passing_flatten_messages(self):
         model = LiteLLMModel(model_id="groq/llama-3.3-70b", flatten_messages_as_text=False)
         assert not model.flatten_messages_as_text
