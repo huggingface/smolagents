@@ -80,15 +80,28 @@ def remove_content_after_stop_sequences(content: str | None, stop_sequences: lis
     """Remove content after any stop sequence is encountered.
 
     Some providers may return ``None`` content (for example when responding purely with tool calls),
-    so we skip processing in that case.
+    so we skip processing in that case. If the content contains an inline ``<think>...</think>``
+    block, stop sequences occurring inside the thinking block are ignored so that drafted code
+    inside thoughts does not truncate the output prematurely.
     """
     if content is None or not stop_sequences:
         return content
 
+    if "</think>" in content:
+        think_prefix, think_close, rest = content.rpartition("</think>")
+        earliest_stop_index = len(rest)
+        for stop_seq in stop_sequences:
+            stop_index = rest.find(stop_seq)
+            if stop_index != -1 and stop_index < earliest_stop_index:
+                earliest_stop_index = stop_index
+        return f"{think_prefix}{think_close}{rest[:earliest_stop_index]}"
+
+    earliest_stop_index = len(content)
     for stop_seq in stop_sequences:
-        split = content.split(stop_seq)
-        content = split[0]
-    return content
+        stop_index = content.find(stop_seq)
+        if stop_index != -1 and stop_index < earliest_stop_index:
+            earliest_stop_index = stop_index
+    return content[:earliest_stop_index]
 
 
 @dataclass
@@ -277,6 +290,133 @@ def agglomerate_stream_deltas(
             output_tokens=total_output_tokens,
         ),
     )
+
+
+def stream_with_client_side_stop(
+    stream: Generator[ChatMessageStreamDelta, None, None],
+    stop_sequences: list[str] | None,
+) -> Generator[ChatMessageStreamDelta, None, None]:
+    """Filter a stream of ChatMessageStreamDelta chunks client-side, terminating at stop_sequences.
+
+    Properly handles stop sequences and <think>...</think> tags split across chunk boundaries,
+    ensuring stop sequences contained within inline thinking blocks are strictly ignored.
+    """
+    if not stop_sequences:
+        yield from stream
+        return
+
+    buffer = ""
+    in_think = False
+    open_tag = "<think>"
+    close_tag = "</think>"
+
+    for delta in stream:
+        content = delta.content
+        if not content:
+            yield delta
+            continue
+
+        buffer += content
+        yielded_for_delta = False
+
+        while buffer:
+            if not in_think:
+                open_idx = buffer.find(open_tag)
+
+                # Check for stop sequences that occur strictly before <think>
+                earliest_stop_idx = len(buffer)
+                matched_stop = False
+                for stop_seq in stop_sequences:
+                    idx = buffer.find(stop_seq)
+                    if idx != -1:
+                        if (open_idx == -1 or idx < open_idx) and idx < earliest_stop_idx:
+                            earliest_stop_idx = idx
+                            matched_stop = True
+
+                if matched_stop:
+                    cutoff = earliest_stop_idx
+                    if cutoff > 0 or (not yielded_for_delta and (delta.tool_calls or delta.token_usage)):
+                        yield ChatMessageStreamDelta(
+                            content=buffer[:cutoff],
+                            tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                            token_usage=delta.token_usage if not yielded_for_delta else None,
+                        )
+                    return
+
+                if open_idx != -1:
+                    # Transition into think block
+                    emit_len = open_idx + len(open_tag)
+                    yield ChatMessageStreamDelta(
+                        content=buffer[:emit_len],
+                        tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                        token_usage=delta.token_usage if not yielded_for_delta else None,
+                    )
+                    yielded_for_delta = True
+                    buffer = buffer[emit_len:]
+                    in_think = True
+                    continue
+
+                # Buffer suffixes that could be prefixes of <think> or stop_sequences
+                max_prefix_len = 0
+                candidates = list(stop_sequences) + [open_tag]
+                for cand in candidates:
+                    for prefix_len in range(1, min(len(cand), len(buffer)) + 1):
+                        if cand.startswith(buffer[-prefix_len:]):
+                            max_prefix_len = max(max_prefix_len, prefix_len)
+
+                safe_len = len(buffer) - max_prefix_len
+                if safe_len > 0:
+                    yield ChatMessageStreamDelta(
+                        content=buffer[:safe_len],
+                        tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                        token_usage=delta.token_usage if not yielded_for_delta else None,
+                    )
+                    yielded_for_delta = True
+                    buffer = buffer[safe_len:]
+                break
+
+            else:
+                # Inside think block: stop sequences are ignored
+                close_idx = buffer.find(close_tag)
+                if close_idx != -1:
+                    # Transition out of think block
+                    emit_len = close_idx + len(close_tag)
+                    yield ChatMessageStreamDelta(
+                        content=buffer[:emit_len],
+                        tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                        token_usage=delta.token_usage if not yielded_for_delta else None,
+                    )
+                    yielded_for_delta = True
+                    buffer = buffer[emit_len:]
+                    in_think = False
+                    continue
+
+                # Buffer suffixes that could be prefixes of </think>
+                max_prefix_len = 0
+                for prefix_len in range(1, min(len(close_tag), len(buffer)) + 1):
+                    if close_tag.startswith(buffer[-prefix_len:]):
+                        max_prefix_len = max(max_prefix_len, prefix_len)
+
+                safe_len = len(buffer) - max_prefix_len
+                if safe_len > 0:
+                    yield ChatMessageStreamDelta(
+                        content=buffer[:safe_len],
+                        tool_calls=delta.tool_calls if not yielded_for_delta else None,
+                        token_usage=delta.token_usage if not yielded_for_delta else None,
+                    )
+                    yielded_for_delta = True
+                    buffer = buffer[safe_len:]
+                break
+
+        if not yielded_for_delta and (delta.tool_calls or delta.token_usage):
+            yield ChatMessageStreamDelta(
+                content="",
+                tool_calls=delta.tool_calls,
+                token_usage=delta.token_usage,
+            )
+
+    if buffer:
+        yield ChatMessageStreamDelta(content=buffer)
 
 
 tool_role_conversions = {
@@ -487,11 +627,13 @@ class Model:
         tool_name_key: str = "name",
         tool_arguments_key: str = "arguments",
         model_id: str | None = None,
+        client_side_stop: bool = False,
         **kwargs,
     ):
         self.flatten_messages_as_text = flatten_messages_as_text
         self.tool_name_key = tool_name_key
         self.tool_arguments_key = tool_arguments_key
+        self.client_side_stop = client_side_stop
         self.kwargs = kwargs
         self.model_id: str | None = model_id
 
@@ -531,8 +673,8 @@ class Model:
             "messages": messages_as_dicts,
         }
         # Override with specific parameters
-        if stop_sequences is not None and self.supports_stop_parameter:
-            # Some models do not support stop parameter
+        if stop_sequences is not None and not self.client_side_stop and self.supports_stop_parameter:
+            # Some models do not support stop parameter, or user enabled client_side_stop
             completion_kwargs["stop"] = stop_sequences
         if response_format is not None:
             completion_kwargs["response_format"] = response_format
@@ -623,6 +765,8 @@ class Model:
                 print(
                     f"For security reasons, we do not export the `{attribute_name}` attribute of your model. Please export it manually."
                 )
+        if getattr(self, "client_side_stop", False):
+            model_dictionary["client_side_stop"] = self.client_side_stop
         return model_dictionary
 
     @classmethod
@@ -660,8 +804,7 @@ class VLLMModel(Model):
 
         self.model_kwargs = model_kwargs or {}
         self.apply_chat_template_kwargs = apply_chat_template_kwargs or {}
-        super().__init__(**kwargs)
-        self.model_id = model_id
+        super().__init__(model_id=model_id, **kwargs)
         self.model = LLM(model=model_id, **self.model_kwargs)
         assert self.model is not None
         self.tokenizer = get_tokenizer(model_id)
@@ -735,7 +878,7 @@ class VLLMModel(Model):
         )
 
         output_text = out[0].outputs[0].text
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
             output_text = remove_content_after_stop_sequences(output_text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
@@ -844,7 +987,7 @@ class MLXModel(Model):
             if any((stop_index := text.rfind(stop)) != -1 for stop in stops):
                 text = text[:stop_index]
                 break
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
             text = remove_content_after_stop_sequences(text, stop_sequences)
         return ChatMessage(
             role=MessageRole.ASSISTANT,
@@ -1116,23 +1259,29 @@ class TransformersModel(Model):
         thread.start()
 
         # Process streaming output
-        is_first_token = True
-        count_generated_tokens = 0
-        for new_text in self.streamer:
-            count_generated_tokens += 1
-            # Only include input tokens in the first yielded token
-            input_tokens = count_prompt_tokens if is_first_token else 0
-            is_first_token = False
-            yield ChatMessageStreamDelta(
-                content=new_text,
-                tool_calls=None,
-                token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=1),
-            )
-            count_prompt_tokens = 0
-        thread.join()
+        def _stream():
+            nonlocal count_prompt_tokens
+            is_first_token = True
+            count_generated_tokens = 0
+            for new_text in self.streamer:
+                count_generated_tokens += 1
+                # Only include input tokens in the first yielded token
+                input_tokens = count_prompt_tokens if is_first_token else 0
+                is_first_token = False
+                yield ChatMessageStreamDelta(
+                    content=new_text,
+                    tool_calls=None,
+                    token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=1),
+                )
+                count_prompt_tokens = 0
+            thread.join()
+            # Update final output token count
+            self._last_output_token_count = count_generated_tokens
 
-        # Update final output token count
-        self._last_output_token_count = count_generated_tokens
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
+            yield from stream_with_client_side_stop(_stream(), stop_sequences)
+        else:
+            yield from _stream()
 
 
 class ApiModel(Model):
@@ -1293,7 +1442,7 @@ class LiteLLMModel(ApiModel):
                 f"Response details: {response.model_dump()}"
             )
         content = response.choices[0].message.content
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response.choices[0].message.role,
@@ -1327,37 +1476,44 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.retryer(
-            self.client.completion, **completion_kwargs, stream=True, stream_options={"include_usage": True}
-        ):
-            if getattr(event, "usage", None):
-                yield ChatMessageStreamDelta(
-                    content="",
-                    token_usage=TokenUsage(
-                        input_tokens=event.usage.prompt_tokens,
-                        output_tokens=event.usage.completion_tokens,
-                    ),
-                )
-            if event.choices:
-                choice = event.choices[0]
-                if choice.delta:
+
+        def _raw_stream():
+            for event in self.retryer(
+                self.client.completion, **completion_kwargs, stream=True, stream_options={"include_usage": True}
+            ):
+                if getattr(event, "usage", None):
                     yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
-                        tool_calls=[
-                            ChatMessageToolCallStreamDelta(
-                                index=delta.index,
-                                id=delta.id,
-                                type=delta.type,
-                                function=delta.function,
-                            )
-                            for delta in choice.delta.tool_calls
-                        ]
-                        if choice.delta.tool_calls
-                        else None,
+                        content="",
+                        token_usage=TokenUsage(
+                            input_tokens=event.usage.prompt_tokens,
+                            output_tokens=event.usage.completion_tokens,
+                        ),
                     )
-                else:
-                    if not getattr(choice, "finish_reason", None):
-                        raise ValueError(f"No content or tool calls in event: {event}")
+                if event.choices:
+                    choice = event.choices[0]
+                    if choice.delta:
+                        yield ChatMessageStreamDelta(
+                            content=choice.delta.content,
+                            tool_calls=[
+                                ChatMessageToolCallStreamDelta(
+                                    index=delta.index,
+                                    id=delta.id,
+                                    type=delta.type,
+                                    function=delta.function,
+                                )
+                                for delta in choice.delta.tool_calls
+                            ]
+                            if choice.delta.tool_calls
+                            else None,
+                        )
+                    else:
+                        if not getattr(choice, "finish_reason", None):
+                            raise ValueError(f"No content or tool calls in event: {event}")
+
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
+            yield from stream_with_client_side_stop(_raw_stream(), stop_sequences)
+        else:
+            yield from _raw_stream()
 
 
 class LiteLLMRouterModel(LiteLLMModel):
@@ -1575,7 +1731,7 @@ class InferenceClientModel(ApiModel):
         self._apply_rate_limit()
         response = self.retryer(self.client.chat_completion, **completion_kwargs)
         content = response.choices[0].message.content
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response.choices[0].message.role,
@@ -1607,40 +1763,47 @@ class InferenceClientModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.retryer(
-            self.client.chat.completions.create,
-            **completion_kwargs,
-            stream=True,
-            stream_options={"include_usage": True},
-        ):
-            if getattr(event, "usage", None):
-                yield ChatMessageStreamDelta(
-                    content="",
-                    token_usage=TokenUsage(
-                        input_tokens=event.usage.prompt_tokens,
-                        output_tokens=event.usage.completion_tokens,
-                    ),
-                )
-            if event.choices:
-                choice = event.choices[0]
-                if choice.delta:
+
+        def _raw_stream():
+            for event in self.retryer(
+                self.client.chat.completions.create,
+                **completion_kwargs,
+                stream=True,
+                stream_options={"include_usage": True},
+            ):
+                if getattr(event, "usage", None):
                     yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
-                        tool_calls=[
-                            ChatMessageToolCallStreamDelta(
-                                index=delta.index,
-                                id=delta.id,
-                                type=delta.type,
-                                function=delta.function,
-                            )
-                            for delta in choice.delta.tool_calls
-                        ]
-                        if choice.delta.tool_calls
-                        else None,
+                        content="",
+                        token_usage=TokenUsage(
+                            input_tokens=event.usage.prompt_tokens,
+                            output_tokens=event.usage.completion_tokens,
+                        ),
                     )
-                else:
-                    if not getattr(choice, "finish_reason", None):
-                        raise ValueError(f"No content or tool calls in event: {event}")
+                if event.choices:
+                    choice = event.choices[0]
+                    if choice.delta:
+                        yield ChatMessageStreamDelta(
+                            content=choice.delta.content,
+                            tool_calls=[
+                                ChatMessageToolCallStreamDelta(
+                                    index=delta.index,
+                                    id=delta.id,
+                                    type=delta.type,
+                                    function=delta.function,
+                                )
+                                for delta in choice.delta.tool_calls
+                            ]
+                            if choice.delta.tool_calls
+                            else None,
+                        )
+                    else:
+                        if not getattr(choice, "finish_reason", None):
+                            raise ValueError(f"No content or tool calls in event: {event}")
+
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
+            yield from stream_with_client_side_stop(_raw_stream(), stop_sequences)
+        else:
+            yield from _raw_stream()
 
 
 class OpenAIModel(ApiModel):
@@ -1723,40 +1886,47 @@ class OpenAIModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.retryer(
-            self.client.chat.completions.create,
-            **completion_kwargs,
-            stream=True,
-            stream_options={"include_usage": True},
-        ):
-            if event.usage:
-                yield ChatMessageStreamDelta(
-                    content="",
-                    token_usage=TokenUsage(
-                        input_tokens=event.usage.prompt_tokens,
-                        output_tokens=event.usage.completion_tokens,
-                    ),
-                )
-            if event.choices:
-                choice = event.choices[0]
-                if choice.delta:
+
+        def _raw_stream():
+            for event in self.retryer(
+                self.client.chat.completions.create,
+                **completion_kwargs,
+                stream=True,
+                stream_options={"include_usage": True},
+            ):
+                if event.usage:
                     yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
-                        tool_calls=[
-                            ChatMessageToolCallStreamDelta(
-                                index=delta.index,
-                                id=delta.id,
-                                type=delta.type,
-                                function=delta.function,
-                            )
-                            for delta in choice.delta.tool_calls
-                        ]
-                        if choice.delta.tool_calls
-                        else None,
+                        content="",
+                        token_usage=TokenUsage(
+                            input_tokens=event.usage.prompt_tokens,
+                            output_tokens=event.usage.completion_tokens,
+                        ),
                     )
-                else:
-                    if not getattr(choice, "finish_reason", None):
-                        raise ValueError(f"No content or tool calls in event: {event}")
+                if event.choices:
+                    choice = event.choices[0]
+                    if choice.delta:
+                        yield ChatMessageStreamDelta(
+                            content=choice.delta.content,
+                            tool_calls=[
+                                ChatMessageToolCallStreamDelta(
+                                    index=delta.index,
+                                    id=delta.id,
+                                    type=delta.type,
+                                    function=delta.function,
+                                )
+                                for delta in choice.delta.tool_calls
+                            ]
+                            if choice.delta.tool_calls
+                            else None,
+                        )
+                    else:
+                        if not getattr(choice, "finish_reason", None):
+                            raise ValueError(f"No content or tool calls in event: {event}")
+
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
+            yield from stream_with_client_side_stop(_raw_stream(), stop_sequences)
+        else:
+            yield from _raw_stream()
 
     def generate(
         self,
@@ -1779,7 +1949,7 @@ class OpenAIModel(ApiModel):
         self._apply_rate_limit()
         response = self.retryer(self.client.chat.completions.create, **completion_kwargs)
         content = response.choices[0].message.content
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response.choices[0].message.role,
@@ -2046,7 +2216,7 @@ class AmazonBedrockModel(ApiModel):
             raise KeyError("No message content blocks with 'text' key found in response")
         # Keep the last one
         content = message_content_blocks_with_text[-1]["text"]
-        if stop_sequences is not None and not self.supports_stop_parameter:
+        if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response["output"]["message"]["role"],

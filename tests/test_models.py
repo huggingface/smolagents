@@ -25,6 +25,7 @@ from smolagents.models import (
     AmazonBedrockModel,
     AzureOpenAIModel,
     ChatMessage,
+    ChatMessageStreamDelta,
     ChatMessageToolCall,
     InferenceClientModel,
     LiteLLMModel,
@@ -39,6 +40,7 @@ from smolagents.models import (
     get_tool_json_schema,
     parse_json_if_needed,
     remove_content_after_stop_sequences,
+    stream_with_client_side_stop,
     supports_stop_parameter,
 )
 from smolagents.tools import tool
@@ -1078,3 +1080,168 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert len(data["tool_calls"]) > 0
     assert data["tool_calls"][0]["function"]["name"] == "final_answer"
     assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
+
+
+class TestClientSideStop:
+    def test_client_side_stop_omits_provider_stop(self):
+        """Test that client_side_stop=True omits stop from kwargs even for supported models."""
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+        stop_sequences = ["<code>", "Observation:"]
+
+        # Default client_side_stop=False on regular-model: stop should be passed to provider
+        default_model = Model(model_id="regular-model", client_side_stop=False)
+        kwargs_default = default_model._prepare_completion_kwargs(messages=messages, stop_sequences=stop_sequences)
+        assert "stop" in kwargs_default
+        assert kwargs_default["stop"] == stop_sequences
+
+        # client_side_stop=True on regular-model: stop should NOT be passed to provider
+        client_stop_model = Model(model_id="regular-model", client_side_stop=True)
+        kwargs_client = client_stop_model._prepare_completion_kwargs(messages=messages, stop_sequences=stop_sequences)
+        assert "stop" not in kwargs_client
+
+    def test_remove_content_after_stop_sequences_with_inline_think(self):
+        """Test that remove_content_after_stop_sequences preserves code inside <think> tags."""
+        stop_sequences = ["</code>"]
+
+        # Case 1: Stop sequence appears inside <think> and outside <think>
+        content = (
+            "<think>Let's write <code>result = 42</code> in Python.</think>\n<code>result = 42</code>\nExtra text"
+        )
+        result = remove_content_after_stop_sequences(content, stop_sequences)
+        expected = "<think>Let's write <code>result = 42</code> in Python.</think>\n<code>result = 42"
+        assert result == expected
+
+        # Case 2: Stop sequence appears only inside <think>
+        content_no_outer_stop = "<think>Let's draft <code>x = 1</code></think>\nHere is the answer without closing."
+        result_no_outer_stop = remove_content_after_stop_sequences(content_no_outer_stop, stop_sequences)
+        assert result_no_outer_stop == content_no_outer_stop
+
+        # Case 3: Multiple stop sequences outside <think> - earliest wins
+        stop_seqs = ["Observation:", "</code>"]
+        content_multi = "<think>notes</think>\ncode<code>Observation: test</code>"
+        result_multi = remove_content_after_stop_sequences(content_multi, stop_seqs)
+        assert result_multi == "<think>notes</think>\ncode<code>"
+
+    def test_client_side_stop_cutting_non_streaming(self):
+        """Test that generate cuts stop sequences client-side when client_side_stop=True."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.content = "Here is the code: <code>final_answer(42)</code>\nTrailing text"
+        mock_response.choices[0].message.reasoning_content = "Drafted: <code>final_answer(42)</code>"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 25
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        model = OpenAIModel(model_id="gpt-4o", client=mock_client, client_side_stop=True)
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Solve it"}])]
+        result = model.generate(messages, stop_sequences=["</code>"])
+
+        # Verify provider was NOT sent stop
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert "stop" not in call_kwargs
+
+        # Verify assistant content was truncated client-side
+        assert result.content == "Here is the code: <code>final_answer(42)"
+        # Verify raw response preserves reasoning_content
+        assert result.raw.choices[0].message.reasoning_content == "Drafted: <code>final_answer(42)</code>"
+
+    def test_client_side_stop_streaming_split_tokens(self):
+        """Test that stream_with_client_side_stop correctly stops across chunk boundaries."""
+        deltas = [
+            ChatMessageStreamDelta(content="print(1)\n"),
+            ChatMessageStreamDelta(content="</"),
+            ChatMessageStreamDelta(content="code>"),
+            ChatMessageStreamDelta(content=" trailing text after stop"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "print(1)\n"
+
+    def test_client_side_stop_streaming_with_think(self):
+        """Test that streaming does not stop at stop sequences inside <think>...</think>."""
+        deltas = [
+            ChatMessageStreamDelta(content="<think>Let's test <code>x = 1</code>"),
+            ChatMessageStreamDelta(content="</think>\n"),
+            ChatMessageStreamDelta(content="<code>result = 42"),
+            ChatMessageStreamDelta(content="</code> trailing"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "<think>Let's test <code>x = 1</code></think>\n<code>result = 42"
+
+    def test_client_side_stop_streaming_with_chunk_split_think_tag(self):
+        """Test reviewer case: opening <think> tag split across chunk boundaries."""
+        deltas = [
+            ChatMessageStreamDelta(content="<thi"),
+            ChatMessageStreamDelta(content="nk>draft </code>"),
+            ChatMessageStreamDelta(content="</think>final"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "<think>draft </code></think>final"
+
+    def test_client_side_stop_streaming_with_chunk_split_close_think_tag(self):
+        """Test that closing </think> tag split across chunk boundaries transitions state properly."""
+        deltas = [
+            ChatMessageStreamDelta(content="<think>draft </code>"),
+            ChatMessageStreamDelta(content="</th"),
+            ChatMessageStreamDelta(content="ink>final </code> trailing"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "<think>draft </code></think>final "
+
+    def test_client_side_stop_streaming_outer_stop_precedence(self):
+        """Test that outer stop sequences occurring before <think> take immediate precedence."""
+        deltas = [
+            ChatMessageStreamDelta(content="stop here </code> <think>not reached</think>"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "stop here "
+
+    def test_client_side_stop_streaming_close_tag_and_outer_stop_in_same_chunk(self):
+        """Test that </think> and an outer stop sequence in the same chunk are correctly handled."""
+        deltas = [
+            ChatMessageStreamDelta(content="<think>draft </code></think>final </code> trailing"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        accumulated_text = "".join(d.content for d in result if d.content)
+        assert accumulated_text == "<think>draft </code></think>final "
+
+    def test_client_side_stop_streaming_metadata_preservation(self):
+        """Test that tool_calls and token_usage are preserved exactly once on buffered chunks."""
+        deltas = [
+            ChatMessageStreamDelta(content="<thi", tool_calls=[{"id": "call_1"}], token_usage={"prompt_tokens": 10}),
+            ChatMessageStreamDelta(content="nk>draft </code>", token_usage={"completion_tokens": 5}),
+            ChatMessageStreamDelta(content="</think>final"),
+        ]
+        result = list(stream_with_client_side_stop(iter(deltas), ["</code>"]))
+        assert result[0].content == ""
+        assert result[0].tool_calls == [{"id": "call_1"}]
+        assert result[0].token_usage == {"prompt_tokens": 10}
+        total_tool_calls = sum(1 for d in result if d.tool_calls is not None)
+        assert total_tool_calls == 1
+        assembled = "".join(d.content for d in result if d.content)
+        assert assembled == "<think>draft </code></think>final"
+
+    def test_client_side_stop_serialization_roundtrip(self):
+        """Test that client_side_stop serializes and deserializes cleanly."""
+        model_client_stop = Model(model_id="deepseek-r1", client_side_stop=True)
+        data = model_client_stop.to_dict()
+        assert data.get("client_side_stop") is True
+
+        restored_model = Model.from_dict(data)
+        assert restored_model.client_side_stop is True
+
+        # Default model without client_side_stop should not pollute dictionary
+        model_default = Model(model_id="gpt-4")
+        data_default = model_default.to_dict()
+        assert "client_side_stop" not in data_default
+
+        restored_default = Model.from_dict(data_default)
+        assert restored_default.client_side_stop is False
