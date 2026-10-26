@@ -29,6 +29,7 @@ from smolagents.local_python_executor import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_MODULES,
     ExecutionTimeoutError,
+    FinalAnswerException,
     InterpreterError,
     LocalPythonExecutor,
     PrintContainer,
@@ -2987,3 +2988,257 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_with_unwinds_earlier_contexts_when_later_enter_fails():
+    events = []
+
+    class First:
+        def __enter__(self):
+            events.append("first_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("first_exit", exc_type.__name__ if exc_type else None))
+            return False
+
+    class Failing:
+        def __enter__(self):
+            events.append("failing_enter")
+            raise RuntimeError("enter failed")
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append("failing_exit")
+            return False
+
+    state = {"First": First, "Failing": Failing, "events": events}
+    with pytest.raises(InterpreterError, match="RuntimeError: enter failed"):
+        evaluate_python_code(
+            "with First(), Failing():\n    pass",
+            BASE_PYTHON_TOOLS.copy(),
+            state=state,
+        )
+
+    assert events == ["first_enter", "failing_enter", ("first_exit", "RuntimeError")]
+
+
+def test_with_exit_cannot_suppress_final_answer_signal():
+    events = []
+
+    class Quiet:
+        def __enter__(self):
+            events.append("enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("exit", exc_type.__name__ if exc_type else None))
+            return True
+
+    state = {"Quiet": Quiet, "events": events}
+    result, is_final = evaluate_python_code(
+        'with Quiet():\n    final_answer("early")\nfinal_answer("late")',
+        {"final_answer": lambda answer: answer},
+        state=state,
+    )
+
+    assert is_final is True
+    assert result == "early"
+    assert events == ["enter", ("exit", "FinalAnswerException")]
+
+
+def test_with_ordinary_exception_suppression_still_works():
+    events = []
+
+    class Quiet:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(exc_type.__name__ if exc_type else None)
+            return True
+
+    state = {"Quiet": Quiet, "events": events}
+    result, is_final = evaluate_python_code(
+        'with Quiet():\n    raise ValueError("suppressed")\nfinal_answer("after")',
+        {"final_answer": lambda answer: answer, "ValueError": ValueError},
+        state=state,
+    )
+
+    assert is_final is True
+    assert result == "after"
+    assert events == ["ValueError"]
+
+
+def test_nested_with_unwinds_final_answer_even_if_inner_exit_suppresses():
+    events = []
+
+    class Outer:
+        def __enter__(self):
+            events.append("outer_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("outer_exit", exc_type.__name__ if exc_type else None))
+            return False
+
+    class Inner:
+        def __enter__(self):
+            events.append("inner_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("inner_exit", exc_type.__name__ if exc_type else None))
+            return True
+
+    result, is_final = evaluate_python_code(
+        'with Outer(), Inner():\n    final_answer("early")\nfinal_answer("late")',
+        {"final_answer": lambda answer: answer},
+        state={"Outer": Outer, "Inner": Inner},
+    )
+    assert is_final is True
+    assert result == "early"
+    assert events == [
+        "outer_enter",
+        "inner_enter",
+        ("inner_exit", "FinalAnswerException"),
+        ("outer_exit", "FinalAnswerException"),
+    ]
+
+
+def test_with_unwinds_earlier_context_when_later_context_expression_fails():
+    events = []
+
+    class First:
+        def __enter__(self):
+            events.append("first_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("first_exit", exc_type.__name__ if exc_type else None))
+            return False
+
+    def failing_expression():
+        events.append("expression")
+        raise RuntimeError("context expression failed")
+
+    state = {"First": First, "failing_expression": failing_expression, "events": events}
+    with pytest.raises(InterpreterError, match="RuntimeError: context expression failed"):
+        evaluate_python_code(
+            "with First(), failing_expression():\n    pass",
+            BASE_PYTHON_TOOLS.copy(),
+            state=state,
+        )
+
+    assert events == ["first_enter", "expression", ("first_exit", "RuntimeError")]
+
+
+def test_outer_context_can_suppress_later_context_enter_failure():
+    events = []
+
+    class First:
+        def __enter__(self):
+            events.append("first_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("first_exit", exc_type.__name__ if exc_type else None))
+            return True
+
+    class Failing:
+        def __enter__(self):
+            events.append("failing_enter")
+            raise RuntimeError("enter failed")
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append("failing_exit")
+            return False
+
+    state = {"First": First, "Failing": Failing, "events": events}
+    result, _ = evaluate_python_code(
+        "with First(), Failing():\n    marker = 'body'\nanswer = 42",
+        BASE_PYTHON_TOOLS.copy(),
+        state=state,
+    )
+
+    assert result == 42
+    assert "marker" not in state
+    assert events == ["first_enter", "failing_enter", ("first_exit", "RuntimeError")]
+
+
+@pytest.mark.parametrize("suppress", [False, True])
+def test_with_unwinds_outer_on_inner_exit_error_after_normal_body(suppress):
+    """An inner __exit__ error must reach outer __exit__ even on a clean body."""
+    events = []
+
+    class Outer:
+        def __enter__(self):
+            events.append("outer_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("outer_exit", exc_type.__name__ if exc_type else None))
+            return suppress
+
+    class Inner:
+        def __enter__(self):
+            events.append("inner_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("inner_exit", exc_type.__name__ if exc_type else None))
+            raise RuntimeError("exit failed")
+
+    state = {"Outer": Outer, "Inner": Inner, "events": events}
+    code = "with Outer(), Inner():\n    pass\nanswer = 42"
+    if suppress:
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS.copy(), state=state)
+        assert result == 42
+    else:
+        with pytest.raises(InterpreterError, match="RuntimeError: exit failed"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS.copy(), state=state)
+        assert "answer" not in state
+
+    assert events == [
+        "outer_enter",
+        "inner_enter",
+        ("inner_exit", None),
+        ("outer_exit", "RuntimeError"),
+    ]
+
+
+def test_with_inner_exit_final_answer_is_not_suppressed():
+    """Even a truthy outer exit must not swallow termination from an inner exit."""
+    events = []
+
+    class Outer:
+        def __enter__(self):
+            events.append("outer_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("outer_exit", exc_type.__name__ if exc_type else None))
+            return True
+
+    class Inner:
+        def __enter__(self):
+            events.append("inner_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("inner_exit", exc_type.__name__ if exc_type else None))
+            raise FinalAnswerException("from_exit")
+
+    state = {"Outer": Outer, "Inner": Inner}
+    result, is_final = evaluate_python_code(
+        'with Outer(), Inner():\n    pass\nfinal_answer("after_exit")',
+        {"final_answer": lambda answer: answer},
+        state=state,
+    )
+    assert is_final is True
+    assert result == "from_exit"
+    assert events == [
+        "outer_enter",
+        "inner_enter",
+        ("inner_exit", None),
+        ("outer_exit", "FinalAnswerException"),
+    ]

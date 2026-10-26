@@ -1241,31 +1241,39 @@ def evaluate_with(
     authorized_imports: list[str],
 ) -> None:
     contexts = []
-    for item in with_node.items:
-        context_expr = evaluate_ast(item.context_expr, state, static_tools, custom_tools, authorized_imports)
-        enter_result = context_expr.__enter__()
-        contexts.append(context_expr)
-        if item.optional_vars:
-            state[item.optional_vars.id] = enter_result
 
-    try:
-        for stmt in with_node.body:
-            evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
-    except Exception as e:
-        # exc_info tracks the active exception as we unwind (from innermost context manager)
-        # Resetting it to (None, None, None) signals suppression to the remaining outer managers
-        exc_info = (type(e), e, e.__traceback__)
+    def unwind_contexts(exc_info):
+        # Use one cleanup contract whether the body or an inner __exit__
+        # generated the first exception. Every entered manager gets __exit__.
         for context in reversed(contexts):
             try:
-                if context.__exit__(*exc_info):
-                    exc_info = (None, None, None)  # suppressed; outer CMs see no exception
-            except Exception as exit_exc:
-                exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)  # new exc replaces active
+                suppressed = context.__exit__(*exc_info)
+                # Termination is an agent control signal. Managers may
+                # suppress ordinary exceptions, but never final_answer.
+                if suppressed and not isinstance(exc_info[1], FinalAnswerException):
+                    exc_info = (None, None, None)
+            except BaseException as exit_exc:
+                exc_info = (type(exit_exc), exit_exc, exit_exc.__traceback__)
         if exc_info[1] is not None:
             raise exc_info[1].with_traceback(exc_info[2])
+
+    try:
+        # Enter contexts inside the same protected region as the body. Python
+        # guarantees that managers already entered are unwound when a later
+        # context expression or __enter__ fails.
+        for item in with_node.items:
+            context_expr = evaluate_ast(item.context_expr, state, static_tools, custom_tools, authorized_imports)
+            enter_result = context_expr.__enter__()
+            contexts.append(context_expr)
+            if item.optional_vars:
+                state[item.optional_vars.id] = enter_result
+
+        for stmt in with_node.body:
+            evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+    except BaseException as e:
+        unwind_contexts((type(e), e, e.__traceback__))
     else:
-        for context in reversed(contexts):
-            context.__exit__(None, None, None)
+        unwind_contexts((None, None, None))
 
 
 def get_safe_module(raw_module, authorized_imports, visited=None):
