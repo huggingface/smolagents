@@ -15,6 +15,7 @@
 
 # Source: https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-smolagents/tests/openinference/instrumentation/smolagents/test_instrumentor.py
 
+from types import SimpleNamespace
 from typing import Generator
 
 import pytest
@@ -35,7 +36,8 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from smolagents.models import InferenceClientModel
+from smolagents.agents import CodeAgent
+from smolagents.models import InferenceClientModel, OpenAIServerModel
 
 
 @pytest.fixture
@@ -86,3 +88,33 @@ class TestOpenTelemetry:
         assert span.name == "InferenceClientModel.generate"
         assert span.status.is_ok
         assert span.attributes
+
+
+def test_code_agent_thought_and_code_are_traced(in_memory_span_exporter: InMemorySpanExporter):
+    model_output = 'Thought: I can answer directly.\n<code>final_answer("hello")</code>'
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(role="assistant", content=model_output, tool_calls=None),
+            )
+        ],
+        usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+    )
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **kwargs: response)))
+
+    agent = CodeAgent(
+        tools=[],
+        model=OpenAIServerModel(model_id="test-model", client=client),
+        add_base_tools=False,
+    )
+    assert agent.run("Say hello") == "hello"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert any(span.name == "Step 1" for span in spans)
+    output_messages = [
+        str(value)
+        for span in spans
+        for key, value in span.attributes.items()
+        if key.startswith("llm.output_messages")
+    ]
+    assert any("Thought:" in message and "final_answer" in message for message in output_messages)

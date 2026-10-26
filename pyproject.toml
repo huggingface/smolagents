@@ -70,7 +70,7 @@ telemetry = [
   "arize-phoenix",
   "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
-  "openinference-instrumentation-smolagents>=0.1.15"  # Use new TokenUsage structure
+  "openinference-instrumentation-smolagents>=0.1.26"  # Wrap the current CodeAgent step API
 ]
 toolkit = [
   "ddgs>=9.0.0",  # DuckDuckGoSearchTool
