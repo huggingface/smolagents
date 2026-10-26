@@ -3162,3 +3162,44 @@ def test_outer_context_can_suppress_later_context_enter_failure():
     assert result == 42
     assert "marker" not in state
     assert events == ["first_enter", "failing_enter", ("first_exit", "RuntimeError")]
+
+
+@pytest.mark.parametrize("suppress", [False, True])
+def test_with_unwinds_outer_on_inner_exit_error_after_normal_body(suppress):
+    """An inner __exit__ error must reach outer __exit__ even on a clean body."""
+    events = []
+
+    class Outer:
+        def __enter__(self):
+            events.append("outer_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("outer_exit", exc_type.__name__ if exc_type else None))
+            return suppress
+
+    class Inner:
+        def __enter__(self):
+            events.append("inner_enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("inner_exit", exc_type.__name__ if exc_type else None))
+            raise RuntimeError("exit failed")
+
+    state = {"Outer": Outer, "Inner": Inner, "events": events}
+    code = "with Outer(), Inner():\\n    pass\\nanswer = 42"
+    if suppress:
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS.copy(), state=state)
+        assert result == 42
+    else:
+        with pytest.raises(InterpreterError, match="RuntimeError: exit failed"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS.copy(), state=state)
+        assert "answer" not in state
+
+    assert events == [
+        "outer_enter",
+        "inner_enter",
+        ("inner_exit", None),
+        ("outer_exit", "RuntimeError"),
+    ]
