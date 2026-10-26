@@ -1973,7 +1973,7 @@ class AmazonBedrockModel(ApiModel):
         tools_to_call_from: list[Tool] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
         convert_images_to_image_urls: bool = False,
-        tool_choice: str | dict[Any, Any] | None = None,
+        tool_choice: str | dict[Any, Any] | None = "required",
         **kwargs,
     ) -> dict:
         """
@@ -1989,11 +1989,41 @@ class AmazonBedrockModel(ApiModel):
             tools_to_call_from=tools_to_call_from,
             custom_role_conversions=custom_role_conversions,
             convert_images_to_image_urls=convert_images_to_image_urls,
+            tool_choice=tool_choice,
             **kwargs,
         )
-        # Not all models in Bedrock support `toolConfig`. Also, smolagents already include the tool call in the prompt,
-        # so adding `toolConfig` could cause conflicts. We remove it to avoid issues.
+        tools = completion_kwargs.pop("tools", None)
+        tool_choice = completion_kwargs.pop("tool_choice", None)
         completion_kwargs.pop("toolConfig", None)
+        if tools:
+            tool_config = {
+                "tools": [
+                    {
+                        "toolSpec": {
+                            "name": tool["function"]["name"],
+                            "description": tool["function"]["description"],
+                            "inputSchema": {"json": tool["function"]["parameters"]},
+                        }
+                    }
+                    for tool in tools
+                ]
+            }
+            if tool_choice is not None:
+                if isinstance(tool_choice, dict):
+                    function = tool_choice.get("function", {})
+                    if tool_choice.get("type") != "function" or not function.get("name"):
+                        raise ValueError(f"Unsupported Bedrock tool choice: {tool_choice}")
+                    tool_choice = {"tool": {"name": function["name"]}}
+                elif tool_choice == "required":
+                    tool_choice = {"any": {}}
+                elif tool_choice == "auto":
+                    tool_choice = {"auto": {}}
+                elif isinstance(tool_choice, str) and tool_choice != "none":
+                    tool_choice = {"tool": {"name": tool_choice}}
+                else:
+                    raise ValueError(f"Unsupported Bedrock tool choice: {tool_choice}")
+                tool_config["toolChoice"] = tool_choice
+            completion_kwargs["toolConfig"] = tool_config
 
         # The Bedrock API does not support the `type` key in requests.
         # This block of code modifies the object to meet Bedrock's requirements.
@@ -2038,20 +2068,29 @@ class AmazonBedrockModel(ApiModel):
         # self.client is created in ApiModel class
         response = self.retryer(self.client.converse, **completion_kwargs)
 
-        # Get content blocks with "text" key: in case thinking blocks are present, discard them
-        message_content_blocks_with_text = [
-            block for block in response["output"]["message"]["content"] if "text" in block
-        ]
-        if not message_content_blocks_with_text:
+        content_blocks = response["output"]["message"]["content"]
+        text_blocks = [block["text"] for block in content_blocks if "text" in block]
+        if not text_blocks and not any("toolUse" in block for block in content_blocks):
             raise KeyError("No message content blocks with 'text' key found in response")
-        # Keep the last one
-        content = message_content_blocks_with_text[-1]["text"]
+        content = "\n".join(text_blocks) if text_blocks else None
+        tool_calls = [
+            ChatMessageToolCall(
+                id=block["toolUse"]["toolUseId"],
+                type="function",
+                function=ChatMessageToolCallFunction(
+                    name=block["toolUse"]["name"],
+                    arguments=json.dumps(block["toolUse"]["input"]),
+                ),
+            )
+            for block in content_blocks
+            if "toolUse" in block
+        ]
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
         return ChatMessage(
             role=response["output"]["message"]["role"],
             content=content,
-            tool_calls=response["output"]["message"]["tool_calls"],
+            tool_calls=tool_calls or None,
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response["usage"]["inputTokens"],
