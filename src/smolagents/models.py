@@ -1177,6 +1177,7 @@ class ApiModel(Model):
             exponential_base=RETRY_EXPONENTIAL_BASE,
             jitter=RETRY_JITTER,
             retry_predicate=is_rate_limit_error,
+            retry_delay_getter=get_retry_delay,
             reraise=True,
             before_sleep_logger=(logger, logging.INFO),
             after_logger=(logger, logging.INFO),
@@ -1200,6 +1201,12 @@ def is_rate_limit_error(exception: BaseException) -> bool:
         or "too many requests" in error_str
         or "rate_limit" in error_str
     )
+
+
+def get_retry_delay(exception: BaseException) -> float | None:
+    """Get a retry delay from provider error details when one is available."""
+    retry_delay = re.search(r'"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"', str(exception))
+    return float(retry_delay.group(1)) if retry_delay else None
 
 
 class LiteLLMModel(ApiModel):

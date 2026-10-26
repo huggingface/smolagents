@@ -538,12 +538,14 @@ class Retrying:
         reraise: bool = False,
         before_sleep_logger: tuple[Logger, int] | None = None,
         after_logger: tuple[Logger, int] | None = None,
+        retry_delay_getter: Callable[[BaseException], float | None] | None = None,
     ):
         self.max_attempts = max_attempts
         self.wait_seconds = wait_seconds
         self.exponential_base = exponential_base
         self.jitter = jitter
         self.retry_predicate = retry_predicate
+        self.retry_delay_getter = retry_delay_getter
         self.reraise = reraise
         self.before_sleep_logger = before_sleep_logger
         self.after_logger = after_logger
@@ -591,6 +593,8 @@ class Retrying:
                 # Exponential backoff with jitter
                 # https://cookbook.openai.com/examples/how_to_handle_rate_limits#example-3-manual-backoff-implementation
                 delay *= self.exponential_base * (1 + self.jitter * random.random())
+                retry_delay = self.retry_delay_getter(e) if self.retry_delay_getter else None
+                sleep_seconds = retry_delay if retry_delay is not None else delay
 
                 # Log before sleeping
                 if self.before_sleep_logger:
@@ -598,9 +602,9 @@ class Retrying:
                     fn_name = getattr(fn, "__name__", repr(fn))
                     logger.log(
                         log_level,
-                        f"Retrying {fn_name} in {delay} seconds as it raised {e.__class__.__name__}: {e}.",
+                        f"Retrying {fn_name} in {sleep_seconds} seconds as it raised {e.__class__.__name__}: {e}.",
                     )
 
                 # Sleep before next attempt
-                if delay > 0:
-                    time.sleep(delay)
+                if sleep_seconds > 0:
+                    time.sleep(sleep_seconds)
