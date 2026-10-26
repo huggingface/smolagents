@@ -210,6 +210,35 @@ def test_instance_to_source(tool, expected_tool_source):
     assert tool_source == expected_tool_source
 
 
+def test_instance_to_source_preserves_property_and_classmethod():
+    class DescriptorTool(Tool):
+        name = "descriptor_tool"
+        description = "Tool with decorated members."
+        inputs = {}
+        output_type = "string"
+
+        @property
+        def suffix(self):
+            return "!"
+
+        @classmethod
+        def helper(cls):
+            return cls.__name__
+
+        def forward(self):
+            return "hello" + self.suffix
+
+    source = instance_to_source(DescriptorTool(), base_cls=Tool)
+    assert "@property" in source
+    assert "@classmethod" in source
+
+    namespace = {}
+    exec(source, namespace)
+    restored_tool = namespace["DescriptorTool"]()
+    assert restored_tool.forward() == "hello!"
+    assert restored_tool.helper() == "DescriptorTool"
+
+
 def test_e2e_class_tool_save(tmp_path):
     class TestTool(Tool):
         name = "test_tool"
