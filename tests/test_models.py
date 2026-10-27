@@ -265,6 +265,13 @@ class TestModel:
         assert message2.tool_calls[0].function.name == "final_answer"
         assert message2.tool_calls[0].function.arguments == {"answer": "42"}
 
+    def test_chatmessage_from_dict_preserves_empty_and_missing_tool_calls(self):
+        # An explicit empty list stays an empty list (not converted to None)
+        empty = ChatMessage.from_dict({"role": "assistant", "content": None, "tool_calls": []})
+        assert empty.tool_calls == []
+        # A missing key stays None
+        assert ChatMessage.from_dict({"role": "user", "content": "hi"}).tool_calls is None
+
     @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
