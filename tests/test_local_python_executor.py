@@ -2987,3 +2987,59 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+def test_dotted_import_binds_parent_package():
+    """Regression for #3047: import html.parser must bind html, not only 'html.parser'."""
+    from smolagents.local_python_executor import BASE_PYTHON_TOOLS, evaluate_python_code
+
+    result, _ = evaluate_python_code(
+        "import html.parser\nhtml.parser.HTMLParser",
+        dict(BASE_PYTHON_TOOLS),
+        state={},
+        authorized_imports=["html.parser"],
+    )
+    assert result is not None
+
+    result2, _ = evaluate_python_code(
+        "import xml.etree.ElementTree\nxml.etree.ElementTree.Element('a').tag",
+        dict(BASE_PYTHON_TOOLS),
+        state={},
+        authorized_imports=["xml.etree.ElementTree"],
+    )
+    assert result2 == "a"
+
+    result3, _ = evaluate_python_code(
+        "import xml.etree.ElementTree as ET\nET.Element('a').tag",
+        dict(BASE_PYTHON_TOOLS),
+        state={},
+        authorized_imports=["xml.etree.ElementTree"],
+    )
+    assert result3 == "a"
+
+    # Parent package remains usable for sibling attributes when authorized via parent import path
+    result4, _ = evaluate_python_code(
+        "import html.parser\nhtml.escape('<tag>')",
+        dict(BASE_PYTHON_TOOLS),
+        state={},
+        authorized_imports=["html.parser"],
+    )
+    assert result4 == "&lt;tag&gt;"
+
+    # A pre-existing non-module binding of the parent name is rebound, as in Python
+    result5, _ = evaluate_python_code(
+        "html = 1\nimport html.parser\nhtml.parser.HTMLParser().convert_charrefs",
+        dict(BASE_PYTHON_TOOLS),
+        state={},
+        authorized_imports=["html.parser"],
+    )
+    assert result5 is True
+
+    # A different module bound to the parent name is also replaced by the real package
+    result6, _ = evaluate_python_code(
+        "import json as html\nimport html.parser\nhtml.escape('<a>')",
+        dict(BASE_PYTHON_TOOLS),
+        state={},
+        authorized_imports=["json", "html.parser"],
+    )
+    assert result6 == "&lt;a&gt;"

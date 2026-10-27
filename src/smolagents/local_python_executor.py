@@ -1311,7 +1311,32 @@ def evaluate_import(expression, state, authorized_imports):
         for alias in expression.names:
             if check_import_authorized(alias.name, authorized_imports):
                 raw_module = import_module(alias.name)
-                state[alias.asname or alias.name] = get_safe_module(raw_module, authorized_imports)
+                safe_module = get_safe_module(raw_module, authorized_imports)
+                if alias.asname:
+                    state[alias.asname] = safe_module
+                else:
+                    # `import html.parser` must bind `html` (and nest `parser`), not
+                    # a single state key "html.parser" (#3047).
+                    parts = alias.name.split(".")
+                    if len(parts) == 1:
+                        state[parts[0]] = safe_module
+                    else:
+                        top_name = parts[0]
+                        existing = state.get(top_name)
+                        # Like Python, always (re)bind the top-level name to its package
+                        # unless it already holds that package.
+                        if not (isinstance(existing, ModuleType) and existing.__name__ == top_name):
+                            state[top_name] = get_safe_module(import_module(top_name), authorized_imports)
+                        parent = state[top_name]
+                        for depth in range(1, len(parts) - 1):
+                            attr = parts[depth]
+                            pkg_name = ".".join(parts[: depth + 1])
+                            child = getattr(parent, attr, None)
+                            if not isinstance(child, ModuleType):
+                                child = get_safe_module(import_module(pkg_name), authorized_imports)
+                                setattr(parent, attr, child)
+                            parent = child
+                        setattr(parent, parts[-1], safe_module)
             else:
                 raise InterpreterError(
                     f"Import of {alias.name} is not allowed. Authorized imports are: {str(authorized_imports)}"
