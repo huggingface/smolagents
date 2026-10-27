@@ -1322,7 +1322,10 @@ def evaluate_import(expression, state, authorized_imports):
                         state[parts[0]] = safe_module
                     else:
                         top_name = parts[0]
-                        if top_name not in state:
+                        existing = state.get(top_name)
+                        # Like Python, always (re)bind the top-level name to its package
+                        # unless it already holds that package.
+                        if not (isinstance(existing, ModuleType) and existing.__name__ == top_name):
                             state[top_name] = get_safe_module(import_module(top_name), authorized_imports)
                         parent = state[top_name]
                         for depth in range(1, len(parts) - 1):

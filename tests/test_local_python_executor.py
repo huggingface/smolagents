@@ -3025,3 +3025,21 @@ def test_dotted_import_binds_parent_package():
         authorized_imports=["html.parser"],
     )
     assert result4 == "&lt;tag&gt;"
+
+    # A pre-existing non-module binding of the parent name is rebound, as in Python
+    result5, _ = evaluate_python_code(
+        "html = 1\nimport html.parser\nhtml.parser.HTMLParser().convert_charrefs",
+        dict(BASE_PYTHON_TOOLS),
+        state={},
+        authorized_imports=["html.parser"],
+    )
+    assert result5 is True
+
+    # A different module bound to the parent name is also replaced by the real package
+    result6, _ = evaluate_python_code(
+        "import json as html\nimport html.parser\nhtml.escape('<a>')",
+        dict(BASE_PYTHON_TOOLS),
+        state={},
+        authorized_imports=["json", "html.parser"],
+    )
+    assert result6 == "&lt;a&gt;"
