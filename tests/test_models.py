@@ -243,6 +243,35 @@ class TestModel:
         assert isinstance(message2.role, MessageRole)
         assert message2.role == MessageRole.ASSISTANT
 
+    def test_chatmessage_from_dict_does_not_mutate_input(self):
+        message_data = {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "final_answer", "arguments": {"answer": "42"}},
+                }
+            ],
+        }
+        original_tool_calls = [dict(tc, function=dict(tc["function"])) for tc in message_data["tool_calls"]]
+        message = ChatMessage.from_dict(message_data)
+        assert isinstance(message.tool_calls[0], ChatMessageToolCall)
+        # The caller's dict is untouched ...
+        assert message_data["tool_calls"] == original_tool_calls
+        # ... so the same dict can be converted again (e.g. from saved step.dict() output)
+        message2 = ChatMessage.from_dict(message_data)
+        assert message2.tool_calls[0].function.name == "final_answer"
+        assert message2.tool_calls[0].function.arguments == {"answer": "42"}
+
+    def test_chatmessage_from_dict_preserves_empty_and_missing_tool_calls(self):
+        # An explicit empty list stays an empty list (not converted to None)
+        empty = ChatMessage.from_dict({"role": "assistant", "content": None, "tool_calls": []})
+        assert empty.tool_calls == []
+        # A missing key stays None
+        assert ChatMessage.from_dict({"role": "user", "content": "hi"}).tool_calls is None
+
     @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
         model = MLXModel(model_id="HuggingFaceTB/SmolLM2-135M-Instruct", max_tokens=10)
