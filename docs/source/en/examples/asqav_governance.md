@@ -15,7 +15,7 @@ auditor can verify without trusting your infrastructure.
 ## Setup
 
 ```bash
-pip install smolagents "asqav[smolagents]"
+pip install smolagents "asqav[smolagents,cli]"
 export ASQAV_API_KEY="sk_live_..."
 export HF_TOKEN="hf_..."
 ```
@@ -59,7 +59,7 @@ never blocks agent execution.
 
 ## Verification
 
-Verify any signature from the CLI, with no API key:
+Verify any signature from the CLI (the `cli` extra installed above), with no API key:
 
 ```bash
 asqav verify <signature-id>
