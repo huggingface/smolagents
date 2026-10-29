@@ -1142,3 +1142,113 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert len(data["tool_calls"]) > 0
     assert data["tool_calls"][0]["function"]["name"] == "final_answer"
     assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
+
+
+def _http_error(cls, status, message):
+    import httpx
+
+    request = httpx.Request("POST", "http://127.0.0.1:9/v1/chat/completions")
+    response = httpx.Response(status, request=request, json={"error": {"message": message}})
+    return cls(f"Error code: {status} - {message}", response=response, body=None)
+
+
+class _QuotaExceeded(Exception):
+    """Shaped like a provider SDK error: carries a status, the message says nothing about rate limits."""
+
+    status_code = 429
+
+
+def _predicate_cases():
+    import httpx
+    import openai
+
+    return [
+        ("429 status on a plain exception", _QuotaExceeded("quota exhausted for this org"), True),
+        (
+            "500 whose body mentions 429",
+            _http_error(openai.InternalServerError, 500, "upstream said 429, retry later"),
+            False,
+        ),
+        (
+            "400 whose body says 'rate limit'",
+            _http_error(openai.BadRequestError, 400, "rate limit field must be set"),
+            False,
+        ),
+        ("500 neutral", _http_error(openai.InternalServerError, 500, "internal error"), False),
+        ("400 neutral", _http_error(openai.BadRequestError, 400, "invalid model"), False),
+        ("connection error", httpx.ConnectError("connection reset by peer"), False),
+        ("no status, text says rate limit", RuntimeError("Rate limit reached for requests"), True),
+        ("no status, text says 429", RuntimeError("upstream returned 429"), True),
+    ]
+
+
+_PREDICATE_CASES = _predicate_cases()
+
+
+class TestRateLimitPredicate:
+    """A status code is authoritative; the message is only a fallback when there is no status."""
+
+    @pytest.mark.parametrize(
+        "exception,expected", [c[1:] for c in _PREDICATE_CASES], ids=[c[0] for c in _PREDICATE_CASES]
+    )
+    def test_predicate(self, exception, expected):
+        from smolagents.models import is_rate_limit_error
+
+        assert is_rate_limit_error(exception) is expected
+
+    def test_litellm_rate_limit_error_is_recognised(self):
+        import litellm
+
+        from smolagents.models import is_rate_limit_error
+
+        error = litellm.RateLimitError(
+            message="OpenAIException - You exceeded your current quota, please check your plan and billing details.",
+            model="gpt-4o",
+            llm_provider="openai",
+        )
+        assert is_rate_limit_error(error) is True
+
+
+class TestClientRetryMultiplication:
+    """One logical call must not become retryer_attempts x client_attempts requests."""
+
+    def test_litellm_replays_pass_zero_num_retries(self):
+        model = LiteLLMModel.__new__(LiteLLMModel)
+        seen = []
+
+        class _Client:
+            def completion(self, **kwargs):
+                seen.append(kwargs.get("num_retries", "<absent>"))
+                return "response"
+
+        model.client = _Client()
+        create = model._completion_create()
+        create(model="gpt-4o")
+        create(model="gpt-4o")
+        create(model="gpt-4o")
+
+        assert seen == ["<absent>", 0, 0], "the first attempt keeps the client's own retries, replays do not"
+
+    def test_generate_sends_zero_retries_on_the_replay(self):
+        mock_client = MagicMock()
+        response = MagicMock()
+        response.choices = [MagicMock()]
+        response.choices[0].message.content = "ok"
+        response.choices[0].message.role = "assistant"
+        response.choices[0].message.tool_calls = None
+        response.usage.prompt_tokens = 1
+        response.usage.completion_tokens = 1
+        mock_client.completion.side_effect = [Exception("Error code: 429 - Rate limit exceeded"), response]
+
+        with (
+            patch("smolagents.models.RETRY_WAIT", 0.01),
+            patch("smolagents.utils.random.random", side_effect=[0.1]),
+            patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_client),
+        ):
+            model = LiteLLMModel(model_id="test-model")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Test message"}])]
+            result = model.generate(messages)
+
+        assert result.content == "ok"
+        assert mock_client.completion.call_count == 2
+        assert mock_client.completion.call_args_list[1].kwargs.get("num_retries") == 0
