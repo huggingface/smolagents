@@ -1192,7 +1192,16 @@ class ApiModel(Model):
 
 
 def is_rate_limit_error(exception: BaseException) -> bool:
-    """Check if the exception is a rate limit error."""
+    """Check if the exception is a rate limit error.
+
+    A status code is authoritative in both directions: 429 is a rate limit whatever the
+    message says, and any other status is not one even when the body happens to mention
+    "429". Only exceptions that carry no status at all fall back to the message heuristics.
+    """
+    response = getattr(exception, "response", None)
+    status = getattr(exception, "status_code", None) or getattr(response, "status_code", None)
+    if status is not None:
+        return status == 429
     error_str = str(exception).lower()
     return (
         "429" in error_str
@@ -1263,6 +1272,24 @@ class LiteLLMModel(ApiModel):
 
         return litellm
 
+    def _completion_create(self) -> Callable:
+        """Return the `completion` callable for one `self.retryer` call.
+
+        litellm retries internally (`litellm.DEFAULT_MAX_RETRIES`) on top of the retryer, so one
+        logical call can become 3 x 3 requests. The first attempt keeps the client's own retries;
+        the retryer's replays pass `num_retries=0`, so the two layers do not multiply.
+        """
+        attempt = 0
+
+        def create(**kwargs):
+            nonlocal attempt
+            attempt += 1
+            if attempt > 1:
+                kwargs["num_retries"] = 0
+            return self.client.completion(**kwargs)
+
+        return create
+
     def generate(
         self,
         messages: list[ChatMessage | dict],
@@ -1284,7 +1311,7 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        response = self.retryer(self.client.completion, **completion_kwargs)
+        response = self.retryer(self._completion_create(), **completion_kwargs)
 
         if not response.choices:
             raise RuntimeError(
@@ -1328,7 +1355,7 @@ class LiteLLMModel(ApiModel):
         )
         self._apply_rate_limit()
         for event in self.retryer(
-            self.client.completion, **completion_kwargs, stream=True, stream_options={"include_usage": True}
+            self._completion_create(), **completion_kwargs, stream=True, stream_options={"include_usage": True}
         ):
             if getattr(event, "usage", None):
                 yield ChatMessageStreamDelta(
