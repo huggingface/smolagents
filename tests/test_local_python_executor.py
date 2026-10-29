@@ -3080,4 +3080,3 @@ def test_chained_comparison_truth_tests_only_intermediate_result_once():
 
     assert result is final_result
     assert events == ["first_compare", "intermediate_bool", "second_compare"]
-
