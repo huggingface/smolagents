@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import ast
+import sys
 import builtins
 import difflib
 import inspect
@@ -900,7 +901,29 @@ def evaluate_call(
         else:
             raise InterpreterError("super() takes at most 2 arguments")
     elif func_name == "print":
-        state["_print_outputs"] += " ".join(map(str, args)) + "\n"
+        # Honor sep/end/file/flush like builtin print. A redirected `file=` must
+        # not also append to the agent log buffer (see #3089).
+        sep = kwargs.pop("sep", " ")
+        end = kwargs.pop("end", "\n")
+        file = kwargs.pop("file", None)
+        flush = kwargs.pop("flush", False)
+        if kwargs:
+            raise InterpreterError(
+                f"print() got unexpected keyword argument(s): {', '.join(sorted(kwargs))}"
+            )
+        if not isinstance(sep, str):
+            raise InterpreterError(f"sep must be None or a string, not {type(sep).__name__}")
+        if not isinstance(end, str):
+            raise InterpreterError(f"end must be None or a string, not {type(end).__name__}")
+        text = sep.join(map(str, args)) + end
+        if file is not None and file is not sys.stdout and file is not sys.__stdout__:
+            file.write(text)
+            if flush:
+                flush_fn = getattr(file, "flush", None)
+                if callable(flush_fn):
+                    flush_fn()
+            return None
+        state["_print_outputs"] += text
         return None
     else:  # Assume it's a callable object
         if (inspect.getmodule(func) == builtins) and inspect.isbuiltin(func) and (func not in static_tools.values()):

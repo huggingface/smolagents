@@ -946,6 +946,19 @@ except ValueError as e:
         )
         assert state["exception_message"] == "An error occurred"
 
+    def test_print_file_kwarg_writes_to_buffer_not_logs(self):
+        """print(..., file=buffer) must write to the buffer, not _print_outputs (#3089)."""
+        code = """
+import io
+buffer = io.StringIO()
+print("hello", "world", sep="-", end="!", file=buffer)
+result = buffer.getvalue()
+"""
+        state = {"__name__": "__main__"}
+        evaluate_python_code(code, {"print": print}, state=state, authorized_imports=["io"])
+        assert state["result"] == "hello-world!"
+        assert state["_print_outputs"].value == ""
+
     def test_print(self):
         code = "print(min([1, 2, 3]))"
         state = {}
