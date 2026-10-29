@@ -830,6 +830,36 @@ def function():
         evaluate_python_code(code, {"print": print, "range": range}, state=state)
         assert state["_print_outputs"].value == "1\n2\n2\n2\n2\n2\n2\n2\n2\n2\n2\n"
 
+    def test_print_to_file(self):
+        # print(..., file=buffer) should land in the buffer, not in the agent logs
+        import io
+
+        code = """
+import io
+buffer = io.StringIO()
+print("captured", file=buffer)
+print("captured too", file=buffer, end="!")
+print(buffer.getvalue())
+"""
+        state = {}
+        evaluate_python_code(code, {"print": print}, state=state, authorized_imports=["io"])
+        assert state["_print_outputs"].value == "captured\ncaptured too!\n"
+
+    def test_print_to_file_stdout_and_stderr_go_to_logs(self):
+        # the agent's streams are still captured in the logs, as before
+        code = """
+import sys
+print("out", file=sys.stdout)
+print("err", file=sys.stderr)
+"""
+        state = {}
+        evaluate_python_code(code, {"print": print}, state=state, authorized_imports=["sys"])
+        assert state["_print_outputs"].value == "out\nerr\n"
+
+    def test_print_rejects_unknown_keyword(self):
+        with pytest.raises(InterpreterError, match="unexpected keyword argument 'flushme'"):
+            evaluate_python_code('print("x", flushme=True)', {"print": print}, state={})
+
     def test_tuple_target_in_iterator(self):
         code = "for a, b in [('Ralf Weikert', 'Austria'), ('Samuel Seungwon Lee', 'South Korea')]:res = a.split()[0]"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})

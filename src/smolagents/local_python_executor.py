@@ -21,6 +21,7 @@ import inspect
 import logging
 import math
 import re
+import sys
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -900,7 +901,31 @@ def evaluate_call(
         else:
             raise InterpreterError("super() takes at most 2 arguments")
     elif func_name == "print":
-        state["_print_outputs"] += " ".join(map(str, args)) + "\n"
+        # print() only accepts keywords, so anything else means the code is wrong: don't guess.
+        unexpected = sorted(set(kwargs) - {"sep", "end", "file", "flush"})
+        if unexpected:
+            raise InterpreterError(f"print() got an unexpected keyword argument '{unexpected[0]}'")
+        sep = kwargs.get("sep", " ")
+        end = kwargs.get("end", "\n")
+        if sep is None:
+            sep = " "
+        if end is None:
+            end = "\n"
+        text = sep.join(map(str, args)) + end
+        target = kwargs.get("file")
+        if target is not None and target is not sys.stdout and target is not sys.stderr:
+            # print(..., file=buffer) has to write to that buffer, like the real builtin does.
+            # Anything with a write() method is accepted, same as in CPython.
+            write = getattr(target, "write", None)
+            if not callable(write):
+                raise InterpreterError(f"print() file must be a writable object, got {type(target).__name__}")
+            write(text)
+            if kwargs.get("flush"):
+                flush = getattr(target, "flush", None)
+                if callable(flush):
+                    flush()
+        else:
+            state["_print_outputs"] += text
         return None
     else:  # Assume it's a callable object
         if (inspect.getmodule(func) == builtins) and inspect.isbuiltin(func) and (func not in static_tools.values()):
