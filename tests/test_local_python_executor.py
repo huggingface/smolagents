@@ -3028,6 +3028,7 @@ def test_chained_comparison_returns_last_result_when_all_results_are_truthy():
 
     assert result is True
 
+
 def test_single_comparison_returns_final_result_without_truth_testing():
     events = []
 
@@ -3043,9 +3044,7 @@ def test_single_comparison_returns_final_result_without_truth_testing():
 
     final_result = FinalResult()
     state = {"left": Left(), "right": object()}
-    result, _ = evaluate_python_code(
-        "result = left < right", BASE_PYTHON_TOOLS.copy(), state=state
-    )
+    result, _ = evaluate_python_code("result = left < right", BASE_PYTHON_TOOLS.copy(), state=state)
 
     assert result is final_result
     assert events == ["compare"]
@@ -3077,9 +3076,7 @@ def test_chained_comparison_truth_tests_only_intermediate_result_once():
     intermediate_result = IntermediateResult()
     final_result = FinalResult()
     state = {"left": Left(), "middle": Middle(), "right": object()}
-    result, _ = evaluate_python_code(
-        "result = left < middle < right", BASE_PYTHON_TOOLS.copy(), state=state
-    )
+    result, _ = evaluate_python_code("result = left < middle < right", BASE_PYTHON_TOOLS.copy(), state=state)
 
     assert result is final_result
     assert events == ["first_compare", "intermediate_bool", "second_compare"]
