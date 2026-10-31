@@ -1676,8 +1676,11 @@ class TestToolCallingAgent:
         assert "managed_agent" in tools_to_call_from_names  # The managed agent
         assert "final_answer" in tools_to_call_from_names  # The final_answer tool (added by default)
 
-    @patch("huggingface_hub.InferenceClient")
-    def test_toolcalling_agent_rejects_malformed_native_tool_arguments(self):
+    @pytest.mark.parametrize(
+        "arguments",
+        ['{"status": "archived"', "null", "3", "[]", "true", '"text"'],
+    )
+    def test_toolcalling_agent_rejects_malformed_native_tool_arguments(self, arguments):
         calls = []
 
         class RecordingTool(Tool):
@@ -1700,7 +1703,7 @@ class TestToolCallingAgent:
                     type="function",
                     function=ChatMessageToolCallFunction(
                         name="record",
-                        arguments='{"status": "archived"',
+                        arguments=arguments,
                     ),
                 )
             ],
@@ -1712,6 +1715,7 @@ class TestToolCallingAgent:
 
         assert calls == []
 
+    @patch("huggingface_hub.InferenceClient")
     def test_toolcalling_agent_api(self, mock_inference_client):
         mock_client = mock_inference_client.return_value
         mock_response = mock_client.chat_completion.return_value
