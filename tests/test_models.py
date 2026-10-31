@@ -332,7 +332,7 @@ class TestModel:
             parse_json_if_needed(args, raise_on_error=True)
 
         # The default parser historically tolerates undecodable byte payloads.
-        invalid_bytes = b"\\xff"
+        invalid_bytes = b"\xff"
         assert parse_json_if_needed(invalid_bytes) == invalid_bytes
         with pytest.raises(UnicodeDecodeError):
             parse_json_if_needed(invalid_bytes, raise_on_error=True)
