@@ -1678,7 +1678,7 @@ class TestToolCallingAgent:
 
     @pytest.mark.parametrize(
         "arguments",
-        ['{"status": "archived"', "null", "3", "[]", "true", '"text"'],
+        ['{"status": "archived"', "null", "3", "[]", "true", '"text"', b"\xff"],
     )
     def test_toolcalling_agent_rejects_malformed_native_tool_arguments(self, arguments):
         calls = []
