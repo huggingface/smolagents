@@ -196,7 +196,7 @@ def parse_json_if_needed(arguments: str | dict, *, raise_on_error: bool = False)
     else:
         try:
             return json.loads(arguments)
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
             if raise_on_error:
                 raise
             return arguments
