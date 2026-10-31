@@ -1330,8 +1330,14 @@ class ToolCallingAgent(MultiStepAgent):
             except Exception as e:
                 raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
         else:
-            for tool_call in chat_message.tool_calls:
-                tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+            try:
+                for tool_call in chat_message.tool_calls:
+                    parsed_arguments = parse_json_if_needed(tool_call.function.arguments, raise_on_error=True)
+                    if not isinstance(parsed_arguments, dict):
+                        raise TypeError("Native tool-call arguments must be a JSON object")
+                    tool_call.function.arguments = parsed_arguments
+            except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as e:
+                raise AgentParsingError(f"Error while parsing tool call arguments: {e}", self.logger) from e
         final_answer, got_final_answer = None, False
         for output in self.process_tool_calls(chat_message, memory_step):
             yield output

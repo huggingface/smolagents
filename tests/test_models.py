@@ -326,6 +326,17 @@ class TestModel:
         parsed_args = parse_json_if_needed(args)
         assert parsed_args == 3
 
+        # The permissive path preserves non-text values, while strict native
+        # tool-call parsing must reject them instead of silently accepting them.
+        with pytest.raises(TypeError):
+            parse_json_if_needed(args, raise_on_error=True)
+
+        # The default parser historically tolerates undecodable byte payloads.
+        invalid_bytes = b"\xff"
+        assert parse_json_if_needed(invalid_bytes) == invalid_bytes
+        with pytest.raises(UnicodeDecodeError):
+            parse_json_if_needed(invalid_bytes, raise_on_error=True)
+
 
 class TestInferenceClientModel:
     def test_call_with_custom_role_conversions(self):
