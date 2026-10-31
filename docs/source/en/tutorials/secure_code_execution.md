@@ -270,7 +270,7 @@ We provide a simple way to use a Modal Sandbox: simply add `executor_type="modal
 from smolagents import InferenceClientModel, CodeAgent
 
 with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="modal") as agent:
-    agent.run("What is the 42th Fibonacci number?")
+    agent.run("What is the 42nd Fibonacci number?")
 ```
 
 > [!TIP]
@@ -308,7 +308,7 @@ with CodeAgent(model=InferenceClientModel(), tools=[], executor_type="docker") a
 
 If you want to run multi-agent systems in Docker, you'll need to setup a custom interpreter in a sandbox.
 
-Here is how to setup the a Dockerfile:
+Here is how to set up a Dockerfile:
 
 ```dockerfile
 FROM python:3.10-bullseye
