@@ -657,6 +657,26 @@ class TestTool:
         assert isinstance(union_type_return_tool_function, Tool)
         assert union_type_return_tool_function.output_type == "any"
 
+    def test_initialize_hub_repo_overwrites_existing_tags(self):
+        # Publishing to an existing Space must not fail when its tags differ:
+        # agent publishing already passes overwrite=True, so tool publishing
+        # must do the same instead of relying on the hub default (False).
+        with (
+            patch("smolagents.tools.create_repo") as mock_create_repo,
+            patch("smolagents.tools.metadata_update") as mock_metadata_update,
+        ):
+            mock_create_repo.return_value.repo_id = "user/my-tool"
+            repo_id = Tool._initialize_hub_repo("user/my-tool", token="token", private=None)
+
+        assert repo_id == "user/my-tool"
+        mock_metadata_update.assert_called_once_with(
+            "user/my-tool",
+            {"tags": ["smolagents", "tool"]},
+            repo_type="space",
+            token="token",
+            overwrite=True,
+        )
+
 
 class TestToolDecorator:
     def test_tool_decorator_source_extraction_with_multiple_decorators(self):
