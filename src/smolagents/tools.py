@@ -468,7 +468,13 @@ class Tool(BaseTool):
             repo_type="space",
             space_sdk="gradio",
         )
-        metadata_update(repo_url.repo_id, {"tags": ["smolagents", "tool"]}, repo_type="space", token=token)
+        metadata_update(
+            repo_url.repo_id,
+            {"tags": ["smolagents", "tool"]},
+            repo_type="space",
+            token=token,
+            overwrite=True,
+        )
         return repo_url.repo_id
 
     def _prepare_hub_files(self) -> list:
