@@ -592,6 +592,36 @@ class TestTool:
         # Check that the input is marked as nullable in the code
         assert "'nullable': True" in result["code"]
 
+    def test_tool_to_dict_with_property_and_classmethod(self):
+        class DummyToolWithMembers(Tool):
+            name = "dummy_tool"
+            description = "Test tool"
+            inputs = {"x": {"type": "string", "description": "x"}}
+            output_type = "string"
+
+            @property
+            def dynamic_prop(self) -> str:
+                return "prop"
+
+            @classmethod
+            def helper_classmethod(cls) -> str:
+                return "classmethod"
+
+            def forward(self, x: str) -> str:
+                return x + self.dynamic_prop
+
+        tool = DummyToolWithMembers()
+        result = tool.to_dict()
+        assert "@property" in result["code"]
+        assert "def dynamic_prop(self)" in result["code"]
+        assert "@classmethod" in result["code"]
+        assert "def helper_classmethod(cls)" in result["code"]
+        assert "<property object" not in result["code"]
+        assert "<classmethod object" not in result["code"]
+
+        recreated = Tool.from_dict(result)
+        assert recreated("test_") == "test_prop"
+
     def test_from_dict_roundtrip(self, example_tool):
         # Convert to dict
         tool_dict = example_tool.to_dict()
