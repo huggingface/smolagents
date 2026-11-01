@@ -252,3 +252,25 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+def test_duckduckgo_parser_discards_incomplete_result_without_snippet():
+    parser = WebSearchTool()._create_duckduckgo_parser()
+    parser.feed(
+        """
+        <table>
+        <tr><td><a class="result-link">First</a></td></tr>
+        <tr><td><span class="link-text">first.example</span></td></tr>
+        <tr><td><a class="result-link">Second</a></td></tr>
+        <tr><td class="result-snippet">Second snippet</td></tr>
+        <tr><td><span class="link-text">second.example</span></td></tr>
+        </table>
+        """
+    )
+    assert parser.results == [
+        {
+            "title": "Second",
+            "description": "Second snippet",
+            "link": "https://second.example",
+        }
+    ]
