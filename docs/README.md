@@ -41,7 +41,7 @@ check how they look before committing for instance). You don't have to commit th
 
 ## Building the documentation
 
-Once you have setup the `doc-builder` and additional packages with the pip install command above,
+Once you have set up the `doc-builder` and additional packages with the pip install command above,
 you can generate the documentation by typing the following command:
 
 ```bash
