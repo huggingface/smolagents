@@ -305,6 +305,7 @@ def instance_to_source(instance, base_cls=None):
         if not name.startswith("__")
         and not name == "_abc_impl"
         and not callable(value)
+        and not isinstance(value, (property, classmethod))
         and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
     }
 
@@ -312,7 +313,7 @@ def instance_to_source(instance, base_cls=None):
         if isinstance(value, str):
             # multiline value
             if "\n" in value:
-                escaped_value = value.replace('"""', r"\"\"\"")  # Escape triple quotes
+                escaped_value = value.replace('"""', r'\"\"\"')  # Escape triple quotes
                 class_lines.append(f'    {name} = """{escaped_value}"""')
             else:
                 class_lines.append(f"    {name} = {json.dumps(value)}")
@@ -322,20 +323,23 @@ def instance_to_source(instance, base_cls=None):
     if class_attrs:
         class_lines.append("")
 
-    # Add methods
-    methods = {
-        name: func.__wrapped__ if hasattr(func, "__wrapped__") else func
-        for name, func in cls.__dict__.items()
-        if callable(func)
-        and (
-            not base_cls
-            or not hasattr(base_cls, name)
-            or (
-                isinstance(func, (staticmethod, classmethod))
-                or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code)
-            )
-        )
-    }
+    # Add methods and descriptors
+    methods = {}
+    for name, func in cls.__dict__.items():
+        if name.startswith("__") or name == "_abc_impl":
+            continue
+        if isinstance(func, property):
+            if not base_cls or name not in base_cls.__dict__:
+                methods[name] = func.fget
+        elif isinstance(func, classmethod):
+            if not base_cls or name not in base_cls.__dict__:
+                methods[name] = func.__func__
+        elif callable(func):
+            unwrapped = func.__wrapped__ if hasattr(func, "__wrapped__") else func
+            if not base_cls or not hasattr(base_cls, name):
+                methods[name] = unwrapped
+            elif isinstance(func, staticmethod) or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code):
+                methods[name] = unwrapped
 
     for name, method in methods.items():
         method_source = get_source(method)
