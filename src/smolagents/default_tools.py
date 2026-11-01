@@ -399,6 +399,9 @@ class WebSearchTool(Tool):
             def handle_starttag(self, tag, attrs):
                 attrs = dict(attrs)
                 if tag == "a" and attrs.get("class") == "result-link":
+                    # Reset any incomplete record (e.g. a previous result missing a snippet)
+                    # so its link is never paired with the next result's title and snippet.
+                    self.current = {}
                     self.capture_title = True
                 elif tag == "td" and attrs.get("class") == "result-snippet":
                     self.capture_description = True
