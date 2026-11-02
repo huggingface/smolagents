@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import tempfile
 
 
@@ -9,15 +10,18 @@ def test_import_smolagents_without_extras(monkeypatch):
         # Create a virtual environment
         venv_dir = os.path.join(temp_dir, "venv")
         subprocess.run(["uv", "venv", venv_dir], check=True)
+        python_executable = (
+            os.path.join(venv_dir, "Scripts", "python.exe")
+            if sys.platform == "win32"
+            else os.path.join(venv_dir, "bin", "python")
+        )
 
         # Install smolagents in the virtual environment
-        subprocess.run(
-            ["uv", "pip", "install", "--python", os.path.join(venv_dir, "bin", "python"), "smolagents @ ."], check=True
-        )
+        subprocess.run(["uv", "pip", "install", "--python", python_executable, "smolagents @ ."], check=True)
 
         # Run the import test in the virtual environment
         result = subprocess.run(
-            [os.path.join(venv_dir, "bin", "python"), "-c", "import smolagents"],
+            [python_executable, "-c", "import smolagents"],
             capture_output=True,
             text=True,
         )
