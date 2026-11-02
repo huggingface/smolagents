@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 
 
@@ -133,6 +135,6 @@ AGENT_DICTS = {
 @pytest.fixture
 def get_agent_dict():
     def _get_agent_dict(agent_dict_key):
-        return AGENT_DICTS[agent_dict_key]
+        return copy.deepcopy(AGENT_DICTS[agent_dict_key])
 
     return _get_agent_dict
