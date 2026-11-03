@@ -962,7 +962,7 @@ except ValueError as e:
 
     def test_tuple_id(self):
         code = """
-food_items = {"apple": 2, "banana": 3, "orange": 1, "pear": 1}
+food_item_counts = {"apple": 2, "banana": 3, "orange": 1, "pear": 1}
 unique_food_items = [item for item, count in food_item_counts.items() if count == 1]
 """
         state = {}
@@ -1737,6 +1737,38 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         result, _ = evaluate_python_code(code, {}, state=state)
         assert result == expected_result
 
+    def test_undefined_name_read_raises_instead_of_close_match(self):
+        """A typo'd variable raises a diagnostic instead of reading a similar name.
+
+        evaluate_name used to return the value of the closest state key, so a
+        model typo like `aple_count` silently evaluated to `apple_count`'s value
+        with no error to self-correct from. Subscript failures already raise
+        with a 'Maybe you meant' hint; names now do the same.
+        """
+        code = dedent("""\
+            apple_count = 3
+            banana_count = 7
+            result = aple_count
+        """)
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code(code)
+        message = str(e)
+        assert "The variable `aple_count` is not defined" in message
+        assert "Maybe you meant one of these variables" in message and "apple_count" in message
+
+    def test_undefined_name_augassign_raises(self):
+        """`x += 1` on an undefined name raises instead of seeding 0."""
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code("totl += 5")
+        assert "The variable `totl` is not defined" in str(e)
+
+    def test_undefined_name_augassign_defined_control(self):
+        """Augmented assignment on a defined name keeps working."""
+        state = {}
+        result, _ = evaluate_python_code("n = 1\nn += 5\nresult = n", {}, state=state)
+        assert result == 6
+        assert state["n"] == 6
+
     @pytest.mark.parametrize(
         "code, expected_error_message",
         [
@@ -1991,12 +2023,12 @@ class TestEvaluateSubscript:
             ("tup[:]", {"tup": (1, 2, 3)}, (1, 2, 3)),
             ("tup[::2]", {"tup": (1, 2, 3, 4)}, (1, 3)),
             ("tup[::-1]", {"tup": (1, 2, 3)}, (3, 2, 1)),
-            ("st[1]", {"str": "abc"}, "b"),
-            ("st[-1]", {"str": "abc"}, "c"),
-            ("st[1:3]", {"str": "abcd"}, "bc"),
-            ("st[:]", {"str": "abc"}, "abc"),
-            ("st[::2]", {"str": "abcd"}, "ac"),
-            ("st[::-1]", {"str": "abc"}, "cba"),
+            ("st[1]", {"st": "abc"}, "b"),
+            ("st[-1]", {"st": "abc"}, "c"),
+            ("st[1:3]", {"st": "abcd"}, "bc"),
+            ("st[:]", {"st": "abc"}, "abc"),
+            ("st[::2]", {"st": "abcd"}, "ac"),
+            ("st[::-1]", {"st": "abc"}, "cba"),
             ("arr[1]", {"arr": np.array([1, 2, 3])}, 2),
             ("arr[1:3]", {"arr": np.array([1, 2, 3, 4])}, np.array([2, 3])),
             ("arr[:]", {"arr": np.array([1, 2, 3])}, np.array([1, 2, 3])),
