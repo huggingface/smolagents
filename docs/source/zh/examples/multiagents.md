@@ -4,7 +4,7 @@
 
 此notebook将构建一个 **multi-agent 网络浏览器：一个有多个代理协作，使用网络进行搜索解决问题的代理系统**
 
-`ManagedAgent` 对象将封装这些管理网络搜索的agent，形成一个简单的层次结构：
+它将是一个简单的层次结构：
 
 ```
               +----------------+
@@ -113,7 +113,6 @@ from smolagents import (
     CodeAgent,
     ToolCallingAgent,
     InferenceClientModel,
-    ManagedAgent,
     WebSearchTool,
 )
 
