@@ -444,6 +444,76 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == "t-h-e-s-e-a-g-u-l-l"
 
+    def test_comprehension_shares_single_scope(self):
+        # Regression test for https://github.com/huggingface/smolagents/issues/2992:
+        # like CPython, a comprehension is a single scope, so closures created inside it
+        # capture the shared loop variable (bound to its final value).
+        code = "[f() for f in [lambda: i for i in range(3)]]"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == [2, 2, 2]
+
+        # Nested `for` clauses share the same single scope as well.
+        code = "[g() for g in [lambda: (x, y) for x in range(2) for y in range(2)]]"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == [(1, 1)] * 4
+
+        # Dict and set comprehensions behave the same.
+        code = "{k: v() for k, v in {f: (lambda: i) for f, i in [('a', 0), ('b', 1)]}.items()}"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {"a": 1, "b": 1}
+
+        code = "{s() for s in {(lambda: i) for i in range(3)}}"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert result == {2}
+
+        # The loop variable must not leak outside the comprehension.
+        state = {}
+        evaluate_python_code("[q * 2 for q in range(3)]", {"range": range}, state=state)
+        assert "q" not in state
+
+    def test_generatorexp_shares_single_scope(self):
+        # Same scoping rule for generator expressions.
+        code = "(f() for f in [(lambda: i) for i in range(3)])"
+        result, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert list(result) == [2, 2, 2]
+
+    def test_generatorexp_closure_created_by_generator_shares_single_scope(self):
+        # Regression test for the Ayushdevo review on PR #3008: closures created by the
+        # generator expression itself must share its loop bindings, like CPython. The
+        # existing test_generatorexp_shares_single_scope builds its closures inside a
+        # list comprehension, so it does not exercise this case.
+        code = "funcs = list(lambda: i for i in range(3))\n[f() for f in funcs]"
+        result, _ = evaluate_python_code(code, {"list": list, "range": range}, state={})
+        assert result == [2, 2, 2]
+
+        # The shared bindings still track live outer names across iterations: a closure
+        # created before the outer name changes sees the new value when called after it.
+        code = """
+x = 0
+g = (lambda: x for _ in range(2))
+first = next(g)
+x = 1
+second = next(g)
+(first(), second())
+"""
+        result, _ = evaluate_python_code(code, {"range": range, "next": next}, state={})
+        assert result == (1, 1)
+
+    def test_generatorexp_resolves_outer_names_against_live_state(self):
+        # Regression test: a generator expression is lazy, so outer names must be
+        # resolved against the live enclosing state on each iteration, not against
+        # a snapshot taken when the generator was created.
+        code = """
+x = 0
+g = (x for _ in range(2))
+first = next(g)
+x = 1
+second = next(g)
+(first, second)
+"""
+        result, _ = evaluate_python_code(code, {"range": range, "next": next}, state={})
+        assert result == (0, 1)
+
     def test_string_indexing(self):
         code = """text_block = [
     "THESE",
