@@ -477,6 +477,28 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {"range": range}, state={})
         assert list(result) == [2, 2, 2]
 
+    def test_generatorexp_closure_created_by_generator_shares_single_scope(self):
+        # Regression test for the Ayushdevo review on PR #3008: closures created by the
+        # generator expression itself must share its loop bindings, like CPython. The
+        # existing test_generatorexp_shares_single_scope builds its closures inside a
+        # list comprehension, so it does not exercise this case.
+        code = "funcs = list(lambda: i for i in range(3))\n[f() for f in funcs]"
+        result, _ = evaluate_python_code(code, {"list": list, "range": range}, state={})
+        assert result == [2, 2, 2]
+
+        # The shared bindings still track live outer names across iterations: a closure
+        # created before the outer name changes sees the new value when called after it.
+        code = """
+x = 0
+g = (lambda: x for _ in range(2))
+first = next(g)
+x = 1
+second = next(g)
+(first(), second())
+"""
+        result, _ = evaluate_python_code(code, {"range": range, "next": next}, state={})
+        assert result == (1, 1)
+
     def test_generatorexp_resolves_outer_names_against_live_state(self):
         # Regression test: a generator expression is lazy, so outer names must be
         # resolved against the live enclosing state on each iteration, not against

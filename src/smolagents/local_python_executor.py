@@ -1396,9 +1396,14 @@ def evaluate_generatorexp(
         # Like CPython, a generator expression has its own scope for the loop variable,
         # shared across iterations so closures capture it (not per-iteration snapshots).
         # But the generator is lazy: outer names must resolve against the *live*
-        # enclosing state on each iteration, so the per-iteration evaluation state is
-        # rebuilt from the current state with the shared loop bindings overlaid.
+        # enclosing state on each iteration. So all iterations share one evaluation-state
+        # dict, refreshed in place from the current enclosing state with the shared loop
+        # bindings overlaid: closures capture the shared dict object (so they all see the
+        # final loop bindings), while its contents still track live outer names on every
+        # iteration. A fresh dict per iteration would break the sharing, because each
+        # lambda would capture a different snapshot.
         gen_bindings: dict[str, Any] = {}
+        gen_state: dict[str, Any] = {}
         for gen in genexp.generators:
             iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
             for value in iter_value:
@@ -1410,10 +1415,13 @@ def evaluate_generatorexp(
                     custom_tools,
                     authorized_imports,
                 )
+                gen_state.clear()
+                gen_state.update(state)
+                gen_state.update(gen_bindings)
                 if all(
                     evaluate_ast(
                         if_clause,
-                        {**state, **gen_bindings},
+                        gen_state,
                         static_tools,
                         custom_tools,
                         authorized_imports,
@@ -1422,7 +1430,7 @@ def evaluate_generatorexp(
                 ):
                     yield evaluate_ast(
                         genexp.elt,
-                        {**state, **gen_bindings},
+                        gen_state,
                         static_tools,
                         custom_tools,
                         authorized_imports,
