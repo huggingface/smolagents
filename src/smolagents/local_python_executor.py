@@ -644,7 +644,9 @@ def evaluate_augassign(
 ) -> Any:
     def get_current_value(target: ast.AST) -> Any:
         if isinstance(target, ast.Name):
-            return state.get(target.id, 0)
+            if target.id not in state:
+                raise InterpreterError(f"The variable `{target.id}` is not defined.")
+            return state[target.id]
         elif isinstance(target, ast.Subscript):
             obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
             key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
@@ -953,10 +955,11 @@ def evaluate_name(
         return custom_tools[name.id]
     elif name.id in ERRORS:
         return ERRORS[name.id]
+    error_message = f"The variable `{name.id}` is not defined."
     close_matches = difflib.get_close_matches(name.id, list(state.keys()))
     if len(close_matches) > 0:
-        return state[close_matches[0]]
-    raise InterpreterError(f"The variable `{name.id}` is not defined.")
+        error_message += f" Maybe you meant one of these variables instead: {str(close_matches)}"
+    raise InterpreterError(error_message)
 
 
 def evaluate_condition(
