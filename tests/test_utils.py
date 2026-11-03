@@ -552,3 +552,7 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+def test_parse_json_blob_truncated():
+    with pytest.raises(ValueError, match="The model output is incomplete or truncated"):
+        parse_json_blob('{"action": "get_weather", "action_input": {"location": "New York"')
