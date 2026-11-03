@@ -2120,6 +2120,28 @@ class TestCodeAgent:
             )
         assert result == expected_summary
 
+    def test_code_agent_with_client_side_stop(self):
+        from smolagents.models import remove_content_after_stop_sequences
+
+        class ReasoningFakeModel(Model):
+            def __init__(self, **kwargs):
+                super().__init__(client_side_stop=True, **kwargs)
+
+            def generate(self, messages, stop_sequences=None, **kwargs):
+                raw_text = (
+                    "<think>Let's draft: <code>ans = 100</code></think>\n"
+                    "<code>\nfinal_answer(42)\n</code>\nTrailing text after stop sequence"
+                )
+                if stop_sequences and self.client_side_stop:
+                    content = remove_content_after_stop_sequences(raw_text, stop_sequences)
+                else:
+                    content = raw_text
+                return ChatMessage(role=MessageRole.ASSISTANT, content=content)
+
+        agent = CodeAgent(tools=[], model=ReasoningFakeModel(), verbosity_level=0)
+        answer = agent.run("What is the answer?")
+        assert answer == 42
+
     def test_code_agent_image_output(self):
         from PIL import Image
 
