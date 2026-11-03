@@ -21,7 +21,7 @@ from collections.abc import Generator
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
-from threading import Thread
+from threading import Event, Thread
 from typing import TYPE_CHECKING, Any
 
 from .monitoring import TokenUsage
@@ -341,6 +341,9 @@ def stream_with_client_side_stop(
                             tool_calls=delta.tool_calls if not yielded_for_delta else None,
                             token_usage=delta.token_usage if not yielded_for_delta else None,
                         )
+                    close_fn = getattr(stream, "close", None)
+                    if callable(close_fn):
+                        close_fn()
                     return
 
                 if open_idx != -1:
@@ -1254,29 +1257,48 @@ class TransformersModel(Model):
         # Get prompt token count once
         count_prompt_tokens = generation_kwargs["inputs"].shape[1]  # type: ignore
 
-        # Start generation in a separate thread
-        thread = Thread(target=self.model.generate, kwargs={"streamer": self.streamer, **generation_kwargs})
-        thread.start()
+        from transformers import StoppingCriteria, StoppingCriteriaList, TextIteratorStreamer
+
+        class StopOnEvent(StoppingCriteria):
+            def __init__(self, stop_event: Event):
+                self.stop_event = stop_event
+
+            def __call__(self, input_ids, scores, **kwargs):
+                return self.stop_event.is_set()
+
+        # Use an isolated streamer per call to avoid cross-stream queue contamination
+        model_tokenizer = self.processor.tokenizer if hasattr(self, "processor") else self.tokenizer
+        streamer = TextIteratorStreamer(model_tokenizer, skip_prompt=True, skip_special_tokens=True)  # type: ignore
+        stop_event = Event()
+        generation_kwargs["stopping_criteria"] = StoppingCriteriaList(
+            [*(generation_kwargs.get("stopping_criteria") or []), StopOnEvent(stop_event)]
+        )
 
         # Process streaming output
         def _stream():
             nonlocal count_prompt_tokens
             is_first_token = True
             count_generated_tokens = 0
-            for new_text in self.streamer:
-                count_generated_tokens += 1
-                # Only include input tokens in the first yielded token
-                input_tokens = count_prompt_tokens if is_first_token else 0
-                is_first_token = False
-                yield ChatMessageStreamDelta(
-                    content=new_text,
-                    tool_calls=None,
-                    token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=1),
-                )
-                count_prompt_tokens = 0
-            thread.join()
-            # Update final output token count
-            self._last_output_token_count = count_generated_tokens
+            # Start generation in a dedicated thread scoped to this stream execution
+            thread = Thread(target=self.model.generate, kwargs={"streamer": streamer, **generation_kwargs})
+            thread.start()
+            try:
+                for new_text in streamer:
+                    count_generated_tokens += 1
+                    # Only include input tokens in the first yielded token
+                    input_tokens = count_prompt_tokens if is_first_token else 0
+                    is_first_token = False
+                    yield ChatMessageStreamDelta(
+                        content=new_text,
+                        tool_calls=None,
+                        token_usage=TokenUsage(input_tokens=input_tokens, output_tokens=1),
+                    )
+                    count_prompt_tokens = 0
+            finally:
+                # Halt background generation immediately if consumer exited early, then join thread
+                stop_event.set()
+                thread.join()
+                self._last_output_token_count = count_generated_tokens
 
         if stop_sequences is not None and (self.client_side_stop or not self.supports_stop_parameter):
             yield from stream_with_client_side_stop(_stream(), stop_sequences)

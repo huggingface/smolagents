@@ -14,6 +14,7 @@
 # limitations under the License.
 import json
 import sys
+import time
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
@@ -683,6 +684,55 @@ class TestTransformersModel:
             assert model.processor == mocks["transformers.AutoProcessor.from_pretrained"].return_value
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.args == ("test-model",)
             assert mocks["transformers.AutoProcessor.from_pretrained"].call_args.kwargs == {"trust_remote_code": True}
+
+    def test_generate_stream_client_side_stop_does_not_leak_into_next_call(self):
+        """Test that early client-side stopping halts generation and leaves no stale tokens
+        or end sentinel behind for a consecutive call on the same model instance.
+        """
+        scripts = iter(
+            [
+                ["<code>x = 1", "</code>", " STALE"] + [" pad"] * 50,
+                ["<code>x = 2", "</code>"],
+            ]
+        )
+        emitted = []
+
+        def fake_generate(streamer, stopping_criteria=None, **kwargs):
+            count = 0
+            for chunk in next(scripts):
+                if any(criteria(None, None) for criteria in stopping_criteria or []):
+                    break
+                streamer.on_finalized_text(chunk)
+                count += 1
+                time.sleep(0.005)
+            emitted.append(count)
+            streamer.end()
+
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch(
+                    "transformers.AutoModelForImageTextToText.from_pretrained",
+                    side_effect=ValueError("Unrecognized configuration class"),
+                )
+            )
+            stack.enter_context(patch("transformers.AutoModelForCausalLM.from_pretrained"))
+            stack.enter_context(patch("transformers.AutoTokenizer.from_pretrained"))
+            model = TransformersModel(model_id="test-model", device_map="cpu", client_side_stop=True)
+        model.model.generate.side_effect = fake_generate
+
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
+        dummy_inputs = MagicMock(shape=(1, 5))
+        with patch.object(
+            model,
+            "_prepare_completion_args",
+            side_effect=lambda **kwargs: {"inputs": dummy_inputs, "stopping_criteria": None},
+        ):
+            first = "".join(d.content for d in model.generate_stream(messages, stop_sequences=["</code>"]))
+            second = "".join(d.content for d in model.generate_stream(messages, stop_sequences=["</code>"]))
+
+        assert first == "<code>x = 1"
+        assert second == "<code>x = 2"  # no stale text, no stale end sentinel
+        assert emitted[0] < 53  # generation halted early instead of running all 53 chunks
 
 
 def test_get_clean_message_list_basic():
