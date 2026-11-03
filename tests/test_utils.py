@@ -137,6 +137,13 @@ import numpy as np
         )
         assert output == "import numpy as np"
 
+        # Parsing markdown with closing fence without preceding newline should work (issue #3106)
+        output = parse_code_blobs("```python\nprint('hi')```", ("<code>", "</code>"))
+        assert output == "print('hi')"
+
+        output = parse_code_blobs("```py\nx = 1```", ("<code>", "</code>"))
+        assert output == "x = 1"
+
     def test_multiple_code_blobs(self):
         test_input = "<code>\nFoo\n</code>\n\n<code>\ncode_a\n</code>\n\n<code>\ncode_b\n</code>"
         result = parse_code_blobs(test_input, ("<code>", "</code>"))
