@@ -165,14 +165,23 @@ def make_json_serializable(obj: Any) -> Any:
 
 def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
     "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
+    first_accolade_index = json_blob.find("{")
+    if first_accolade_index == -1:
+        raise ValueError("The model output does not contain any JSON blob.")
+
+    closing_accolades = [a.start() for a in list(re.finditer("}", json_blob))]
+    if not closing_accolades:
+        raise ValueError(
+            "The model output is incomplete or truncated: it contains a '{' but no matching '}'. "
+            "This typically happens when the model reaches its token limit (e.g. `max_completion_tokens`)."
+        )
+
+    last_accolade_index = closing_accolades[-1]
+    json_str = json_blob[first_accolade_index : last_accolade_index + 1]
+
     try:
-        first_accolade_index = json_blob.find("{")
-        last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
-        json_str = json_blob[first_accolade_index : last_accolade_index + 1]
         json_data = json.loads(json_str, strict=False)
         return json_data, json_blob[:first_accolade_index]
-    except IndexError:
-        raise ValueError("The model output does not contain any JSON blob.")
     except json.JSONDecodeError as e:
         place = e.pos
         if json_blob[place - 1 : place + 2] == "},\n":
@@ -184,7 +193,6 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
             f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"
             f"'{json_blob[place - 4 : place + 5]}'."
         )
-
 
 def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
     """Extract code from the LLM's output."""
