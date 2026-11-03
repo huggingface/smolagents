@@ -212,6 +212,8 @@ def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     matches = extract_code_from_text(text, code_block_tags)
     if not matches:  # Fallback to markdown pattern
         matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
+    if not matches:  # Fallback to markdown pattern without preceding newline
+        matches = extract_code_from_text(text, ("```(?:python|py)", "```"))
     if matches:
         return matches
     # Maybe the LLM outputted a code blob directly
