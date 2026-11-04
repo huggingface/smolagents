@@ -376,6 +376,13 @@ class MultiStepAgent(ABC):
             self.managed_agents = {agent.name: agent for agent in managed_agents}
             # Ensure managed agents can be called as tools by the model: set their inputs and output_type
             for agent in self.managed_agents.values():
+                if getattr(agent, "managed_agents", None):
+                    sub_desc = "\n".join(f"  - {k}: {v.description}" for k, v in agent.managed_agents.items())
+                    delegation_note = (
+                        f"\n\nThis agent can internally delegate to the following sub-agents:\n{sub_desc}"
+                    )
+                    if delegation_note not in agent.description:
+                        agent.description += delegation_note
                 agent.inputs = {
                     "task": {"type": "string", "description": "Long detailed description of the task."},
                     "additional_args": {

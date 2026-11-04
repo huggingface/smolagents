@@ -2626,3 +2626,20 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+def test_managed_agent_hierarchy_description_propagation():
+    level2_agent = CodeAgent(
+        tools=[], model=FakeCodeModel(), name="level2", description="Performs deep data analysis."
+    )
+    level1_agent = CodeAgent(
+        tools=[], model=FakeCodeModel(), name="level1", description="Team lead.", managed_agents=[level2_agent]
+    )
+    supervisor = CodeAgent(
+        tools=[], model=FakeCodeModel(), name="supervisor", description="Supervisor.", managed_agents=[level1_agent]
+    )
+
+    # Verify that the supervisor's view of level1 includes level2's capabilities
+    level1_desc_in_supervisor = supervisor.managed_agents["level1"].description
+    assert "level2" in level1_desc_in_supervisor
+    assert "Performs deep data analysis." in level1_desc_in_supervisor
