@@ -325,8 +325,11 @@ class TestTool:
             def forward(self, string_input: str) -> str:
                 return self.url + string_input
 
-        fail_tool = PassTool()
-        fail_tool.to_dict()
+        pass_tool = PassTool(url="custom_url_")
+        tool_dict = pass_tool.to_dict()
+        assert "def __init__(self, url: str | None = 'none'):" in tool_dict["code"] or 'def __init__(self, url: str | None = "none"):' in tool_dict["code"]
+        recreated_tool = Tool.from_dict(tool_dict)
+        assert recreated_tool("input") == "noneinput" 
 
     def test_saving_tool_allows_no_imports_from_outside_methods(self, tmp_path):
         # Test that using imports from outside functions fails
@@ -591,6 +594,36 @@ class TestTool:
         assert "optional_text: str | None = None" in result["code"]
         # Check that the input is marked as nullable in the code
         assert "'nullable': True" in result["code"]
+
+    def test_tool_to_dict_with_property_and_classmethod(self):
+        class DummyToolWithMembers(Tool):
+            name = "dummy_tool"
+            description = "Test tool"
+            inputs = {"x": {"type": "string", "description": "x"}}
+            output_type = "string"
+
+            @property
+            def dynamic_prop(self) -> str:
+                return "prop"
+
+            @classmethod
+            def helper_classmethod(cls) -> str:
+                return "classmethod"
+
+            def forward(self, x: str) -> str:
+                return x + self.dynamic_prop
+
+        tool = DummyToolWithMembers()
+        result = tool.to_dict()
+        assert "@property" in result["code"]
+        assert "def dynamic_prop(self)" in result["code"]
+        assert "@classmethod" in result["code"]
+        assert "def helper_classmethod(cls)" in result["code"]
+        assert "<property object" not in result["code"]
+        assert "<classmethod object" not in result["code"]
+
+        recreated = Tool.from_dict(result)
+        assert recreated("test_") == "test_prop"
 
     def test_from_dict_roundtrip(self, example_tool):
         # Convert to dict
