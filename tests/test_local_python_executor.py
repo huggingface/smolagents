@@ -1421,6 +1421,78 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert result == 1
         assert is_final_answer is True
 
+    def test_return_break_continue_not_caught_by_except_exception(self):
+        """Test that `return`, `break` and `continue` are not caught by generic except clauses.
+
+        Control flow is implemented with internal exceptions (ReturnException, BreakException,
+        ContinueException), which `except Exception` blocks used to catch: a `return` inside a
+        `try` block silently returned the `except` value instead, and `break`/`continue` were
+        turned into regular statements. CPython cannot catch control flow, so neither should we.
+        """
+        code = dedent("""
+            def safe_int(value):
+                try:
+                    return int(value)
+                except Exception:
+                    return 0
+
+            found = []
+            for i in range(4):
+                try:
+                    if i == 2:
+                        break
+                except Exception:
+                    found.append("error")
+                found.append(i)
+
+            kept = []
+            for i in range(4):
+                try:
+                    if i % 2 == 0:
+                        continue
+                except Exception:
+                    kept.append("error")
+                kept.append(i)
+
+            result = [safe_int("42"), found, kept]
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS | {"range": range}, state=state)
+
+        # CPython gives [42, [0, 1], [1, 3]]: the `return` must not be replaced by the `except` value,
+        # the `break` must stop the loop and the `continue` must skip the rest of the iteration.
+        assert state["result"] == [42, [0, 1], [1, 3]]
+
+    def test_control_flow_leaves_with_block_as_a_normal_exit(self):
+        """Test that leaving a `with` block through `return`/`break` is not reported as an exception.
+
+        CPython calls `__exit__(None, None, None)` when the body returns or breaks, so the context
+        manager cannot swallow the control flow by returning a truthy value.
+        """
+        code = dedent("""
+            exits = []
+
+            class Recorder:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc_value, traceback):
+                    exits.append(exc_type)
+                    return exc_type is not None
+
+            def compute():
+                with Recorder():
+                    return 7
+                return 9
+
+            result = compute()
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+        assert state["result"] == 7
+        assert state["exits"] == [None]
+
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
             eval("1 + 1")
