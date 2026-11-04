@@ -326,7 +326,7 @@ def instance_to_source(instance, base_cls=None):
     # Add methods and descriptors
     methods = {}
     for name, func in cls.__dict__.items():
-        if name.startswith("__") or name == "_abc_impl":
+        if (name.startswith("__") and name != "__init__") or name == "_abc_impl":
             continue
         if isinstance(func, property):
             if not base_cls or name not in base_cls.__dict__:

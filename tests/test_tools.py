@@ -325,8 +325,11 @@ class TestTool:
             def forward(self, string_input: str) -> str:
                 return self.url + string_input
 
-        fail_tool = PassTool()
-        fail_tool.to_dict()
+        pass_tool = PassTool(url="custom_url_")
+        tool_dict = pass_tool.to_dict()
+        assert "def __init__(self, url: str | None = 'none'):" in tool_dict["code"] or 'def __init__(self, url: str | None = "none"):' in tool_dict["code"]
+        recreated_tool = Tool.from_dict(tool_dict)
+        assert recreated_tool("input") == "noneinput" 
 
     def test_saving_tool_allows_no_imports_from_outside_methods(self, tmp_path):
         # Test that using imports from outside functions fails
