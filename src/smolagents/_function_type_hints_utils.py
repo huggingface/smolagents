@@ -422,7 +422,7 @@ def _type_name(param_type: type, module_prefix: str, name: str) -> bool:
 def _get_json_schema_type(param_type: type) -> dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
-    if _type_name(param_type, "PIL", "Image"):
+    if any(str(getattr(base, "__module__", "")).startswith("PIL.") for base in getattr(param_type, "__mro__", ())):
         try:
             from PIL.Image import Image
         except ModuleNotFoundError:
