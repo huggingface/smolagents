@@ -1208,6 +1208,31 @@ def is_rate_limit_error(exception: BaseException) -> bool:
     )
 
 
+def _get_litellm_token_usage(usage) -> TokenUsage:
+    """Build a `TokenUsage` from a LiteLLM usage object, including prompt-cache counts when reported.
+
+    Anthropic-style usage reports `cache_creation_input_tokens` and `cache_read_input_tokens`, while OpenAI-style
+    usage reports cache reads in `prompt_tokens_details.cached_tokens`. LiteLLM can fill both read fields with the
+    same count, so the second one is only a fallback. Each field may be an attribute or a mapping key.
+    """
+
+    def read(container, key: str):
+        if container is None:
+            return None
+        if isinstance(container, dict):
+            return container.get(key)
+        return getattr(container, key, None)
+
+    return TokenUsage(
+        input_tokens=usage.prompt_tokens,
+        output_tokens=usage.completion_tokens,
+        cache_write_tokens=read(usage, "cache_creation_input_tokens") or 0,
+        cache_read_tokens=read(usage, "cache_read_input_tokens")
+        or read(read(usage, "prompt_tokens_details"), "cached_tokens")
+        or 0,
+    )
+
+
 class LiteLLMModel(ApiModel):
     """Model to use [LiteLLM Python SDK](https://docs.litellm.ai/docs/#litellm-python-sdk) to access hundreds of LLMs.
 
@@ -1306,13 +1331,7 @@ class LiteLLMModel(ApiModel):
             content=content,
             tool_calls=response.choices[0].message.tool_calls,
             raw=response,
-            token_usage=TokenUsage(
-                input_tokens=response.usage.prompt_tokens,
-                output_tokens=response.usage.completion_tokens,
-                cache_write_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
-                cache_read_tokens=(getattr(response.usage, "cache_read_input_tokens", 0) or 0)
-                + (getattr(getattr(response.usage, "prompt_tokens_details", None), "cached_tokens", 0) or 0),
-            ),
+            token_usage=_get_litellm_token_usage(response.usage),
         )
 
     def generate_stream(
@@ -1342,13 +1361,7 @@ class LiteLLMModel(ApiModel):
             if getattr(event, "usage", None):
                 yield ChatMessageStreamDelta(
                     content="",
-                    token_usage=TokenUsage(
-                        input_tokens=event.usage.prompt_tokens,
-                        output_tokens=event.usage.completion_tokens,
-                        cache_write_tokens=getattr(event.usage, "cache_creation_input_tokens", 0) or 0,
-                        cache_read_tokens=(getattr(event.usage, "cache_read_input_tokens", 0) or 0)
-                        + (getattr(getattr(event.usage, "prompt_tokens_details", None), "cached_tokens", 0) or 0),
-                    ),
+                    token_usage=_get_litellm_token_usage(event.usage),
                 )
             if event.choices:
                 choice = event.choices[0]

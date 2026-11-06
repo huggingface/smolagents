@@ -49,13 +49,17 @@ class TokenUsage:
         self.total_tokens = self.input_tokens + self.output_tokens
 
     def dict(self):
-        return {
+        usage = {
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
-            "cache_write_tokens": self.cache_write_tokens,
-            "cache_read_tokens": self.cache_read_tokens,
             "total_tokens": self.total_tokens,
         }
+        # Cache counts are only added when the provider reported some, so existing outputs stay unchanged.
+        if self.cache_write_tokens:
+            usage["cache_write_tokens"] = self.cache_write_tokens
+        if self.cache_read_tokens:
+            usage["cache_read_tokens"] = self.cache_read_tokens
+        return usage
 
 
 @dataclass

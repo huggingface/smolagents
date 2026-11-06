@@ -85,7 +85,7 @@ class ActionStep(MemoryStep):
             if self.observations_images
             else None,
             "action_output": make_json_serializable(self.action_output),
-            "token_usage": asdict(self.token_usage) if self.token_usage else None,
+            "token_usage": self.token_usage.dict() if self.token_usage else None,
             "is_final_answer": self.is_final_answer,
         }
 
@@ -168,7 +168,7 @@ class PlanningStep(MemoryStep):
             ),
             "plan": self.plan,
             "timing": self.timing.dict(),
-            "token_usage": asdict(self.token_usage) if self.token_usage else None,
+            "token_usage": self.token_usage.dict() if self.token_usage else None,
         }
 
     def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
