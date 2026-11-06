@@ -40,6 +40,8 @@ from typing import (
 
 IMPORT_TO_PACKAGE_MAPPING = {
     "wikipediaapi": "wikipedia-api",
+    # `PIL` is only the import name of Pillow: no installable `PIL` distribution exists on PyPI.
+    "PIL": "pillow",
 }
 
 

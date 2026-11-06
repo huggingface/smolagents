@@ -508,6 +508,14 @@ class TestGetCode:
         """,
                 [],
             ),
+            # Import names must be resolved to their PyPI distribution name
+            (
+                """
+        from PIL import Image
+        import PIL.ImageOps
+        """,
+                ["pillow"],
+            ),
         ],
     )
     def test_get_imports(self, code: str, expected: list[str]):
