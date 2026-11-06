@@ -1804,6 +1804,38 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
 
 
 class TestEvaluateBoolop:
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "True and result",
+            "False or result",
+            "True and True and result",
+            "False or False or result",
+            "result and 42",
+            "result or 42",
+        ],
+    )
+    @pytest.mark.parametrize("truth_value", [True, False])
+    def test_boolop_truth_tests_match_python(self, code, truth_value):
+        class TrackedResult:
+            def __init__(self):
+                self.truth_tests = 0
+
+            def __bool__(self):
+                self.truth_tests += 1
+                return truth_value
+
+        reference = TrackedResult()
+        expected = eval(code, {}, {"result": reference})
+        actual = TrackedResult()
+        output, _ = evaluate_python_code(code, state={"result": actual})
+
+        if expected is reference:
+            assert output is actual
+        else:
+            assert output == expected
+        assert actual.truth_tests == reference.truth_tests
+
     @pytest.mark.parametrize("a", [1, 0])
     @pytest.mark.parametrize("b", [2, 0])
     @pytest.mark.parametrize("c", [3, 0])
