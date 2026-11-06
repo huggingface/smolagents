@@ -520,7 +520,10 @@ class TestGetJsonSchemaOptionalImports:
         real_import = builtins.__import__
 
         def tracking_import(name, *args, **kwargs):
-            if name in {"PIL", "torch"}:
+            # `from PIL.Image import Image` calls `__import__("PIL.Image")`, so match the root package
+            # rather than the full name: an exact `name in {"PIL", "torch"}` check misses it and the
+            # assertion below passes even when the MRO gate is removed.
+            if name.split(".")[0] in {"PIL", "torch"}:
                 imported.append(name)
             return real_import(name, *args, **kwargs)
 
