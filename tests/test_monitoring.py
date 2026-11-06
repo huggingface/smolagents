@@ -186,6 +186,35 @@ def test_code_agent_metrics(agent_class):
     assert agent.monitor.total_output_token_count == 20
 
 
+def test_token_usage_cache_fields():
+    usage = TokenUsage(input_tokens=100, output_tokens=50, cache_write_tokens=20, cache_read_tokens=30)
+    assert usage.cache_write_tokens == 20
+    assert usage.cache_read_tokens == 30
+    assert usage.total_tokens == 150
+
+
+def test_token_usage_cache_fields_default_zero():
+    usage = TokenUsage(input_tokens=10, output_tokens=5)
+    assert usage.cache_write_tokens == 0
+    assert usage.cache_read_tokens == 0
+    assert usage.total_tokens == 15
+
+
+def test_token_usage_dict_reports_cache_fields_only_when_set():
+    assert TokenUsage(input_tokens=10, output_tokens=5).dict() == {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15,
+    }
+    assert TokenUsage(input_tokens=100, output_tokens=50, cache_write_tokens=20, cache_read_tokens=30).dict() == {
+        "input_tokens": 100,
+        "output_tokens": 50,
+        "total_tokens": 150,
+        "cache_write_tokens": 20,
+        "cache_read_tokens": 30,
+    }
+
+
 class ReplayTester(unittest.TestCase):
     def test_replay_with_chatmessage(self):
         """Regression test for dict(message) to message.dict() fix"""

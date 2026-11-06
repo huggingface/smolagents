@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -426,6 +427,39 @@ class TestLiteLLMModel:
         assert any(possible_error_message in error_message for possible_error_message in possible_error_messages), (
             f"Error message '{error_message}' does not contain any expected phrases"
         )
+
+    def test_generate_reports_openai_style_cache_reads(self):
+        response = MagicMock()
+        response.choices = [MagicMock(message=MagicMock(role="assistant", content="Hello", tool_calls=None))]
+        # prompt_tokens_details can come back as a plain dict rather than an object
+        response.usage = SimpleNamespace(
+            prompt_tokens=100, completion_tokens=10, prompt_tokens_details={"cached_tokens": 64}
+        )
+        client = MagicMock()
+        client.completion.return_value = response
+        with patch("smolagents.models.LiteLLMModel.create_client", return_value=client):
+            model = LiteLLMModel(model_id="gpt-4o-mini")
+            message = model.generate([ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hi"}])])
+        assert message.token_usage.cache_read_tokens == 64
+        assert message.token_usage.cache_write_tokens == 0
+
+    def test_generate_stream_does_not_count_cache_reads_twice(self):
+        # LiteLLM can report the same cache read both as cache_read_input_tokens and as cached_tokens
+        usage = SimpleNamespace(
+            prompt_tokens=100,
+            completion_tokens=10,
+            cache_creation_input_tokens=25,
+            cache_read_input_tokens=60,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=60),
+        )
+        client = MagicMock()
+        client.completion.return_value = iter([SimpleNamespace(usage=usage, choices=[])])
+        with patch("smolagents.models.LiteLLMModel.create_client", return_value=client):
+            model = LiteLLMModel(model_id="anthropic/claude-sonnet-4-5")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hi"}])]
+            deltas = list(model.generate_stream(messages))
+        assert deltas[0].token_usage.cache_write_tokens == 25
+        assert deltas[0].token_usage.cache_read_tokens == 60
 
     def test_retry_on_rate_limit_error(self):
         """Test that the retry mechanism does trigger on 429 rate limit errors"""
