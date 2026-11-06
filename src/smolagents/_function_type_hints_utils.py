@@ -415,17 +415,52 @@ _BASE_TYPE_MAPPING = {
 def _get_json_schema_type(param_type: type) -> dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
-    if str(param_type) == "Image":
-        from PIL.Image import Image
-
-        if param_type == Image:
-            return {"type": "image"}
-    if str(param_type) == "Tensor":
-        try:
-            from torch import Tensor
-
-            if param_type == Tensor:
-                return {"type": "audio"}
-        except ModuleNotFoundError:
-            pass
+    if _is_pil_image_type(param_type):
+        return {"type": "image"}
+    if _is_torch_tensor_type(param_type):
+        return {"type": "audio"}
     return {"type": "object"}
+
+
+def _mro_contains_module(param_type: type, module_prefix: str) -> bool:
+    """Whether any class in *param_type*'s MRO is defined in *module_prefix*."""
+    return any((getattr(cls, "__module__", "") or "").startswith(module_prefix) for cls in param_type.__mro__)
+
+
+def _is_pil_image_type(param_type: Any) -> bool:
+    """Whether *param_type* is a class derived from `PIL.Image.Image`.
+
+    Media types are matched by subclass, not by identity: an image returned by `Image.open` has
+    class `PngImageFile`, and `AgentImage` subclasses `PIL.Image.Image` from a different module.
+    Checking the MRO keeps Pillow lazy for every other annotation while catching both.
+    """
+    if not isinstance(param_type, type):
+        return False
+    if not _mro_contains_module(param_type, "PIL."):
+        return False
+    # The MRO already contains a class from Pillow, so the import below is a cache hit.
+    try:
+        from PIL.Image import Image
+    except ModuleNotFoundError:
+        return False
+
+    return issubclass(param_type, Image)
+
+
+def _is_torch_tensor_type(param_type: Any) -> bool:
+    """Whether *param_type* is `torch.Tensor` or a subclass of it.
+
+    The MRO gate keeps torch lazy for annotations that cannot be tensors: importing it on every
+    unknown type made `validate_tool_arguments` pay the torch import at runtime, which is the cost
+    #253 removed.
+    """
+    if not isinstance(param_type, type):
+        return False
+    if not _mro_contains_module(param_type, "torch"):
+        return False
+    try:
+        from torch import Tensor
+    except ModuleNotFoundError:
+        return False
+
+    return issubclass(param_type, Tensor)
