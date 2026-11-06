@@ -236,8 +236,12 @@ class Tool(BaseTool):
         if len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], dict):
             potential_kwargs = args[0]
 
-            # If the dictionary keys match our input parameters, convert it to kwargs
-            if all(key in self.inputs for key in potential_kwargs):
+            # If the dictionary keys match our input parameters, convert it to kwargs.
+            # An empty dictionary only means "no arguments" for tools that declare no
+            # inputs: a tool whose single input is a dict must still receive {}.
+            if (potential_kwargs or not self.inputs) and all(
+                key in self.inputs for key in potential_kwargs
+            ):
                 args = ()
                 kwargs = potential_kwargs
 

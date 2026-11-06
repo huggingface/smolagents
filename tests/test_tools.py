@@ -1066,3 +1066,17 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+def test_call_keeps_a_sole_empty_dict_argument():
+    """A tool whose single input is a dict must receive {} instead of being called with no arguments."""
+
+    class FilterTool(Tool):
+        name = "filter_tool"
+        description = "Return the filters it was given."
+        inputs = {"filters": {"type": "object", "description": "filters to apply"}}
+        output_type = "object"
+
+        def forward(self, filters):
+            return {"received": filters}
+
+    assert FilterTool()({}) == {"received": {}}
