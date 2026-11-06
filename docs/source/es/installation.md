@@ -261,8 +261,8 @@ print(smolagents.__version__)
 
 Una vez que `smolagents` esté instalado correctamente, puedes:
 
-- Aprende los conceptos básicos revisando el [Tutorial Guiado](guided_tour).
-- Explora los ejemplos prácticos y aplicaciones en las [Guías Prácticas](examples/text_to_sql).
-- Profundiza en los conceptos avanzados mediante las [Guías Conceptuales](conceptual_guides/intro_agents).
-- Revisa los [Tutoriales](tutorials/building_good_agents) para el desarrollo de agentes.
-- Consulta la [Documentación API](./reference/index) para obtener información detallada sobre clases y funciones.
+- Aprende los conceptos básicos revisando el [Tutorial Guiado](https://huggingface.co/docs/smolagents/en/guided_tour).
+- Explora los ejemplos prácticos y aplicaciones en las [Guías Prácticas](https://huggingface.co/docs/smolagents/en/examples/text_to_sql).
+- Profundiza en los conceptos avanzados mediante las [Guías Conceptuales](https://huggingface.co/docs/smolagents/en/conceptual_guides/intro_agents).
+- Revisa los [Tutoriales](https://huggingface.co/docs/smolagents/en/tutorials/building_good_agents) para el desarrollo de agentes.
+- Consulta la [Documentación API](https://huggingface.co/docs/smolagents/en/reference/agents) para obtener información detallada sobre clases y funciones.
