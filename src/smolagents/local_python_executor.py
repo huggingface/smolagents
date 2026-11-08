@@ -507,11 +507,22 @@ def create_function(
                 func_state["__class__"] = args[0].__class__
 
         result = None
+        # A def inside the body is local to this call: keep it out of the shared custom_tools namespace,
+        # where it would leak as a global and overwrite a function of the same name.
+        tools_before = dict(custom_tools)
         try:
             for stmt in func_def.body:
                 result = evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
         except ReturnException as e:
             result = e.value
+        finally:
+            for tool_name in [name for name in custom_tools if custom_tools[name] is not tools_before.get(name)]:
+                # nested functions capture func_state, so binding them there keeps recursion and closures working
+                func_state[tool_name] = custom_tools[tool_name]
+                if tool_name in tools_before:
+                    custom_tools[tool_name] = tools_before[tool_name]
+                else:
+                    del custom_tools[tool_name]
 
         if func_def.name == "__init__":
             return None
