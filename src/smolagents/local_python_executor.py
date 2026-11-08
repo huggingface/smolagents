@@ -507,11 +507,22 @@ def create_function(
                 func_state["__class__"] = args[0].__class__
 
         result = None
+        # A def inside the body is local to this call: keep it out of the shared custom_tools namespace,
+        # where it would leak as a global and overwrite a function of the same name.
+        tools_before = dict(custom_tools)
         try:
             for stmt in func_def.body:
                 result = evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
         except ReturnException as e:
             result = e.value
+        finally:
+            for tool_name in [name for name in custom_tools if custom_tools[name] is not tools_before.get(name)]:
+                # nested functions capture func_state, so binding them there keeps recursion and closures working
+                func_state[tool_name] = custom_tools[tool_name]
+                if tool_name in tools_before:
+                    custom_tools[tool_name] = tools_before[tool_name]
+                else:
+                    del custom_tools[tool_name]
 
         if func_def.name == "__init__":
             return None
@@ -562,9 +573,20 @@ def evaluate_class_def(
     else:
         class_dict = {}
 
+    # evaluate_function_def registers every function in the shared custom_tools
+    # namespace. A method must not stay there: it would leak as a global and
+    # overwrite a function of the same name.
+    missing_tool = object()
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
-            class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+            previous_tool = custom_tools.get(stmt.name, missing_tool)
+            try:
+                class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+            finally:
+                if previous_tool is missing_tool:
+                    custom_tools.pop(stmt.name, None)
+                else:
+                    custom_tools[stmt.name] = previous_tool
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value:
                 value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
