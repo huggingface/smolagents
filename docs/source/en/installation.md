@@ -262,4 +262,4 @@ Once you have successfully installed `smolagents`, you can:
 - Explore the [how-to guides](./examples/text_to_sql) for practical examples.
 - Read the [conceptual guides](./conceptual_guides/intro_agents) for high-level explanations.
 - Check out the [tutorials](./tutorials/building_good_agents) for in-depth tutorials on building agents.
-- Explore the [API reference](./reference/index) for detailed information on classes and functions.
+- Explore the [API reference](./reference/agents) for detailed information on classes and functions.
