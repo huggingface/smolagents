@@ -952,6 +952,22 @@ except ValueError as e:
         evaluate_python_code(code, {"min": min, "print": print}, state=state)
         assert state["_print_outputs"].value == "1\n"
 
+    def test_print_honors_sep_and_end(self):
+        code = """print("name", "score", sep=",")
+print("Ada", "42", sep=",", end="")"""
+        state = {}
+        evaluate_python_code(code, {"print": print}, state=state)
+        assert state["_print_outputs"].value == "name,score\nAda,42"
+
+        # Builtin print treats explicit None as the default separator/terminator.
+        state = {}
+        evaluate_python_code('print("a", "b", sep=None)', {"print": print}, state=state)
+        assert state["_print_outputs"].value == "a b\n"
+
+        state = {}
+        evaluate_python_code('print("a", end=None)', {"print": print}, state=state)
+        assert state["_print_outputs"].value == "a\n"
+
     def test_types_as_objects(self):
         code = "type_a = float(2); type_b = str; type_c = int"
         state = {}
