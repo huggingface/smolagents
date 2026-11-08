@@ -1255,10 +1255,10 @@ def evaluate_with(
     try:
         for stmt in with_node.body:
             evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
-    except (BreakException, ContinueException, ReturnException):
-        # Leaving a `with` block through `break`, `continue` or `return` is a normal exit: real Python calls
-        # `__exit__(None, None, None)` so that context managers do not see a spurious exception, and only then
-        # resumes the control flow.
+    except (BreakException, ContinueException, ReturnException, FinalAnswerException):
+        # Leaving a `with` block through `break`, `continue`, `return` or `final_answer()` is a normal exit:
+        # real Python calls `__exit__(None, None, None)` so that context managers do not see a spurious
+        # exception, and only then resumes the control flow (or ends the run).
         for context in reversed(contexts):
             context.__exit__(None, None, None)
         raise

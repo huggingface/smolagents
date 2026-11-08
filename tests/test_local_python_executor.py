@@ -1493,6 +1493,38 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert state["result"] == 7
         assert state["exits"] == [None]
 
+    def test_final_answer_leaves_with_block_as_a_normal_exit(self):
+        """Test that `final_answer()` inside a `with` block unwinds it like a `return`.
+
+        `FinalAnswerException` is a `BaseException`, so it skipped the normal-exit branch as well:
+        `__exit__` was never called, and a context manager holding an open file or a lock leaked it.
+        CPython reaches `final_answer()` through an ordinary call frame, so the `with` must unwind
+        first and only then end the run.
+        """
+        code = dedent("""
+            exits = []
+
+            class Recorder:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc_value, traceback):
+                    exits.append(exc_type)
+                    return True
+
+            with Recorder():
+                final_answer("done")
+        """)
+        state = {}
+        result, is_final_answer = evaluate_python_code(
+            code, BASE_PYTHON_TOOLS | {"final_answer": (lambda answer: answer)}, state=state
+        )
+
+        assert result == "done"
+        assert is_final_answer is True
+        # A normal exit: no exception to report, and a truthy `__exit__` cannot cancel the answer.
+        assert state["exits"] == [None]
+
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
             eval("1 + 1")
