@@ -902,6 +902,10 @@ def evaluate_call(
     elif func_name == "print":
         sep = kwargs.get("sep", " ")
         end = kwargs.get("end", "\n")
+        if sep is None:
+            sep = " "
+        if end is None:
+            end = "\n"
         state["_print_outputs"] += sep.join(map(str, args)) + end
         return None
     else:  # Assume it's a callable object
