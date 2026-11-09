@@ -1887,6 +1887,45 @@ class TestToolCallingAgent:
             in agent.memory.steps[1].error.message
         )
 
+    def test_toolcalling_agent_does_not_execute_tools_with_final_answer(self):
+        writes = []
+
+        @tool
+        def save_record(record: str) -> str:
+            """Save a record.
+
+            Args:
+                record: Record to save.
+            """
+            writes.append(record)
+            return "saved"
+
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=None,
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_final",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "done"}),
+                ),
+                ChatMessageToolCall(
+                    id="call_save",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="save_record", arguments={"record": "A"}),
+                ),
+            ],
+        )
+        agent = ToolCallingAgent(tools=[save_record], model=model, max_steps=1)
+
+        agent.run("Save record A")
+
+        error = agent.memory.steps[1].error
+        assert isinstance(error, AgentExecutionError)
+        assert "do not perform any other tool calls than the final answer tool call!" in error.message
+        assert writes == []
+
     @patch("huggingface_hub.InferenceClient")
     def test_toolcalling_agent_api_misformatted_output(self, mock_inference_client):
         """Test that even misformatted json blobs don't interrupt the run for a ToolCallingAgent."""
