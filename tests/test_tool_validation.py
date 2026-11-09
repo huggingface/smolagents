@@ -175,6 +175,26 @@ def test_tool_to_dict_validation_with_multiple_assignments(tool_instance):
     tool_instance.to_dict()
 
 
+class KwOnlyTool(Tool):
+    name = "kw_only_tool"
+    description = "Sums pairs."
+    inputs = {"pairs": {"type": "array", "description": "pairs"}}
+    output_type = "integer"
+
+    def _total(self, pairs, *, start=0):
+        total = start
+        for [left, right] in pairs:
+            total += left + right
+        return total
+
+    def forward(self, pairs):
+        return self._total(pairs, start=1)
+
+
+def test_validate_tool_attributes_keyword_only_and_list_unpacking():
+    assert validate_tool_attributes(KwOnlyTool) is None
+
+
 class TestMethodChecker:
     def test_multiple_assignments(self):
         source_code = dedent(
@@ -182,6 +202,34 @@ class TestMethodChecker:
             def forward(self) -> str:
                 a, b = "1", "2"
                 return a + b
+            """
+        )
+        method_checker = MethodChecker(set())
+        method_checker.visit(ast.parse(source_code))
+        assert method_checker.errors == []
+
+    def test_keyword_only_and_positional_only_arguments(self):
+        source_code = dedent(
+            """
+            def _helper(self, a, /, b, *, c=1):
+                return a + b + c
+            """
+        )
+        method_checker = MethodChecker(set())
+        method_checker.visit(ast.parse(source_code))
+        assert method_checker.errors == []
+
+    def test_list_and_starred_unpacking_targets(self):
+        source_code = dedent(
+            """
+            def forward(self, pairs):
+                total = 0
+                for [left, right] in pairs:
+                    total += left + right
+                for first, *rest in pairs:
+                    total += first + len(rest)
+                items = [x for [x, y] in pairs]
+                return total + len(items)
             """
         )
         method_checker = MethodChecker(set())
