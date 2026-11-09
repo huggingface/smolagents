@@ -29,7 +29,9 @@ class MethodChecker(ast.NodeVisitor):
 
     def visit_arguments(self, node):
         """Collect function arguments"""
-        self.arg_names = {arg.arg for arg in node.args}
+        # `node.args` only holds the positional-or-keyword parameters, so positional-only
+        # (before `/`) and keyword-only (after `*`) parameters must be collected too.
+        self.arg_names = {arg.arg for arg in (*node.posonlyargs, *node.args, *node.kwonlyargs)}
         if node.kwarg:
             self.arg_names.add(node.kwarg.arg)
         if node.vararg:

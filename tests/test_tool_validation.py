@@ -187,3 +187,31 @@ class TestMethodChecker:
         method_checker = MethodChecker(set())
         method_checker.visit(ast.parse(source_code))
         assert method_checker.errors == []
+
+    def test_positional_only_and_keyword_only_arguments(self):
+        source_code = dedent(
+            """
+            def forward(self, input, /, *, upper=False) -> str:
+                return input.upper() if upper else input
+            """
+        )
+        method_checker = MethodChecker(set())
+        method_checker.visit(ast.parse(source_code))
+        assert method_checker.errors == []
+
+
+class KeywordOnlyArgumentTool(Tool):
+    name = "keyword_only_argument_tool"
+    description = "A tool whose helper takes a keyword-only flag"
+    inputs = {"text": {"type": "string", "description": "text"}}
+    output_type = "string"
+
+    def _render(self, text, /, *, upper=False):
+        return text.upper() if upper else text
+
+    def forward(self, text):
+        return self._render(text, upper=True)
+
+
+def test_validate_tool_attributes_with_keyword_only_helper_argument():
+    assert validate_tool_attributes(KeywordOnlyArgumentTool) is None
