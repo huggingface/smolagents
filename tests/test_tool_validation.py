@@ -187,3 +187,92 @@ class TestMethodChecker:
         method_checker = MethodChecker(set())
         method_checker.visit(ast.parse(source_code))
         assert method_checker.errors == []
+
+    def test_positional_only_and_keyword_only_arguments(self):
+        source_code = dedent(
+            """
+            def forward(self, input, /, *, upper=False) -> str:
+                return input.upper() if upper else input
+            """
+        )
+        method_checker = MethodChecker(set())
+        method_checker.visit(ast.parse(source_code))
+        assert method_checker.errors == []
+
+
+class KeywordOnlyArgumentTool(Tool):
+    name = "keyword_only_argument_tool"
+    description = "A tool whose helper takes a keyword-only flag"
+    inputs = {"text": {"type": "string", "description": "text"}}
+    output_type = "string"
+
+    def _render(self, text, /, *, upper=False):
+        return text.upper() if upper else text
+
+    def forward(self, text):
+        return self._render(text, upper=True)
+
+
+def test_validate_tool_attributes_with_keyword_only_helper_argument():
+    assert validate_tool_attributes(KeywordOnlyArgumentTool) is None
+
+
+class InvalidToolKeywordOnlyInitParam(Tool):
+    name = "invalid_tool"
+    description = "Tool with a required keyword-only init param"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, *, api_key):
+        super().__init__()
+        self.api_key = api_key
+
+    def forward(self, input):
+        return input
+
+
+class InvalidToolPositionalOnlyInitParam(Tool):
+    name = "invalid_tool"
+    description = "Tool with a required positional-only init param"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, url, /, timeout=5):
+        super().__init__()
+        self.url = url
+        self.timeout = timeout
+
+    def forward(self, input):
+        return input
+
+
+class ValidToolPositionalOnlyAndKeywordOnlyInitParams(Tool):
+    name = "valid_tool"
+    description = "Tool with defaulted positional-only and keyword-only init params"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, url="x", /, timeout=5, *, api_key=None):
+        super().__init__()
+        self.url = url
+        self.timeout = timeout
+        self.api_key = api_key
+
+    def forward(self, input):
+        return input
+
+
+@pytest.mark.parametrize(
+    "tool_class, expected_error",
+    [
+        (InvalidToolKeywordOnlyInitParam, r"must have default values.*api_key"),
+        (InvalidToolPositionalOnlyInitParam, r"must have default values.*url"),
+    ],
+)
+def test_validate_tool_attributes_init_params_without_default(tool_class, expected_error):
+    with pytest.raises(ValueError, match=expected_error):
+        validate_tool_attributes(tool_class)
+
+
+def test_validate_tool_attributes_init_positional_and_keyword_only_defaults():
+    assert validate_tool_attributes(ValidToolPositionalOnlyAndKeywordOnlyInitParams) is None
