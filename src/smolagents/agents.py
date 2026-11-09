@@ -1705,6 +1705,11 @@ class CodeAgent(MultiStepAgent):
                 code_action = json.loads(output_text)["code"]
                 code_action = extract_code_from_text(code_action, self.code_block_tags) or code_action
             else:
+                if getattr(chat_message, "finish_reason", None) == "length":
+                    raise AgentGenerationError(
+                        "The model output was truncated (finish_reason='length'); refusing to execute it.",
+                        self.logger,
+                    )
                 code_action = parse_code_blobs(output_text, self.code_block_tags)
             code_action = fix_final_answer_code(code_action)
             memory_step.code_action = code_action
