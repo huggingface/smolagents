@@ -215,3 +215,64 @@ class KeywordOnlyArgumentTool(Tool):
 
 def test_validate_tool_attributes_with_keyword_only_helper_argument():
     assert validate_tool_attributes(KeywordOnlyArgumentTool) is None
+
+
+class InvalidToolKeywordOnlyInitParam(Tool):
+    name = "invalid_tool"
+    description = "Tool with a required keyword-only init param"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, *, api_key):
+        super().__init__()
+        self.api_key = api_key
+
+    def forward(self, input):
+        return input
+
+
+class InvalidToolPositionalOnlyInitParam(Tool):
+    name = "invalid_tool"
+    description = "Tool with a required positional-only init param"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, url, /, timeout=5):
+        super().__init__()
+        self.url = url
+        self.timeout = timeout
+
+    def forward(self, input):
+        return input
+
+
+class ValidToolPositionalOnlyAndKeywordOnlyInitParams(Tool):
+    name = "valid_tool"
+    description = "Tool with defaulted positional-only and keyword-only init params"
+    inputs = {"input": {"type": "string", "description": "input"}}
+    output_type = "string"
+
+    def __init__(self, url="x", /, timeout=5, *, api_key=None):
+        super().__init__()
+        self.url = url
+        self.timeout = timeout
+        self.api_key = api_key
+
+    def forward(self, input):
+        return input
+
+
+@pytest.mark.parametrize(
+    "tool_class, expected_error",
+    [
+        (InvalidToolKeywordOnlyInitParam, r"must have default values.*api_key"),
+        (InvalidToolPositionalOnlyInitParam, r"must have default values.*url"),
+    ],
+)
+def test_validate_tool_attributes_init_params_without_default(tool_class, expected_error):
+    with pytest.raises(ValueError, match=expected_error):
+        validate_tool_attributes(tool_class)
+
+
+def test_validate_tool_attributes_init_positional_and_keyword_only_defaults():
+    assert validate_tool_attributes(ValidToolPositionalOnlyAndKeywordOnlyInitParams) is None
