@@ -43,7 +43,7 @@ For example, to use the default `o1` model, you need to set the `OPENAI_API_KEY`
 [Sign up here to get a key](https://platform.openai.com/signup).
 
 > [!WARNING]
-> The use of the default `o1` model is restricted to tier-3 access: https://help.openai.com/en/articles/10362446-api-access-to-o1-and-o3-mini
+> The use of the default `o1` model is restricted to tier-3 access: https://developers.openai.com/api/docs/models/o1
 
 
 ## Usage
