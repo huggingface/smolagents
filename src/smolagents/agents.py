@@ -1332,16 +1332,18 @@ class ToolCallingAgent(MultiStepAgent):
         else:
             for tool_call in chat_message.tool_calls:
                 tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+        if len(chat_message.tool_calls) > 1 and any(
+            tool_call.function.name == "final_answer" for tool_call in chat_message.tool_calls
+        ):
+            raise AgentExecutionError(
+                "If you want to return an answer, please do not perform any other tool calls than the final answer tool call!",
+                self.logger,
+            )
         final_answer, got_final_answer = None, False
         for output in self.process_tool_calls(chat_message, memory_step):
             yield output
             if isinstance(output, ToolOutput):
                 if output.is_final_answer:
-                    if len(chat_message.tool_calls) > 1:
-                        raise AgentExecutionError(
-                            "If you want to return an answer, please do not perform any other tool calls than the final answer tool call!",
-                            self.logger,
-                        )
                     if got_final_answer:
                         raise AgentToolExecutionError(
                             "You returned multiple final answers. Please return only one single final answer!",
