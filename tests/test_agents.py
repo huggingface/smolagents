@@ -518,6 +518,20 @@ class TestAgent:
         agent.state["seeded_value"] = 7
         assert agent.run("Return the seeded value.", reset=False) == 7
 
+    def test_continued_run_sends_state_set_between_runs(self):
+        class ReadStateModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="Thought: return it.\n<code>\nfinal_answer(seeded_value)\n</code>",
+                )
+
+        agent = CodeAgent(tools=[], model=ReadStateModel())
+        agent.state["seeded_value"] = 7
+        assert agent.run("Return the seeded value.") == 7
+        agent.state["seeded_value"] = 8
+        assert agent.run("Return it again.", reset=False) == 8
+
     def test_reset_conversations(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())
         output = agent.run("What is 2 multiplied by 3.6452?", reset=True)

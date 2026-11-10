@@ -498,8 +498,13 @@ You have been provided with these additional arguments, that you can access dire
             if reset or not self._executor_seeded:
                 self.python_executor.send_variables(variables=self.state)
                 self._executor_seeded = True
-            elif additional_args:
-                self.python_executor.send_variables(variables=additional_args)
+            else:
+                sent_state = getattr(self, "_sent_state", {})
+                changed = {k: v for k, v in self.state.items() if k not in sent_state or sent_state[k] is not v}
+                changed.update(additional_args or {})
+                if changed:
+                    self.python_executor.send_variables(variables=changed)
+            self._sent_state = dict(self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
         if stream:
