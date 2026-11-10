@@ -24,11 +24,14 @@ from smolagents import Tool
 from smolagents.tools import tool
 from smolagents.utils import (
     create_agent_gradio_app_template,
+    extract_code_from_text,
     get_source,
     instance_to_source,
     is_valid_name,
     parse_code_blobs,
     parse_json_blob,
+    sanitize_for_rich,
+    truncate_content,
 )
 
 
@@ -552,3 +555,68 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+def test_truncate_content_returns_short_content_unchanged():
+    text = "hello world"
+    assert truncate_content(text) == text
+    assert truncate_content(text, max_length=len(text)) == text
+
+
+def test_truncate_content_truncates_long_content():
+    text = "x" * 100
+    max_length = 20
+    out = truncate_content(text, max_length=max_length)
+    assert out.startswith("x" * (max_length // 2))
+    assert out.endswith("x" * (max_length // 2))
+    assert f"This content has been truncated to stay below {max_length} characters" in out
+
+
+def test_truncate_content_marker_format():
+    text = "a" * 50
+    out = truncate_content(text, max_length=10)
+    expected_mid = "\n..._This content has been truncated to stay below 10 characters_...\n"
+    assert out == "a" * 5 + expected_mid + "a" * 5
+
+
+def test_sanitize_for_rich_none_and_str():
+    assert sanitize_for_rich(None) == ""
+    assert sanitize_for_rich("plain text") == "plain text"
+
+
+def test_sanitize_for_rich_bytes():
+    assert sanitize_for_rich(b"hello") == "hello"
+    assert sanitize_for_rich(bytearray(b"abc")) == "abc"
+    assert sanitize_for_rich(memoryview(b"xyz")) == "xyz"
+
+
+def test_sanitize_for_rich_control_chars():
+    assert sanitize_for_rich("a\x01b") == "a\\x01b"
+    assert sanitize_for_rich("a\x07b") == "a\\x07b"
+
+
+def test_sanitize_for_rich_keeps_whitespace():
+    assert sanitize_for_rich("line1\nline2\ttab") == "line1\nline2\ttab"
+
+
+def test_sanitize_for_rich_non_str():
+    assert sanitize_for_rich(123) == "123"
+
+
+def test_extract_code_from_text_single_block():
+    text = "```python\nprint(1)\n```"
+    assert extract_code_from_text(text, ("```python", "```")) == "print(1)"
+
+
+def test_extract_code_from_text_multiple_blocks():
+    text = "```\nalpha\n```\nmiddle\n```\nbeta\n```"
+    assert extract_code_from_text(text, ("```", "```")) == "alpha\n\nbeta"
+
+
+def test_extract_code_from_text_no_block():
+    assert extract_code_from_text("no code here", ("```", "```")) is None
+
+
+def test_extract_code_from_text_strips_whitespace():
+    text = "```\n   spaced   \n```"
+    assert extract_code_from_text(text, ("```", "```")) == "spaced"
+
