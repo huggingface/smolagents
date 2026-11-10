@@ -371,6 +371,19 @@ for result in search_results:
         assert result == 2
         self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
 
+    def test_for_else(self):
+        # The else clause runs when the loop completes without a break.
+        code = "for i in [1, 2, 3]:\n    pass\nelse:\n    print('done')"
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["_print_outputs"].value == "done\n"
+
+        # The else clause does not run when the loop is broken.
+        code = "for i in [1, 2, 3]:\n    break\nelse:\n    print('should not run')"
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["_print_outputs"].value == ""
+
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
@@ -667,6 +680,19 @@ simple_set = {
         )
         state = {}
         evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+
+    def test_while_else(self):
+        # The else clause runs when the condition becomes false without a break.
+        code = "i = 0\nwhile i < 3:\n    i += 1\nelse:\n    print('done')"
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["_print_outputs"].value == "done\n"
+
+        # The else clause does not run when the loop is broken.
+        code = "while True:\n    break\nelse:\n    print('should not run')"
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["_print_outputs"].value == ""
 
     def test_generator(self):
         code = "a = [1, 2, 3, 4, 5]; b = (i**2 for i in a); list(b)"

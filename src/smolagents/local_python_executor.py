@@ -456,6 +456,9 @@ def evaluate_while(
         iterations += 1
         if iterations > MAX_WHILE_ITERATIONS:
             raise InterpreterError(f"Maximum number of {MAX_WHILE_ITERATIONS} iterations in While loop exceeded")
+    else:
+        for node in while_loop.orelse:
+            evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
     return None
 
 
@@ -1041,15 +1044,24 @@ def evaluate_for(
             custom_tools,
             authorized_imports,
         )
+        broke = False
         for node in for_loop.body:
             try:
                 line_result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
                 if line_result is not None:
                     result = line_result
             except BreakException:
-                return result
+                broke = True
+                break
             except ContinueException:
                 break
+        if broke:
+            break
+    else:
+        for node in for_loop.orelse:
+            line_result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
+            if line_result is not None:
+                result = line_result
     return result
 
 
