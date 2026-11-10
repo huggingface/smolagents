@@ -1455,6 +1455,11 @@ def evaluate_ast(
         return evaluate_annassign(expression, *common_params)
     elif isinstance(expression, ast.AugAssign):
         return evaluate_augassign(expression, *common_params)
+    elif isinstance(expression, ast.NamedExpr):
+        # Walrus operator (PEP 572): evaluate the value, bind it to the target name, and return it
+        value = evaluate_ast(expression.value, *common_params)
+        set_value(expression.target, value, state, static_tools, custom_tools, authorized_imports)
+        return value
     elif isinstance(expression, ast.Call):
         # Function call -> we return the value of the function call
         return evaluate_call(expression, *common_params)

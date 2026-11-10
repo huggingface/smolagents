@@ -371,6 +371,19 @@ for result in search_results:
         assert result == 2
         self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
 
+    def test_evaluate_namedexpr_walrus(self):
+        # Walrus operator assigns to the target name and evaluates to the assigned value.
+        code = "(x := 5)"
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert result == 5
+        assert state["x"] == 5
+
+        # Walrus inside a larger expression and a while condition.
+        code = "y = (z := 10) + 1\nn = 0\nwhile (n := n + 1) < 3:\n    pass\nn"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 3
+
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
