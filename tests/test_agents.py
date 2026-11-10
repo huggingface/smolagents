@@ -504,6 +504,20 @@ class TestAgent:
         assert second == 50
         assert agent.python_executor.state["remaining_budget"] == 50
 
+    def test_first_run_with_reset_false_seeds_state(self):
+        # GH#3143: when the very first run of an agent uses reset=False, the executor must still be
+        # seeded with the agent's initial state rather than left empty.
+        class ReadStateModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="Thought: return it.\n<code>\nfinal_answer(seeded_value)\n</code>",
+                )
+
+        agent = CodeAgent(tools=[], model=ReadStateModel())
+        agent.state["seeded_value"] = 7
+        assert agent.run("Return the seeded value.", reset=False) == 7
+
     def test_reset_conversations(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())
         output = agent.run("What is 2 multiplied by 3.6452?", reset=True)
