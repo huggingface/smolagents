@@ -481,6 +481,57 @@ class TestAgent:
         )
         assert "Remember this" in agent.task
 
+    def test_continued_run_preserves_updated_state(self):
+        # GH#3143: a reset=False run must keep the variables the previous run
+        # updated, instead of overwriting them with the stale additional_args seed.
+        class BudgetModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                self.calls = getattr(self, "calls", 0) + 1
+                amount = 40 if self.calls == 1 else 10
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=(
+                        "Thought: deduct the purchase.\n<code>\n"
+                        f"remaining_budget = remaining_budget - {amount}\n"
+                        "final_answer(remaining_budget)\n</code>"
+                    ),
+                )
+
+        agent = CodeAgent(tools=[], model=BudgetModel())
+        first = agent.run("First purchase.", additional_args={"remaining_budget": 100})
+        assert first == 60
+        second = agent.run("Second purchase.", reset=False)
+        assert second == 50
+        assert agent.python_executor.state["remaining_budget"] == 50
+
+    def test_first_run_with_reset_false_seeds_state(self):
+        # GH#3143: when the very first run of an agent uses reset=False, the executor must still be
+        # seeded with the agent's initial state rather than left empty.
+        class ReadStateModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="Thought: return it.\n<code>\nfinal_answer(seeded_value)\n</code>",
+                )
+
+        agent = CodeAgent(tools=[], model=ReadStateModel())
+        agent.state["seeded_value"] = 7
+        assert agent.run("Return the seeded value.", reset=False) == 7
+
+    def test_continued_run_sends_state_set_between_runs(self):
+        class ReadStateModel(Model):
+            def generate(self, messages, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="Thought: return it.\n<code>\nfinal_answer(seeded_value)\n</code>",
+                )
+
+        agent = CodeAgent(tools=[], model=ReadStateModel())
+        agent.state["seeded_value"] = 7
+        assert agent.run("Return the seeded value.") == 7
+        agent.state["seeded_value"] = 8
+        assert agent.run("Return it again.", reset=False) == 8
+
     def test_reset_conversations(self):
         agent = CodeAgent(tools=[PythonInterpreterTool()], model=FakeCodeModel())
         output = agent.run("What is 2 multiplied by 3.6452?", reset=True)

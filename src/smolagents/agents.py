@@ -329,6 +329,9 @@ class MultiStepAgent(ABC):
         self.step_number = 0
         self.planning_interval = planning_interval
         self.state: dict[str, Any] = {}
+        # Whether the executor has already been seeded with the full agent-side state. Seeding happens
+        # on the first run (or any reset=True run); continued runs only push newly provided inputs.
+        self._executor_seeded = False
         self.name = self._validate_name(name)
         self.description = description
         self.provide_run_summary = provide_run_summary
@@ -488,7 +491,20 @@ You have been provided with these additional arguments, that you can access dire
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
 
         if getattr(self, "python_executor", None):
-            self.python_executor.send_variables(variables=self.state)
+            # Once the executor has been seeded, it holds the live variables from previous runs.
+            # Re-sending the whole agent-side state would overwrite them with the stale seed values
+            # (e.g. the original additional_args), so only send the full state when seeding it (the
+            # first run, or any reset=True run) and otherwise just add newly provided additional_args.
+            if reset or not self._executor_seeded:
+                self.python_executor.send_variables(variables=self.state)
+                self._executor_seeded = True
+            else:
+                sent_state = getattr(self, "_sent_state", {})
+                changed = {k: v for k, v in self.state.items() if k not in sent_state or sent_state[k] is not v}
+                changed.update(additional_args or {})
+                if changed:
+                    self.python_executor.send_variables(variables=changed)
+            self._sent_state = dict(self.state)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
         if stream:
