@@ -384,6 +384,45 @@ for result in search_results:
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
         assert result == 3
 
+    def test_evaluate_namedexpr_walrus_in_comprehension(self):
+        # PEP 572: a walrus inside a comprehension/generator binds in the
+        # enclosing scope, not the per-iteration scope.
+        code = "[(x := i) for i in range(3)]\nx"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 2
+
+        # The common "search and capture" idiom inside any().
+        code = "any((m := i) for i in range(3))\nm"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 0
+
+        # Accumulation across iterations.
+        code = "total = 0\n[total := total + x for x in [1, 2, 3]]\ntotal"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 6
+
+        # Walrus in a filter condition.
+        code = "[(y := i) for i in range(5) if i > 2]\ny"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 4
+
+        # Dict comprehension.
+        code = "{i: (k := i * 2) for i in range(3)}\nk"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 4
+
+        # Nested comprehension propagates the binding to the outermost scope.
+        code = "[[(x := j) for j in range(2)] for i in range(2)]\nx"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 1
+
+        # The iteration variable itself must not leak into the outer scope.
+        code = "[i * i for i in range(3)]"
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert result == [0, 1, 4]
+        assert "i" not in state
+
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
