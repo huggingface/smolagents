@@ -795,6 +795,33 @@ class TestToolDecorator:
         assert "            multiplier: int = 2," not in forward_source
         assert "            multiplier: int=2," not in forward_source
 
+    def test_to_dict_only_renames_the_definition_line(self):
+        """A tool body that mentions the tool name, or the literal "@tool", is serialized unchanged."""
+
+        @tool
+        def search(text: str) -> str:
+            """Find the first integer in a text.
+
+            Args:
+                text: The text to scan.
+            """
+            import re
+
+            match = re.search(r"\d+", text)
+            return f"decorated with @tool: {match.group(0)}" if match else "none"
+
+        assert search("abc 42 def") == "decorated with @tool: 42"
+
+        code = search.to_dict()["code"]
+        # The body must keep its own identifiers and literals: only the definition line is renamed.
+        assert "re.search(" in code
+        assert "re.forward(" not in code
+        assert "decorated with @tool: " in code
+        assert "decorated with : " not in code
+
+        reloaded = Tool.from_code(code)
+        assert reloaded("abc 42 def") == search("abc 42 def")
+
 
 @pytest.fixture
 def mock_server_parameters():

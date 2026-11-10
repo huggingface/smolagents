@@ -335,9 +335,28 @@ class Tool(BaseTool):
 
                 return re.sub(pattern, replacement, source_code)
 
-            forward_source_code = forward_source_code.replace(self.name, "forward")
+            def rename_definition_to_forward(source_code: str) -> str:
+                """Rename the tool's own function definition, leaving the body untouched."""
+                return re.sub(
+                    rf"^(\s*)def\s+{re.escape(self.name)}\s*\(",
+                    r"\1def forward(",
+                    source_code,
+                    count=1,
+                    flags=re.MULTILINE,
+                )
+
+            def strip_tool_decorator(source_code: str) -> str:
+                """Remove leading `@tool` decorator lines, leaving the body untouched."""
+                lines = source_code.splitlines()
+                body_start = next((index for index, line in enumerate(lines) if line.lstrip().startswith("def ")), 0)
+                header = [line for line in lines[:body_start] if line.lstrip() != "@tool"]
+                return "\n".join(header + lines[body_start:])
+
+            # Only the definition line and a leading decorator may be rewritten: replacing every
+            # occurrence of the tool name or of "@tool" would also corrupt the function body.
+            forward_source_code = rename_definition_to_forward(forward_source_code)
             forward_source_code = add_self_argument(forward_source_code)
-            forward_source_code = forward_source_code.replace("@tool", "").strip()
+            forward_source_code = strip_tool_decorator(forward_source_code).strip()
             tool_code += "\n\n" + textwrap.indent(forward_source_code, "    ")
 
         else:  # If the tool was not created by the @tool decorator, it was made by subclassing Tool
