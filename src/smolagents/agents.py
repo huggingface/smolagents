@@ -488,7 +488,15 @@ You have been provided with these additional arguments, that you can access dire
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
 
         if getattr(self, "python_executor", None):
-            self.python_executor.send_variables(variables=self.state)
+            # On a continued run (reset=False) the executor already holds the live
+            # variables from the previous run. Re-sending the whole agent-side state
+            # would overwrite them with the stale seed values (e.g. the original
+            # additional_args), so only seed the full state on a fresh run and just
+            # add any newly provided additional_args otherwise.
+            if reset:
+                self.python_executor.send_variables(variables=self.state)
+            elif additional_args:
+                self.python_executor.send_variables(variables=additional_args)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
         if stream:
