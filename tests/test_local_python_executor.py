@@ -989,6 +989,13 @@ a.count += 1
         assert state["counts_list"] == [1, 2, 3, 4, 5, 6]
         assert state["a"].count == 1
 
+    def test_augassign_undefined_name_raises_error(self):
+        # AugAssign on an undefined name must raise instead of silently treating it as 0.
+        code = "x += 5"
+        with pytest.raises(InterpreterError) as e:
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert "The variable `x` is not defined." in str(e.value)
+
     def test_adding_int_to_list_raises_error(self):
         code = """
 counts = [1, 2, 3]
