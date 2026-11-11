@@ -597,6 +597,8 @@ class Tool(BaseTool):
         """
         if trust_remote_code is False:
             raise ValueError(error_message)
+        # Unlike `from_hub`, which refuses on `None`, a local load only warns for now: people reload their own saved
+        # agents this way, so they get a deprecation window. Keep the two apart.
         if trust_remote_code is None:
             warnings.warn(
                 "Loading a saved tool or agent executes its tool code. Pass `trust_remote_code=True` to confirm you "
