@@ -66,6 +66,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+TOOL_TRUST_ERROR = (
+    "Loading a tool from Hub requires to acknowledge you trust its code: to do so, pass `trust_remote_code=True`."
+)
+
 
 def validate_after_init(cls):
     original_init = cls.__init__
@@ -365,12 +369,21 @@ class Tool(BaseTool):
         return tool_dict
 
     @classmethod
-    def from_dict(cls, tool_dict: dict[str, Any], **kwargs) -> "Tool":
+    def from_dict(cls, tool_dict: dict[str, Any], trust_remote_code: bool | None = None, **kwargs) -> "Tool":
         """
         Create tool from a dictionary representation.
 
+        <Tip warning={true}>
+
+        Creating a tool from a dictionary executes the code it contains. Only load dictionaries you trust.
+
+        </Tip>
+
         Args:
             tool_dict (`dict[str, Any]`): Dictionary representation of the tool.
+            trust_remote_code (`bool`, *optional*):
+                Set to `True` to confirm you trust the tool's code. `False` refuses to execute it. Leaving it unset
+                loads the tool with a `FutureWarning`: it will be required in a future release.
             **kwargs: Additional keyword arguments to pass to the tool's constructor.
 
         Returns:
@@ -379,7 +392,7 @@ class Tool(BaseTool):
         if "code" not in tool_dict:
             raise ValueError("Tool dictionary must contain 'code' key with the tool source code")
 
-        tool = cls.from_code(tool_dict["code"], **kwargs)
+        tool = cls._from_trusted_code(tool_dict["code"], trust_remote_code, TOOL_TRUST_ERROR, **kwargs)
 
         # Set output_schema if it exists in the dictionary
         if "output_schema" in tool_dict:
@@ -547,9 +560,7 @@ class Tool(BaseTool):
                 others will be passed along to its init.
         """
         if not trust_remote_code:
-            raise ValueError(
-                "Loading a tool from Hub requires to acknowledge you trust its code: to do so, pass `trust_remote_code=True`."
-            )
+            raise ValueError(TOOL_TRUST_ERROR)
 
         # Get the tool's tool.py file.
         tool_file = hf_hub_download(
@@ -567,6 +578,35 @@ class Tool(BaseTool):
 
         tool_code = Path(tool_file).read_text()
         return Tool.from_code(tool_code, **kwargs)
+
+    @classmethod
+    def _from_trusted_code(cls, tool_code: str, trust_remote_code: bool | None, error_message: str, **kwargs):
+        """
+        Executes tool code read from a saved agent or tool, once the caller has decided whether it trusts that code.
+
+        Every loader that reads tool code from a folder or a dictionary goes through here, so the trust decision is
+        made in one place before [`Tool.from_code`] runs the code.
+
+        Args:
+            tool_code (`str`): The tool's source code.
+            trust_remote_code (`bool`, *optional*):
+                `True` executes the code, `False` raises a `ValueError` with `error_message`, and `None` executes it
+                with a `FutureWarning`, since passing `trust_remote_code=True` will be required in a future release.
+            error_message (`str`): The message of the `ValueError` raised when `trust_remote_code` is `False`.
+            **kwargs: Additional keyword arguments to pass to the tool's constructor.
+        """
+        if trust_remote_code is False:
+            raise ValueError(error_message)
+        # Unlike `from_hub`, which refuses on `None`, a local load only warns for now: people reload their own saved
+        # agents this way, so they get a deprecation window. Keep the two apart.
+        if trust_remote_code is None:
+            warnings.warn(
+                "Loading a saved tool or agent executes its tool code. Pass `trust_remote_code=True` to confirm you "
+                "trust it: leaving it unset is deprecated and will raise an error in a future release.",
+                FutureWarning,
+                stacklevel=3,
+            )
+        return cls.from_code(tool_code, **kwargs)
 
     @classmethod
     def from_code(cls, tool_code: str, **kwargs):

@@ -98,6 +98,10 @@ from .utils import (
 
 logger = getLogger(__name__)
 
+AGENT_TRUST_ERROR = (
+    "Loading an agent from Hub requires to acknowledge you trust its code: to do so, pass `trust_remote_code=True`."
+)
+
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
     compiled_template = Template(template, undefined=StrictUndefined)
@@ -1008,11 +1012,24 @@ You have been provided with these additional arguments, that you can access dire
         return agent_dict
 
     @classmethod
-    def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "MultiStepAgent":
+    def from_dict(
+        cls, agent_dict: dict[str, Any], trust_remote_code: bool | None = None, **kwargs
+    ) -> "MultiStepAgent":
         """Create agent from a dictionary representation.
+
+        <Tip warning={true}>
+
+        Creating an agent from a dictionary executes the code of its tools and of its managed agents' tools. Only
+        load dictionaries you trust.
+
+        </Tip>
 
         Args:
             agent_dict (`dict[str, Any]`): Dictionary representation of the agent.
+            trust_remote_code (`bool`, *optional*):
+                Set to `True` to confirm you trust the tools' code. `False` refuses to execute it. Leaving it unset
+                loads the agent with a `FutureWarning`: it will be required in a future release. Managed agents are
+                loaded with the same value.
             **kwargs: Additional keyword arguments that will override agent_dict values.
 
         Returns:
@@ -1030,7 +1047,7 @@ You have been provided with these additional arguments, that you can access dire
         # Load tools
         tools = []
         for tool_info in agent_dict["tools"]:
-            tools.append(Tool.from_code(tool_info["code"]))
+            tools.append(Tool._from_trusted_code(tool_info["code"], trust_remote_code, AGENT_TRUST_ERROR))
         # Load managed agents
         managed_agents = []
         for managed_agent_dict in agent_dict["managed_agents"]:
@@ -1040,7 +1057,7 @@ You have been provided with these additional arguments, that you can access dire
                     f"Unknown agent class '{managed_agent_dict['class']}'. "
                     f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
                 )
-            managed_agent = agent_class.from_dict(managed_agent_dict, **kwargs)
+            managed_agent = agent_class.from_dict(managed_agent_dict, trust_remote_code=trust_remote_code, **kwargs)
             managed_agents.append(managed_agent)
         # Extract base agent parameters
         agent_args = {
@@ -1095,9 +1112,7 @@ You have been provided with these additional arguments, that you can access dire
                 others will be passed along to its init.
         """
         if not trust_remote_code:
-            raise ValueError(
-                "Loading an agent from Hub requires to acknowledge you trust its code: to do so, pass `trust_remote_code=True`."
-            )
+            raise ValueError(AGENT_TRUST_ERROR)
 
         # Get the agent's Hub folder.
         download_kwargs = {"token": token, "repo_type": "space"} | {
@@ -1113,14 +1128,24 @@ You have been provided with these additional arguments, that you can access dire
         }
 
         download_folder = Path(snapshot_download(repo_id=repo_id, **download_kwargs))
-        return cls.from_folder(download_folder, **kwargs)
+        return cls.from_folder(download_folder, trust_remote_code=True, **kwargs)
 
     @classmethod
-    def from_folder(cls, folder: str | Path, **kwargs):
+    def from_folder(cls, folder: str | Path, trust_remote_code: bool | None = None, **kwargs):
         """Loads an agent from a local folder.
+
+        <Tip warning={true}>
+
+        Loading an agent executes the code of its tools and of its managed agents' tools. Only load folders you trust.
+
+        </Tip>
 
         Args:
             folder (`str` or `Path`): The folder where the agent is saved.
+            trust_remote_code (`bool`, *optional*):
+                Set to `True` to confirm you trust the tools' code. `False` refuses to execute it. Leaving it unset
+                loads the agent with a `FutureWarning`: it will be required in a future release. Managed agents are
+                loaded with the same value.
             **kwargs: Additional keyword arguments that will be passed to the agent's init.
         """
         # Load agent.json
@@ -1141,7 +1166,11 @@ You have been provided with these additional arguments, that you can access dire
                     f"Unknown agent class '{managed_agent_class_name}'. "
                     f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
                 )
-            managed_agents.append(agent_cls.from_folder(folder / "managed_agents" / managed_agent_name))
+            managed_agents.append(
+                agent_cls.from_folder(
+                    folder / "managed_agents" / managed_agent_name, trust_remote_code=trust_remote_code
+                )
+            )
         agent_dict["managed_agents"] = {}
 
         # Load tools
@@ -1155,7 +1184,7 @@ You have been provided with these additional arguments, that you can access dire
         if managed_agents:
             kwargs["managed_agents"] = managed_agents
 
-        return cls.from_dict(agent_dict, **kwargs)
+        return cls.from_dict(agent_dict, trust_remote_code=trust_remote_code, **kwargs)
 
     def push_to_hub(
         self,
@@ -1777,11 +1806,13 @@ class CodeAgent(MultiStepAgent):
         return agent_dict
 
     @classmethod
-    def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "CodeAgent":
+    def from_dict(cls, agent_dict: dict[str, Any], trust_remote_code: bool | None = None, **kwargs) -> "CodeAgent":
         """Create CodeAgent from a dictionary representation.
 
         Args:
             agent_dict (`dict[str, Any]`): Dictionary representation of the agent.
+            trust_remote_code (`bool`, *optional*):
+                Whether you trust the code of the agent's tools: see [`MultiStepAgent.from_dict`].
             **kwargs: Additional keyword arguments that will override agent_dict values.
 
         Returns:
@@ -1800,7 +1831,7 @@ class CodeAgent(MultiStepAgent):
         # Update with any additional kwargs
         code_agent_kwargs.update(kwargs)
         # Call the parent class's from_dict method
-        return super().from_dict(agent_dict, **code_agent_kwargs)
+        return super().from_dict(agent_dict, trust_remote_code=trust_remote_code, **code_agent_kwargs)
 
 
 # Agent Registry for secure deserialization

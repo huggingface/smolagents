@@ -18,6 +18,7 @@ import os
 import re
 import tempfile
 import uuid
+import warnings
 from collections.abc import Generator
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
@@ -37,6 +38,7 @@ from rich.console import Console
 from smolagents import EMPTY_PROMPT_TEMPLATES
 from smolagents.agent_types import AgentImage, AgentText
 from smolagents.agents import (
+    AGENT_TRUST_ERROR,
     AgentError,
     AgentMaxStepsError,
     AgentToolCallError,
@@ -2626,3 +2628,72 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class TestTrustRemoteCode:
+    """Loading a saved agent runs its tools' code, so `from_folder` and `from_dict` follow `trust_remote_code`."""
+
+    @pytest.fixture
+    def saved_agent(self, tmp_path):
+        @tool
+        def shout(text: str) -> str:
+            """Returns the text in upper case.
+
+            Args:
+                text: The text to shout.
+            """
+            return text.upper()
+
+        model = InferenceClientModel(model_id="test-model")
+        helper = CodeAgent(model=model, tools=[shout], name="helper", description="Shouts the text it gets.")
+        agent = ToolCallingAgent(model=model, tools=[], managed_agents=[helper])
+        agent.save(tmp_path)
+        return agent, tmp_path
+
+    LOADERS = {
+        "from_folder": lambda agent, folder, **kwargs: ToolCallingAgent.from_folder(folder, **kwargs),
+        "from_dict": lambda agent, folder, **kwargs: ToolCallingAgent.from_dict(agent.to_dict(), **kwargs),
+    }
+
+    @pytest.mark.parametrize("loader", LOADERS)
+    def test_false_raises_before_any_tool_code_runs(self, saved_agent, loader):
+        with patch("smolagents.tools.Tool.from_code") as from_code:
+            with pytest.raises(ValueError) as e:
+                self.LOADERS[loader](*saved_agent, trust_remote_code=False)
+        assert str(e.value) == AGENT_TRUST_ERROR
+        from_code.assert_not_called()
+
+    @pytest.mark.parametrize("loader", LOADERS)
+    def test_true_loads_without_warning(self, saved_agent, loader):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            agent = self.LOADERS[loader](*saved_agent, trust_remote_code=True)
+        assert agent.managed_agents["helper"].tools["shout"]("hi") == "HI"
+
+    @pytest.mark.parametrize("loader", LOADERS)
+    def test_unset_loads_with_a_future_warning(self, saved_agent, loader):
+        with pytest.warns(FutureWarning, match="trust_remote_code=True"):
+            agent = self.LOADERS[loader](*saved_agent)
+        assert agent.managed_agents["helper"].tools["shout"]("hi") == "HI"
+
+    @pytest.mark.parametrize("loader", LOADERS)
+    @pytest.mark.parametrize("trust_remote_code", [True, None])
+    def test_managed_agents_get_the_same_decision(self, saved_agent, loader, trust_remote_code):
+        with patch("smolagents.tools.Tool._from_trusted_code", wraps=Tool._from_trusted_code) as checked:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", FutureWarning)
+                self.LOADERS[loader](*saved_agent, trust_remote_code=trust_remote_code)
+        calls = checked.call_args_list
+        assert any("shout" in call.args[0] for call in calls), "the managed agent's tool skipped the check"
+        assert all(call.args[1] is trust_remote_code for call in calls)
+
+    def test_from_hub_trusts_the_folder_it_downloaded(self, saved_agent):
+        _, folder = saved_agent
+        with patch("smolagents.agents.snapshot_download", return_value=str(folder)):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", FutureWarning)
+                agent = ToolCallingAgent.from_hub("user/agent", trust_remote_code=True)
+            with pytest.raises(ValueError) as e:
+                ToolCallingAgent.from_hub("user/agent")
+        assert agent.managed_agents["helper"].tools["shout"]("hi") == "HI"
+        assert str(e.value) == AGENT_TRUST_ERROR
