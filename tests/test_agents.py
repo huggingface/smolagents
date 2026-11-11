@@ -1448,6 +1448,21 @@ class TestMultiStepAgent:
             agent.run("Test task")
         assert "Agent interrupted" in str(e)
 
+    def test_interrupt_from_planning_callback_skips_action_step(self):
+        def interrupt_callback(memory_step, agent):
+            agent.interrupt()
+
+        agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModelPlanning(),
+            planning_interval=1,
+            step_callbacks={PlanningStep: interrupt_callback},
+        )
+        with pytest.raises(AgentError, match="Agent interrupted"):
+            agent.run("Test task")
+        assert any(isinstance(step, PlanningStep) for step in agent.memory.steps)
+        assert not any(isinstance(step, ActionStep) for step in agent.memory.steps)
+
     @pytest.mark.parametrize(
         "tools, managed_agents, name, expectation",
         [
