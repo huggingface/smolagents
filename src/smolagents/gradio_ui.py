@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import filecmp
 import os
 import re
 import shutil
@@ -328,7 +329,16 @@ class GradioUI:
 
         original_name = os.path.basename(file_path)
         sanitized_name = re.sub(r"[^\w\-.]", "_", original_name)
+        stem, ext = os.path.splitext(sanitized_name)
         dest_path = os.path.join(self.file_upload_folder, sanitized_name)
+        counter = 1
+        while os.path.exists(dest_path):
+            if filecmp.cmp(file_path, dest_path, shallow=False):
+                # Same content already saved, so reuse it instead of copying a duplicate
+                return dest_path
+            # A different file with the same name: keep both
+            dest_path = os.path.join(self.file_upload_folder, f"{stem}_{counter}{ext}")
+            counter += 1
         shutil.copy(file_path, dest_path)
         return dest_path
 
