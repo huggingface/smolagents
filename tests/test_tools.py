@@ -25,7 +25,15 @@ import PIL.Image
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
+from smolagents.tools import (
+    AUTHORIZED_TYPES,
+    TOOL_TRUST_ERROR,
+    Tool,
+    ToolCollection,
+    launch_gradio_demo,
+    tool,
+    validate_tool_arguments,
+)
 
 from .utils.markers import require_run_all
 
@@ -605,6 +613,21 @@ class TestTool:
         # Verify functionality
         test_input = "Hello, world!"
         assert recreated_tool(test_input) == test_input.upper()
+
+    def test_from_dict_trust_remote_code(self, example_tool):
+        tool_dict = example_tool.to_dict()
+        with patch("smolagents.tools.Tool.from_code") as from_code:
+            with pytest.raises(ValueError) as e:
+                Tool.from_dict(tool_dict, trust_remote_code=False)
+        assert str(e.value) == TOOL_TRUST_ERROR
+        from_code.assert_not_called()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            assert Tool.from_dict(tool_dict, trust_remote_code=True)("hi") == "HI"
+
+        with pytest.warns(FutureWarning, match="trust_remote_code=True"):
+            assert Tool.from_dict(tool_dict)("hi") == "HI"
 
     def test_tool_from_dict_invalid(self):
         # Missing code key
