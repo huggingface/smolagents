@@ -119,6 +119,43 @@ class GradioUITester(unittest.TestCase):
                 if os.path.exists(special_char_name):
                     os.remove(special_char_name)
 
+    def test_upload_same_name_different_content_keeps_both(self):
+        """Two different files with the same name must not overwrite each other"""
+        with tempfile.TemporaryDirectory() as source_dir:
+            first = os.path.join(source_dir, "first")
+            second = os.path.join(source_dir, "second")
+            os.makedirs(first)
+            os.makedirs(second)
+            first_path = os.path.join(first, "report.txt")
+            second_path = os.path.join(second, "report.txt")
+            with open(first_path, "w") as f:
+                f.write("FIRST FILE")
+            with open(second_path, "w") as f:
+                f.write("SECOND FILE")
+
+            saved_first = self.ui._save_uploaded_file(first_path)
+            saved_second = self.ui._save_uploaded_file(second_path)
+
+            self.assertNotEqual(saved_first, saved_second)
+            with open(saved_first) as f:
+                self.assertEqual(f.read(), "FIRST FILE")
+            with open(saved_second) as f:
+                self.assertEqual(f.read(), "SECOND FILE")
+            self.assertEqual(os.path.basename(saved_second), "report_1.txt")
+
+    def test_upload_same_file_twice_reuses_the_saved_copy(self):
+        """Saving the same file again, as happens when a message is sent, adds no duplicate"""
+        with tempfile.TemporaryDirectory() as source_dir:
+            path = os.path.join(source_dir, "report.txt")
+            with open(path, "w") as f:
+                f.write("CONTENT")
+
+            saved_first = self.ui._save_uploaded_file(path)
+            saved_second = self.ui._save_uploaded_file(path)
+
+            self.assertEqual(saved_first, saved_second)
+            self.assertEqual(os.listdir(self.temp_dir), ["report.txt"])
+
     def test_upload_file_custom_types(self):
         """Test custom allowed file types"""
         with tempfile.NamedTemporaryFile(suffix=".csv") as temp_file:
