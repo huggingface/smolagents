@@ -1167,7 +1167,9 @@ You have been provided with these additional arguments, that you can access dire
                     f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
                 )
             managed_agents.append(
-                agent_cls.from_folder(folder / "managed_agents" / managed_agent_name, trust_remote_code=trust_remote_code)
+                agent_cls.from_folder(
+                    folder / "managed_agents" / managed_agent_name, trust_remote_code=trust_remote_code
+                )
             )
         agent_dict["managed_agents"] = {}
 

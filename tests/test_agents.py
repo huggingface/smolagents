@@ -2645,14 +2645,14 @@ class TestTrustRemoteCode:
             return text.upper()
 
         model = InferenceClientModel(model_id="test-model")
-        helper = ToolCallingAgent(model=model, tools=[shout], name="helper", description="Shouts the text it gets.")
-        agent = CodeAgent(model=model, tools=[], managed_agents=[helper])
+        helper = CodeAgent(model=model, tools=[shout], name="helper", description="Shouts the text it gets.")
+        agent = ToolCallingAgent(model=model, tools=[], managed_agents=[helper])
         agent.save(tmp_path)
         return agent, tmp_path
 
     LOADERS = {
-        "from_folder": lambda agent, folder, **kwargs: CodeAgent.from_folder(folder, **kwargs),
-        "from_dict": lambda agent, folder, **kwargs: CodeAgent.from_dict(agent.to_dict(), **kwargs),
+        "from_folder": lambda agent, folder, **kwargs: ToolCallingAgent.from_folder(folder, **kwargs),
+        "from_dict": lambda agent, folder, **kwargs: ToolCallingAgent.from_dict(agent.to_dict(), **kwargs),
     }
 
     @pytest.mark.parametrize("loader", LOADERS)
@@ -2692,8 +2692,8 @@ class TestTrustRemoteCode:
         with patch("smolagents.agents.snapshot_download", return_value=str(folder)):
             with warnings.catch_warnings():
                 warnings.simplefilter("error", FutureWarning)
-                agent = CodeAgent.from_hub("user/agent", trust_remote_code=True)
+                agent = ToolCallingAgent.from_hub("user/agent", trust_remote_code=True)
             with pytest.raises(ValueError) as e:
-                CodeAgent.from_hub("user/agent")
+                ToolCallingAgent.from_hub("user/agent")
         assert agent.managed_agents["helper"].tools["shout"]("hi") == "HI"
         assert str(e.value) == AGENT_TRUST_ERROR
