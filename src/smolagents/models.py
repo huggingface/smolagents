@@ -128,8 +128,6 @@ class ChatMessage:
     raw: Any | None = None  # Stores the raw output from the API
     token_usage: TokenUsage | None = None
     finish_reason: str | None = None  # The provider's end reason, e.g. "length" or "stop"
-    finish_reason: str | None = None  # The provider's end reason, e.g. "length" or "stop"
-    finish_reason: str | None = None  # The provider's end reason, e.g. "length" or "stop"
 
     def __post_init__(self) -> None:
         if self.tool_calls is None:
@@ -155,6 +153,7 @@ class ChatMessage:
             tool_calls=data.get("tool_calls"),
             raw=raw,
             token_usage=token_usage,
+            finish_reason=data.get("finish_reason"),
         )
 
     def dict(self):
@@ -218,8 +217,6 @@ class ChatMessageStreamDelta:
     content: str | None = None
     tool_calls: list[ChatMessageToolCallStreamDelta] | None = None
     token_usage: TokenUsage | None = None
-    finish_reason: str | None = None
-    finish_reason: str | None = None
     finish_reason: str | None = None
 
 
@@ -1308,6 +1305,7 @@ class LiteLLMModel(ApiModel):
         return ChatMessage(
             role=response.choices[0].message.role,
             content=content,
+            finish_reason=getattr(response.choices[0], "finish_reason", None),
             tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
@@ -1594,6 +1592,7 @@ class InferenceClientModel(ApiModel):
         return ChatMessage(
             role=response.choices[0].message.role,
             content=content,
+            finish_reason=getattr(response.choices[0], "finish_reason", None),
             tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
@@ -1806,6 +1805,7 @@ class OpenAIModel(ApiModel):
         return ChatMessage(
             role=response.choices[0].message.role,
             content=content,
+            finish_reason=getattr(response.choices[0], "finish_reason", None),
             tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(

@@ -20,13 +20,20 @@ The class below stands in for the API client, not for its payloads: it returns t
 """
 
 import dataclasses
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
 
 from smolagents.agents import CodeAgent
 from smolagents.models import (
     ChatMessage,
     ChatMessageStreamDelta,
+    InferenceClientModel,
+    LiteLLMModel,
     MessageRole,
     Model,
+    OpenAIModel,
     agglomerate_stream_deltas,
 )
 from smolagents.tools import Tool
@@ -124,3 +131,67 @@ def test_agglomeration_keeps_the_finish_reason():
 
     assert message.finish_reason == "length"
     assert message.content == TRUNCATED_CODE
+
+
+def _completion_response(content, finish_reason):
+    """The shape the OpenAI-compatible clients return, with only what the adapter reads."""
+    return SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(role="assistant", content=content, tool_calls=None),
+                finish_reason=finish_reason,
+            )
+        ],
+        usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+    )
+
+
+def _transport(response, path):
+    """A stub client whose one behaviour is answering `path` with `response`."""
+    client = Mock()
+    *parents, leaf = path.split(".")
+    target = client
+    for part in parents:
+        target = getattr(target, part)
+    getattr(target, leaf).return_value = response
+    return client
+
+
+def test_real_adapter_carries_the_truncation_to_the_guard():
+    """Only the transport is faked: OpenAIModel.generate() must pass on the end reason.
+
+    The tests above inject `ChatMessage` directly, so they say nothing about whether the
+    adapter sets that field. This one goes through the real `OpenAIModel` and the real
+    `CodeAgent`, and fails if `generate()` rebuilds the message without the end reason.
+    """
+    client = Mock()
+    client.chat.completions.create.side_effect = [
+        _completion_response(TRUNCATED_CODE, "length"),
+        _completion_response(FINAL_ANSWER, "stop"),
+    ]
+    model = OpenAIModel(model_id="local-test", client=client)
+    tool = AppendLineTool()
+    agent = CodeAgent(tools=[tool], model=model)
+
+    assert agent.run("write the report") == "done"
+
+    assert tool.written == []
+    assert client.chat.completions.create.call_count == 2
+
+
+@pytest.mark.parametrize(
+    ("model_class", "call_path"),
+    [
+        (OpenAIModel, "chat.completions.create"),
+        (LiteLLMModel, "completion"),
+        (InferenceClientModel, "chat_completion"),
+    ],
+)
+def test_every_non_streaming_adapter_keeps_the_end_reason(model_class, call_path):
+    """Every adapter that rebuilds the reply for `generate()` must keep the end reason."""
+    client = _transport(_completion_response(TRUNCATED_CODE, "length"), call_path)
+
+    message = model_class(model_id="local-test", client=client).generate([{"role": "user", "content": "hi"}])
+
+    assert message.content == TRUNCATED_CODE
+    assert message.finish_reason == "length"
