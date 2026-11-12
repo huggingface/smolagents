@@ -1259,6 +1259,46 @@ m = f(1, 5, a=6)
         assert state["n"] == 8
         assert state["m"] == 12
 
+    def test_arg_defaults_evaluated_once_at_definition(self):
+        # Defaults are evaluated once, when the `def` statement runs — not on
+        # every call, and not at all when the caller passes an explicit value.
+        code = """
+def f(*, value=allocate()):
+    return value
+before = calls()
+result = [f(), f(value=99), f()]
+after = calls()
+"""
+        events = []
+
+        def allocate():
+            events.append(1)
+            return len(events)
+
+        tools = {"allocate": allocate, "calls": lambda: len(events)}
+        state = {}
+        evaluate_python_code(code, {**BASE_PYTHON_TOOLS, **tools}, state=state)
+        assert (state["before"], state["result"], state["after"]) == (1, [1, 99, 1], 1)
+
+    def test_positional_default_evaluated_once_at_definition(self):
+        code = """
+def f(value=allocate()):
+    return value
+before = calls()
+result = [f(), f(99), f()]
+after = calls()
+"""
+        events = []
+
+        def allocate():
+            events.append(1)
+            return len(events)
+
+        tools = {"allocate": allocate, "calls": lambda: len(events)}
+        state = {}
+        evaluate_python_code(code, {**BASE_PYTHON_TOOLS, **tools}, state=state)
+        assert (state["before"], state["result"], state["after"]) == (1, [1, 99, 1], 1)
+
     def test_set(self):
         code = """
 S1 = {'a', 'b', 'c'}

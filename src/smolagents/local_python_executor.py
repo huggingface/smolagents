@@ -468,26 +468,26 @@ def create_function(
 ) -> Callable:
     source_code = ast.unparse(func_def)
 
+    # Evaluate default values once, at definition time, like CPython: defaults
+    # are bound when the `def` statement runs, in the defining scope — not
+    # re-evaluated on every call, and not evaluated at all when the caller
+    # passes an explicit value.
+    arg_names = [arg.arg for arg in func_def.args.args]
+    default_values = [
+        evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
+    ]
+    defaults = dict(zip(arg_names[-len(default_values) :], default_values))
+    # kw_defaults entries are None for keyword-only arguments without a default
+    defaults.update(
+        {
+            arg.arg: evaluate_ast(d, state, static_tools, custom_tools, authorized_imports)
+            for arg, d in zip(func_def.args.kwonlyargs, func_def.args.kw_defaults)
+            if d is not None
+        }
+    )
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
-        arg_names = [arg.arg for arg in func_def.args.args]
-        default_values = [
-            evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
-        ]
-
-        # Apply default values
-        defaults = dict(zip(arg_names[-len(default_values) :], default_values))
-
-        # Apply default values for keyword-only arguments (kw_defaults entries
-        # are None for keyword-only arguments without a default)
-        defaults.update(
-            {
-                arg.arg: evaluate_ast(d, state, static_tools, custom_tools, authorized_imports)
-                for arg, d in zip(func_def.args.kwonlyargs, func_def.args.kw_defaults)
-                if d is not None
-            }
-        )
-
         # Set positional arguments
         for name, value in zip(arg_names, args):
             func_state[name] = value
