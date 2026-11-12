@@ -124,6 +124,12 @@ BASE_PYTHON_TOOLS = {
     "issubclass": issubclass,
     "type": type,
     "complex": complex,
+    "frozenset": frozenset,
+    "bytearray": bytearray,
+    "bytes": bytes,
+    "hash": hash,
+    "object": object,
+    "slice": slice,
 }
 
 # Non-exhaustive list of dangerous modules that should not be imported
