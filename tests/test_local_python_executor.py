@@ -985,6 +985,27 @@ except ValueError:
         evaluate_python_code(code, {}, state=state)
         assert "caught" not in state
 
+    @pytest.mark.parametrize("control", ["break", "continue"])
+    def test_exception_target_is_cleared_on_loop_control(self, control):
+        code = dedent(f"""
+            caught = 'previous binding'
+            visited = []
+            for value in range(3):
+                try:
+                    raise ValueError('problem')
+                except ValueError as caught:
+                    visited.append(value)
+                    {control}
+            result = visited
+        """)
+        native = {}
+        exec(code, native)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["result"] == native["result"]
+        assert "caught" not in native
+        assert "caught" not in state
+
     def test_print(self):
         code = "print(min([1, 2, 3]))"
         state = {}
