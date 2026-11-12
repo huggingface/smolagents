@@ -127,6 +127,7 @@ class ChatMessage:
     tool_calls: list[ChatMessageToolCall] | None = None
     raw: Any | None = None  # Stores the raw output from the API
     token_usage: TokenUsage | None = None
+    finish_reason: str | None = None  # The provider's end reason, e.g. "length" or "stop"
 
     def __post_init__(self) -> None:
         if self.tool_calls is None:
@@ -152,6 +153,7 @@ class ChatMessage:
             tool_calls=data.get("tool_calls"),
             raw=raw,
             token_usage=token_usage,
+            finish_reason=data.get("finish_reason"),
         )
 
     def dict(self):
@@ -215,6 +217,7 @@ class ChatMessageStreamDelta:
     content: str | None = None
     tool_calls: list[ChatMessageToolCallStreamDelta] | None = None
     token_usage: TokenUsage | None = None
+    finish_reason: str | None = None
 
 
 def agglomerate_stream_deltas(
@@ -225,9 +228,12 @@ def agglomerate_stream_deltas(
     """
     accumulated_tool_calls: dict[int, ChatMessageToolCallStreamDelta] = {}
     accumulated_content = ""
+    finish_reason: str | None = None
     total_input_tokens = 0
     total_output_tokens = 0
     for stream_delta in stream_deltas:
+        if stream_delta.finish_reason:
+            finish_reason = stream_delta.finish_reason
         if stream_delta.token_usage:
             total_input_tokens += stream_delta.token_usage.input_tokens
             total_output_tokens += stream_delta.token_usage.output_tokens
@@ -260,6 +266,7 @@ def agglomerate_stream_deltas(
     return ChatMessage(
         role=role,
         content=accumulated_content,
+        finish_reason=finish_reason,
         tool_calls=[
             ChatMessageToolCall(
                 function=ChatMessageToolCallFunction(
@@ -1298,6 +1305,7 @@ class LiteLLMModel(ApiModel):
         return ChatMessage(
             role=response.choices[0].message.role,
             content=content,
+            finish_reason=getattr(response.choices[0], "finish_reason", None),
             tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
@@ -1343,6 +1351,7 @@ class LiteLLMModel(ApiModel):
                 if choice.delta:
                     yield ChatMessageStreamDelta(
                         content=choice.delta.content,
+                        finish_reason=getattr(choice, "finish_reason", None),
                         tool_calls=[
                             ChatMessageToolCallStreamDelta(
                                 index=delta.index,
@@ -1356,8 +1365,11 @@ class LiteLLMModel(ApiModel):
                         else None,
                     )
                 else:
-                    if not getattr(choice, "finish_reason", None):
+                    finish_reason = getattr(choice, "finish_reason", None)
+                    if not finish_reason:
                         raise ValueError(f"No content or tool calls in event: {event}")
+                    # the final chunk often carries the end reason and nothing else
+                    yield ChatMessageStreamDelta(finish_reason=finish_reason)
 
 
 class LiteLLMRouterModel(LiteLLMModel):
@@ -1580,6 +1592,7 @@ class InferenceClientModel(ApiModel):
         return ChatMessage(
             role=response.choices[0].message.role,
             content=content,
+            finish_reason=getattr(response.choices[0], "finish_reason", None),
             tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
@@ -1626,6 +1639,7 @@ class InferenceClientModel(ApiModel):
                 if choice.delta:
                     yield ChatMessageStreamDelta(
                         content=choice.delta.content,
+                        finish_reason=getattr(choice, "finish_reason", None),
                         tool_calls=[
                             ChatMessageToolCallStreamDelta(
                                 index=delta.index,
@@ -1639,8 +1653,11 @@ class InferenceClientModel(ApiModel):
                         else None,
                     )
                 else:
-                    if not getattr(choice, "finish_reason", None):
+                    finish_reason = getattr(choice, "finish_reason", None)
+                    if not finish_reason:
                         raise ValueError(f"No content or tool calls in event: {event}")
+                    # the final chunk often carries the end reason and nothing else
+                    yield ChatMessageStreamDelta(finish_reason=finish_reason)
 
 
 class OpenAIModel(ApiModel):
@@ -1742,6 +1759,7 @@ class OpenAIModel(ApiModel):
                 if choice.delta:
                     yield ChatMessageStreamDelta(
                         content=choice.delta.content,
+                        finish_reason=getattr(choice, "finish_reason", None),
                         tool_calls=[
                             ChatMessageToolCallStreamDelta(
                                 index=delta.index,
@@ -1755,8 +1773,11 @@ class OpenAIModel(ApiModel):
                         else None,
                     )
                 else:
-                    if not getattr(choice, "finish_reason", None):
+                    finish_reason = getattr(choice, "finish_reason", None)
+                    if not finish_reason:
                         raise ValueError(f"No content or tool calls in event: {event}")
+                    # the final chunk often carries the end reason and nothing else
+                    yield ChatMessageStreamDelta(finish_reason=finish_reason)
 
     def generate(
         self,
@@ -1784,6 +1805,7 @@ class OpenAIModel(ApiModel):
         return ChatMessage(
             role=response.choices[0].message.role,
             content=content,
+            finish_reason=getattr(response.choices[0], "finish_reason", None),
             tool_calls=response.choices[0].message.tool_calls,
             raw=response,
             token_usage=TokenUsage(
