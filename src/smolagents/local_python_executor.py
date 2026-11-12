@@ -809,10 +809,37 @@ def set_value(
                 value = tuple(value)
             else:
                 raise InterpreterError("Cannot unpack non-tuple value")
-        if len(target.elts) != len(value):
-            raise InterpreterError("Cannot unpack tuple of wrong size")
-        for i, elem in enumerate(target.elts):
-            set_value(elem, value[i], state, static_tools, custom_tools, authorized_imports)
+        # Locate a starred target (PEP 3132 extended iterable unpacking), if any.
+        starred_idx = next((i for i, elt in enumerate(target.elts) if isinstance(elt, ast.Starred)), None)
+        if starred_idx is None:
+            if len(target.elts) != len(value):
+                raise InterpreterError("Cannot unpack tuple of wrong size")
+            for i, elem in enumerate(target.elts):
+                set_value(elem, value[i], state, static_tools, custom_tools, authorized_imports)
+        else:
+            # Targets that bind to a single value each.
+            non_starred = len(target.elts) - 1
+            if len(value) < non_starred:
+                raise InterpreterError("Cannot unpack tuple of wrong size")
+            # Targets before the star bind to the leading values.
+            for i in range(starred_idx):
+                set_value(target.elts[i], value[i], state, static_tools, custom_tools, authorized_imports)
+            # The starred target binds to the middle slice as a list.
+            trailing = len(target.elts) - starred_idx - 1
+            middle = value[starred_idx : len(value) - trailing]
+            set_value(
+                target.elts[starred_idx].value, list(middle), state, static_tools, custom_tools, authorized_imports
+            )
+            # Targets after the star bind to the trailing values.
+            for i in range(trailing):
+                set_value(
+                    target.elts[starred_idx + 1 + i],
+                    value[len(value) - trailing + i],
+                    state,
+                    static_tools,
+                    custom_tools,
+                    authorized_imports,
+                )
     elif isinstance(target, ast.Subscript):
         obj = evaluate_ast(target.value, state, static_tools, custom_tools, authorized_imports)
         key = evaluate_ast(target.slice, state, static_tools, custom_tools, authorized_imports)
