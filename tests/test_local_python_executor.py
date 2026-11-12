@@ -1226,6 +1226,79 @@ n = f(1, n=667)
         assert res == 1000
         assert not is_final_answer
 
+    def test_keyword_only_arg_defaults(self):
+        code = """
+def f(*, a=3):
+    return a
+n = f()
+m = f(a=4)
+
+def g(x, *, a=3, b=4):
+    return x + a + b
+o = g(1)
+p = g(1, a=10)
+"""
+        state = {}
+        evaluate_python_code(code, {}, state=state)
+        assert state["n"] == 3
+        assert state["m"] == 4
+        assert state["o"] == 8
+        assert state["p"] == 15
+
+    def test_arg_defaults_not_shadowed_by_outer_variables(self):
+        code = """
+a = 10
+b = 20
+def f(x, b=4, *, a=3):
+    return x + a + b
+n = f(1)
+m = f(1, 5, a=6)
+"""
+        state = {}
+        evaluate_python_code(code, {}, state=state)
+        assert state["n"] == 8
+        assert state["m"] == 12
+
+    def test_arg_defaults_evaluated_once_at_definition(self):
+        # Defaults are evaluated once, when the `def` statement runs — not on
+        # every call, and not at all when the caller passes an explicit value.
+        code = """
+def f(*, value=allocate()):
+    return value
+before = calls()
+result = [f(), f(value=99), f()]
+after = calls()
+"""
+        events = []
+
+        def allocate():
+            events.append(1)
+            return len(events)
+
+        tools = {"allocate": allocate, "calls": lambda: len(events)}
+        state = {}
+        evaluate_python_code(code, {**BASE_PYTHON_TOOLS, **tools}, state=state)
+        assert (state["before"], state["result"], state["after"]) == (1, [1, 99, 1], 1)
+
+    def test_positional_default_evaluated_once_at_definition(self):
+        code = """
+def f(value=allocate()):
+    return value
+before = calls()
+result = [f(), f(99), f()]
+after = calls()
+"""
+        events = []
+
+        def allocate():
+            events.append(1)
+            return len(events)
+
+        tools = {"allocate": allocate, "calls": lambda: len(events)}
+        state = {}
+        evaluate_python_code(code, {**BASE_PYTHON_TOOLS, **tools}, state=state)
+        assert (state["before"], state["result"], state["after"]) == (1, [1, 99, 1], 1)
+
     def test_set(self):
         code = """
 S1 = {'a', 'b', 'c'}
