@@ -1506,6 +1506,13 @@ def evaluate_ast(
     elif isinstance(expression, ast.FormattedValue):
         # Formatted value (part of f-string) -> evaluate the content and format it
         value = evaluate_ast(expression.value, *common_params)
+        # Apply the conversion flag (!s, !r, !a) before any format spec (PEP 498).
+        if expression.conversion == 115:  # !s -> str()
+            value = str(value)
+        elif expression.conversion == 114:  # !r -> repr()
+            value = repr(value)
+        elif expression.conversion == 97:  # !a -> ascii()
+            value = ascii(value)
         # Early return if no format spec
         if not expression.format_spec:
             return value
