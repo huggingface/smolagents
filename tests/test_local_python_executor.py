@@ -926,7 +926,8 @@ var_args_method(1, 2, 3, x=4, y=5)
 """
         state = {}
         result, _ = evaluate_python_code(code, {"sum": sum}, state=state)
-        assert result == 15
+        # `self` binds to 1, `*args` collects (2, 3), `**kwargs` collects {"x": 4, "y": 5}.
+        assert result == 14
 
     def test_exceptions(self):
         code = """
@@ -1225,6 +1226,42 @@ n = f(1, n=667)
         res, is_final_answer = evaluate_python_code(code, {}, {})
         assert res == 1000
         assert not is_final_answer
+
+    def test_vararg_excludes_positional_args(self):
+        code = """
+def f(a, *args):
+    return (a, args)
+f(1, 2, 3, 4)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, (2, 3, 4))
+
+    def test_vararg_with_default_positional_args(self):
+        code = """
+def f(a, b=9, *args):
+    return (a, b, args)
+f(1, 2, 3)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, 2, (3,))
+
+    def test_vararg_only(self):
+        code = """
+def f(*args):
+    return args
+f(1, 2, 3)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, 2, 3)
+
+    def test_vararg_with_kwargs(self):
+        code = """
+def f(a, *args, **kwargs):
+    return (a, args, kwargs)
+f(1, 2, 3, x=4)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, (2, 3), {"x": 4})
 
     def test_set(self):
         code = """

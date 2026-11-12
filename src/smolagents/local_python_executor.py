@@ -486,10 +486,11 @@ def create_function(
         for name, value in kwargs.items():
             func_state[name] = value
 
-        # Handle variable arguments
+        # Handle variable arguments: the vararg tuple must exclude the values
+        # that were already bound to the named positional parameters.
         if func_def.args.vararg:
             vararg_name = func_def.args.vararg.arg
-            func_state[vararg_name] = args
+            func_state[vararg_name] = args[len(arg_names) :]
 
         if func_def.args.kwarg:
             kwarg_name = func_def.args.kwarg.arg
