@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import importlib
 import json
 import os
@@ -1382,7 +1383,10 @@ class ToolCallingAgent(MultiStepAgent):
         # Helper function to process a single tool call
         def process_single_tool_call(tool_call: ToolCall) -> ToolOutput:
             tool_name = tool_call.name
-            tool_arguments = tool_call.arguments or {}
+            # Deep-copy the arguments for execution so a tool that mutates its inputs (e.g. list.pop)
+            # cannot corrupt the ToolCall recorded in memory; the agent must still be able to recall
+            # the original arguments on a later turn.
+            tool_arguments = copy.deepcopy(tool_call.arguments) if tool_call.arguments else {}
             self.logger.log(
                 Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
                 level=LogLevel.INFO,

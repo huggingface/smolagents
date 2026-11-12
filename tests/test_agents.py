@@ -473,6 +473,58 @@ class TestAgent:
             ToolCall(name="python_interpreter", arguments="final_answer(7.2904)", id="call_2")
         ]
 
+    def test_tool_call_memory_survives_tool_mutating_its_arguments(self):
+        # GH#3153: a tool that mutates its input (e.g. list.pop) must not corrupt the ToolCall
+        # recorded in memory, so the agent can still recall the original arguments on a later turn.
+        @tool
+        def pack_order(items: list[str]) -> str:
+            """Pack an order.
+
+            Args:
+                items: Product names to pack.
+            """
+            packed = []
+            while items:
+                packed.append(items.pop(0))
+            return "packed " + ", ".join(packed)
+
+        class PackModel(Model):
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                self.calls = getattr(self, "calls", 0) + 1
+                if self.calls == 1:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_0",
+                                type="function",
+                                function=ChatMessageToolCallFunction(
+                                    name="pack_order",
+                                    arguments={"items": ["Notebook", "Ballpoint pen", "Sticky notes"]},
+                                ),
+                            )
+                        ],
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id="call_1",
+                            type="function",
+                            function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "Done"}),
+                        )
+                    ],
+                )
+
+        agent = ToolCallingAgent(tools=[pack_order], model=PackModel(), max_steps=3)
+        agent.run("Pack an order of three stationery items.")
+
+        assert agent.memory.steps[1].tool_calls[0].arguments == {
+            "items": ["Notebook", "Ballpoint pen", "Sticky notes"]
+        }
+
     def test_additional_args_added_to_task(self):
         agent = CodeAgent(tools=[], model=FakeCodeModel())
         agent.run(
