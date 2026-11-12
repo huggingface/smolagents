@@ -506,8 +506,10 @@ def create_function(
             func_state[kwarg_name] = kwargs
 
         # Set default values for arguments that were not provided
+        # (check the call, not func_state, which also holds outer variables)
+        provided = set(arg_names[: len(args)]) | set(kwargs)
         for name, value in defaults.items():
-            if name not in func_state:
+            if name not in provided:
                 func_state[name] = value
 
         # Update function state with self and __class__

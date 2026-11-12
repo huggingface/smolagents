@@ -1245,6 +1245,20 @@ p = g(1, a=10)
         assert state["o"] == 8
         assert state["p"] == 15
 
+    def test_arg_defaults_not_shadowed_by_outer_variables(self):
+        code = """
+a = 10
+b = 20
+def f(x, b=4, *, a=3):
+    return x + a + b
+n = f(1)
+m = f(1, 5, a=6)
+"""
+        state = {}
+        evaluate_python_code(code, {}, state=state)
+        assert state["n"] == 8
+        assert state["m"] == 12
+
     def test_set(self):
         code = """
 S1 = {'a', 'b', 'c'}
