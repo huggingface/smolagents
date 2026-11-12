@@ -426,6 +426,15 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == ["o", "llo"]
 
+    def test_evaluate_builtin_container_types(self):
+        """frozenset/bytearray/bytes/hash/object/slice should be available like other builtins."""
+        assert evaluate_python_code("frozenset([1, 2, 3])", BASE_PYTHON_TOOLS, state={})[0] == frozenset([1, 2, 3])
+        assert evaluate_python_code("bytearray(b'abc')", BASE_PYTHON_TOOLS, state={})[0] == bytearray(b"abc")
+        assert evaluate_python_code("bytes([104, 105])", BASE_PYTHON_TOOLS, state={})[0] == b"hi"
+        assert evaluate_python_code("hash('x')", BASE_PYTHON_TOOLS, state={})[0] == hash("x")
+        assert isinstance(evaluate_python_code("object()", BASE_PYTHON_TOOLS, state={})[0], object)
+        assert evaluate_python_code("[1, 2, 3, 4][slice(1, 3)]", BASE_PYTHON_TOOLS, state={})[0] == [2, 3]
+
     def test_evaluate_slicing(self):
         code = "'hello'[1:3][::-1]"
         result, _ = evaluate_python_code(code, {}, state={})
