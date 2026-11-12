@@ -946,6 +946,66 @@ except ValueError as e:
         )
         assert state["exception_message"] == "An error occurred"
 
+    def test_except_target_cleared_after_handler(self):
+        code = """
+try:
+    1 / 0
+except ZeroDivisionError as caught:
+    handled = str(caught)
+"""
+        state = {}
+        evaluate_python_code(code, {"str": str}, state=state)
+        assert state["handled"] == "division by zero"
+        # CPython clears the `except ... as name` binding when leaving the handler
+        assert "caught" not in state
+
+    def test_except_target_cleared_when_handler_rebinds_or_raises(self):
+        code = """
+caught = "before"
+try:
+    1 / 0
+except ZeroDivisionError as caught:
+    caught = "rebound"
+"""
+        state = {}
+        evaluate_python_code(code, {}, state=state)
+        # The name is cleared even if it existed before the try, or was rebound in the handler
+        assert "caught" not in state
+
+        code = """
+try:
+    try:
+        1 / 0
+    except ZeroDivisionError as caught:
+        raise ValueError("from handler")
+except ValueError:
+    pass
+"""
+        state = {}
+        evaluate_python_code(code, {}, state=state)
+        assert "caught" not in state
+
+    @pytest.mark.parametrize("control", ["break", "continue"])
+    def test_exception_target_is_cleared_on_loop_control(self, control):
+        code = dedent(f"""
+            caught = 'previous binding'
+            visited = []
+            for value in range(3):
+                try:
+                    raise ValueError('problem')
+                except ValueError as caught:
+                    visited.append(value)
+                    {control}
+            result = visited
+        """)
+        native = {}
+        exec(code, native)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert state["result"] == native["result"]
+        assert "caught" not in native
+        assert "caught" not in state
+
     def test_print(self):
         code = "print(min([1, 2, 3]))"
         state = {}
