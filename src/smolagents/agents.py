@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import importlib
 import json
 import os
@@ -1379,10 +1380,17 @@ class ToolCallingAgent(MultiStepAgent):
             yield tool_call
             parallel_calls[tool_call.id] = tool_call
 
+        # Record the calls before execution so a tool that raises still leaves a structured
+        # record with the original arguments in memory (see the deep-copy note below).
+        memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
+
         # Helper function to process a single tool call
         def process_single_tool_call(tool_call: ToolCall) -> ToolOutput:
             tool_name = tool_call.name
-            tool_arguments = tool_call.arguments or {}
+            # Deep-copy the arguments for execution so a tool that mutates its inputs (e.g. list.pop)
+            # cannot corrupt the ToolCall recorded in memory; the agent must still be able to recall
+            # the original arguments on a later turn.
+            tool_arguments = copy.deepcopy(tool_call.arguments) if tool_call.arguments else {}
             self.logger.log(
                 Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
                 level=LogLevel.INFO,
@@ -1433,7 +1441,6 @@ class ToolCallingAgent(MultiStepAgent):
                     outputs[tool_output.id] = tool_output
                     yield tool_output
 
-        memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
             memory_step.observations += tool_output.observation + "\n"
