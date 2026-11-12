@@ -1226,6 +1226,25 @@ n = f(1, n=667)
         assert res == 1000
         assert not is_final_answer
 
+    def test_keyword_only_arg_defaults(self):
+        code = """
+def f(*, a=3):
+    return a
+n = f()
+m = f(a=4)
+
+def g(x, *, a=3, b=4):
+    return x + a + b
+o = g(1)
+p = g(1, a=10)
+"""
+        state = {}
+        evaluate_python_code(code, {}, state=state)
+        assert state["n"] == 3
+        assert state["m"] == 4
+        assert state["o"] == 8
+        assert state["p"] == 15
+
     def test_set(self):
         code = """
 S1 = {'a', 'b', 'c'}

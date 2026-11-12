@@ -478,6 +478,16 @@ def create_function(
         # Apply default values
         defaults = dict(zip(arg_names[-len(default_values) :], default_values))
 
+        # Apply default values for keyword-only arguments (kw_defaults entries
+        # are None for keyword-only arguments without a default)
+        defaults.update(
+            {
+                arg.arg: evaluate_ast(d, state, static_tools, custom_tools, authorized_imports)
+                for arg, d in zip(func_def.args.kwonlyargs, func_def.args.kw_defaults)
+                if d is not None
+            }
+        )
+
         # Set positional arguments
         for name, value in zip(arg_names, args):
             func_state[name] = value
