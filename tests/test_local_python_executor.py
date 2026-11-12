@@ -426,6 +426,18 @@ recur_fibo(6)"""
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == ["o", "llo"]
 
+    def test_evaluate_builtin_conversion_functions(self):
+        """hex/oct/bin/repr/ascii/format should be available like other builtins."""
+        assert evaluate_python_code("hex(255)", BASE_PYTHON_TOOLS, state={})[0] == "0xff"
+        assert evaluate_python_code("oct(8)", BASE_PYTHON_TOOLS, state={})[0] == "0o10"
+        assert evaluate_python_code("bin(5)", BASE_PYTHON_TOOLS, state={})[0] == "0b101"
+        assert evaluate_python_code("repr('a\\nb')", BASE_PYTHON_TOOLS, state={})[0] == "'a\\nb'"
+        assert evaluate_python_code("ascii('é')", BASE_PYTHON_TOOLS, state={})[0] == "'\\xe9'"
+        assert evaluate_python_code('format(5, "04d")', BASE_PYTHON_TOOLS, state={})[0] == "0005"
+        assert evaluate_python_code(
+            "(hex(255), oct(8), bin(5))", BASE_PYTHON_TOOLS, state={}
+        )[0] == ("0xff", "0o10", "0b101")
+
     def test_evaluate_slicing(self):
         code = "'hello'[1:3][::-1]"
         result, _ = evaluate_python_code(code, {}, state={})

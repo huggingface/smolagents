@@ -124,6 +124,12 @@ BASE_PYTHON_TOOLS = {
     "issubclass": issubclass,
     "type": type,
     "complex": complex,
+    "hex": hex,
+    "oct": oct,
+    "bin": bin,
+    "repr": repr,
+    "ascii": ascii,
+    "format": format,
 }
 
 # Non-exhaustive list of dangerous modules that should not be imported
