@@ -525,6 +525,55 @@ class TestAgent:
             "items": ["Notebook", "Ballpoint pen", "Sticky notes"]
         }
 
+    def test_failed_mutating_tool_retains_tool_call_arguments(self):
+        # GH#3153 (follow-up raised by @JonnyFaeth on PR#3154): when a tool mutates its input
+        # and then raises, the step must still record the ToolCall with the original arguments.
+        @tool
+        def mutate_then_fail(payload: dict) -> str:
+            """Exercise the failed-tool path.
+
+            Args:
+                payload: Nested input rows.
+            """
+            payload["rows"].clear()
+            raise RuntimeError("deliberate failure")
+
+        class FailModel(Model):
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                self.calls = getattr(self, "calls", 0) + 1
+                if self.calls == 1:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_0",
+                                type="function",
+                                function=ChatMessageToolCallFunction(
+                                    name="mutate_then_fail", arguments={"payload": {"rows": ["first", "second"]}}
+                                ),
+                            )
+                        ],
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id="call_1",
+                            type="function",
+                            function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "done"}),
+                        )
+                    ],
+                )
+
+        agent = ToolCallingAgent(tools=[mutate_then_fail], model=FailModel(), max_steps=3, verbosity_level=0)
+        assert agent.run("Exercise local failure handling.") == "done"
+
+        step = agent.memory.steps[1]
+        assert step.tool_calls is not None
+        assert step.tool_calls[0].arguments == {"payload": {"rows": ["first", "second"]}}
+
     def test_additional_args_added_to_task(self):
         agent = CodeAgent(tools=[], model=FakeCodeModel())
         agent.run(
