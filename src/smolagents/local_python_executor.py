@@ -1176,8 +1176,14 @@ def evaluate_try(
                 matched = True
                 if handler.name:
                     state[handler.name] = e
-                for stmt in handler.body:
-                    evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+                try:
+                    for stmt in handler.body:
+                        evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+                finally:
+                    # CPython clears the `except ... as name` binding when leaving
+                    # the handler, even if the handler raises or rebinds the name.
+                    if handler.name:
+                        state.pop(handler.name, None)
                 break
         if not matched:
             raise e
