@@ -154,7 +154,23 @@ class SafeSerializer:
                 return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
             np_generic = SafeSerializer._get_optional_type("numpy", "generic")
             if np_generic is not None and isinstance(obj, np_generic):
-                return SafeSerializer.to_json_safe(obj.item())
+                val = obj.item()
+                if isinstance(val, np_generic):
+                    # For extended-precision types (e.g. np.longdouble, np.clongdouble),
+                    # .item() returns another numpy scalar. Convert explicitly to standard Python types.
+                    import numpy as np
+
+                    if np.iscomplexobj(obj):
+                        val = complex(obj)
+                    elif np.issubdtype(obj.dtype, np.floating):
+                        val = float(obj)
+                    elif np.issubdtype(obj.dtype, np.integer):
+                        val = int(obj)
+                    elif np.issubdtype(obj.dtype, np.bool_):
+                        val = bool(obj)
+                    else:
+                        val = str(obj)
+                return SafeSerializer.to_json_safe(val)
 
         # dataclass - check last as is_dataclass() has overhead
         import dataclasses

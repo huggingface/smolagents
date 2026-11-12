@@ -594,11 +594,20 @@ class TestNumpySupport:
             np.complex64(1 + 2j),
             np.complex128(1 + 2j),
         ]
+        if hasattr(np, "longdouble"):
+            test_cases.append(np.longdouble("1.1"))
+        if hasattr(np, "clongdouble"):
+            test_cases.append(np.clongdouble(1 + 2j))
 
         for obj in test_cases:
             serialized = SafeSerializer.dumps(obj, allow_pickle=False)
             result = SafeSerializer.loads(serialized, allow_pickle=False)
-            assert result == obj.item()
+            if hasattr(np, "longdouble") and isinstance(obj, np.longdouble):
+                assert abs(result - float(obj)) < 1e-6
+            elif hasattr(np, "clongdouble") and isinstance(obj, np.clongdouble):
+                assert abs(result - complex(obj)) < 1e-6
+            else:
+                assert result == obj.item()
 
     def test_numpy_various_dtypes(self):
         """Test numpy arrays with various dtypes."""
