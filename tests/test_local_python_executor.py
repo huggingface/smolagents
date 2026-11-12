@@ -1356,6 +1356,46 @@ distance_geneva_barcelona = haversine(*coords_geneva, *coords_barcelona)
         result, _ = evaluate_python_code(code, {"print": print, "map": map}, state={}, authorized_imports=["math"])
         assert round(result, 1) == 622395.4
 
+    def test_starred_unpacking_assignment(self):
+        code = """
+a, *rest = [1, 2, 3]
+(a, rest)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, [2, 3])
+
+    def test_starred_unpacking_assignment_middle(self):
+        code = """
+a, *mid, b = [1, 2, 3, 4, 5]
+(a, mid, b)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, [2, 3, 4], 5)
+
+    def test_starred_unpacking_assignment_leading(self):
+        code = """
+*a, b = [1, 2, 3]
+(a, b)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == ([1, 2], 3)
+
+    def test_starred_unpacking_assignment_only_star(self):
+        code = """
+*a, = [1, 2, 3]
+a
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == [1, 2, 3]
+
+    def test_starred_unpacking_assignment_empty_middle(self):
+        code = """
+a, *rest = [1]
+(a, rest)
+"""
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, [])
+
     def test_for(self):
         code = """
 shifts = {
