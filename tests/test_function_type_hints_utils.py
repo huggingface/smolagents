@@ -512,3 +512,98 @@ class TestGetCode:
     )
     def test_get_imports(self, code: str, expected: list[str]):
         assert sorted(get_imports(code)) == sorted(expected)
+
+import pytest
+
+
+class TestImageAudioTypeHints:
+    """Tests for PIL Image and torch Tensor type hint handling."""
+
+    def test_pil_image_parameter_uses_image_type(self):
+        """PIL.Image.Image return type becomes 'image'."""
+        from PIL.Image import Image
+        def func() -> Image:
+            """
+            Returns a PIL image.
+            
+            Returns:
+                A PIL Image object.
+            """
+            pass
+        schema = get_json_schema(func)
+        returns = schema["function"].get("return", {})
+        assert returns.get("type") == "image"
+
+    def test_pil_image_subclass_parameter_uses_image_type(self):
+        """Subclass of PIL.Image.Image (e.g., PngImageFile) becomes 'image'."""
+        from PIL.Image import Image
+        
+        class PngImageFile(Image):
+            pass
+        
+        def func() -> PngImageFile:
+            """
+            Returns a PNG image file.
+            
+            Returns:
+                A PNG image file object.
+            """
+            pass
+        schema = get_json_schema(func)
+        returns = schema["function"].get("return", {})
+        assert returns.get("type") == "image"
+
+    def test_agent_image_subclass_uses_image_type(self):
+        """AgentImage (subclass of PIL.Image.Image defined in smolagents) becomes 'image'."""
+        from PIL.Image import Image
+        
+        class AgentImage(Image):
+            __module__ = "smolagents.agent_types"
+        
+        def func() -> AgentImage:
+            """
+            Returns an agent image.
+            
+            Returns:
+                An agent image object.
+            """
+            pass
+        schema = get_json_schema(func)
+        returns = schema["function"].get("return", {})
+        assert returns.get("type") == "image"
+
+    def test_torch_tensor_uses_audio_type(self):
+        """torch.Tensor becomes 'audio' (skips when torch is absent)."""
+        try:
+            import torch
+        except ImportError:
+            pytest.skip("torch not installed")
+        
+        def func() -> torch.Tensor:
+            """
+            Returns a tensor.
+            
+            Returns:
+                A torch tensor object.
+            """
+            pass
+        schema = get_json_schema(func)
+        returns = schema["function"].get("return", {})
+        assert returns.get("type") == "audio"
+
+    def test_non_media_class_does_not_import_optional_packages(self):
+        """A plain class neither imports Pillow nor torch."""
+        class PlainClass:
+            pass
+        
+        def func() -> PlainClass:
+            """
+            Returns a plain class.
+            
+            Returns:
+                A plain class object.
+            """
+            pass
+        schema = get_json_schema(func)
+        returns = schema["function"].get("return", {})
+        assert returns.get("type") == "object"
