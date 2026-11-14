@@ -946,6 +946,66 @@ except ValueError as e:
         )
         assert state["exception_message"] == "An error occurred"
 
+    def test_exception_target_is_unbound_after_the_handler(self):
+        code = """
+try:
+    1 / 0
+except ZeroDivisionError as caught:
+    handled = str(caught)
+"""
+        state = {}
+        evaluate_python_code(code, {"str": str}, state=state)
+        assert state["handled"] == "division by zero"
+        assert "caught" not in state
+
+        # the name also shadows an outer variable for the duration of the handler only
+        code = """
+caught = "outer"
+try:
+    raise ValueError("boom")
+except ValueError as caught:
+    pass
+"""
+        state = {}
+        evaluate_python_code(code, {}, state=state)
+        assert "caught" not in state
+
+    def test_exception_target_is_unbound_when_the_handler_raises(self):
+        code = """
+try:
+    1 / 0
+except ZeroDivisionError as caught:
+    raise ValueError(str(caught))
+"""
+        state = {}
+        with pytest.raises(InterpreterError, match="division by zero"):
+            evaluate_python_code(code, {"str": str}, state=state)
+        assert "caught" not in state
+
+    def test_keyword_only_default_arg_in_function(self):
+        code = """
+def f(*, a=3, b):
+    return a + b
+
+r1 = f(b=1)
+r2 = f(a=10, b=20)
+r3 = r1 + r2
+"""
+        res, _ = evaluate_python_code(code, {}, state={})
+        assert res == 34
+
+    def test_positional_only_arg_in_function(self):
+        code = """
+def f(a, /, b=2):
+    return a + b
+
+r1 = f(1)
+r2 = f(1, b=5)
+r3 = r1 + r2
+"""
+        res, _ = evaluate_python_code(code, {}, state={})
+        assert res == 9
+
     def test_print(self):
         code = "print(min([1, 2, 3]))"
         state = {}

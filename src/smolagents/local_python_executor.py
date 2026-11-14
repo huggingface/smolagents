@@ -470,13 +470,18 @@ def create_function(
 
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
-        arg_names = [arg.arg for arg in func_def.args.args]
+        # positional-only params (before the `/`) are bound like normal ones; they just can't be passed by keyword
+        arg_names = [arg.arg for arg in (*func_def.args.posonlyargs, *func_def.args.args)]
         default_values = [
             evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
         ]
 
         # Apply default values
         defaults = dict(zip(arg_names[-len(default_values) :], default_values))
+        # kw-only defaults are stored positionally, with None where an argument has no default (`def f(*, a, b=1)`)
+        for arg, default in zip(func_def.args.kwonlyargs, func_def.args.kw_defaults):
+            if default is not None:
+                defaults[arg.arg] = evaluate_ast(default, state, static_tools, custom_tools, authorized_imports)
 
         # Set positional arguments
         for name, value in zip(arg_names, args):
@@ -1176,8 +1181,15 @@ def evaluate_try(
                 matched = True
                 if handler.name:
                     state[handler.name] = e
-                for stmt in handler.body:
-                    evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+                try:
+                    for stmt in handler.body:
+                        evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+                finally:
+                    # Python unbinds the `as` target once the handler is done, and we should too: the exception
+                    # object is also what keeps its traceback (and every frame in it) alive, and the name was
+                    # never visible to the code after the try statement anyway
+                    if handler.name:
+                        state.pop(handler.name, None)
                 break
         if not matched:
             raise e
