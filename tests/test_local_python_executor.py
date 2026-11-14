@@ -394,7 +394,7 @@ for result in search_results:
         # The common "search and capture" idiom inside any().
         code = "any((m := i) for i in range(3))\nm"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
-        assert result == 0
+        assert result == 1
 
         # Accumulation across iterations.
         code = "total = 0\n[total := total + x for x in [1, 2, 3]]\ntotal"
@@ -1853,6 +1853,22 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         result, _ = evaluate_python_code(code, state={})
         assert not isinstance(result, bool)
         assert str(result) == "a == b"
+
+
+@pytest.mark.parametrize("consume", ["any", "next"])
+def test_walrus_visible_after_partial_generator_consumption(consume):
+    code = (
+        "captured = -1\n"
+        "items = ((captured := value) for value in [7, 8])\n"
+        f"result = {consume}(items)\n"
+        "observed = captured"
+    )
+    native = {}
+    exec(code, native)
+    state = {}
+    evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+    assert state["result"] == native["result"]
+    assert state["observed"] == native["observed"] == 7
 
 
 class TestEvaluateBoolop:

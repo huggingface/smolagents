@@ -1409,14 +1409,21 @@ def evaluate_generatorexp(
                     evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
                     for if_clause in gen.ifs
                 ):
-                    yield evaluate_ast(
+                    result = evaluate_ast(
                         genexp.elt,
                         new_state,
                         static_tools,
                         custom_tools,
                         authorized_imports,
                     )
-                # Propagate walrus bindings back to the enclosing scope (PEP 572)
+                    # Propagate before yielding: any()/next() may stop as soon as the
+                    # element is received, so the loop below would not run in time (PEP 572).
+                    for name in namedexpr_names:
+                        if name in new_state:
+                            state[name] = new_state[name]
+                    yield result
+                # Propagate walrus bindings back to the enclosing scope (PEP 572),
+                # including iterations rejected by the filter.
                 for name in namedexpr_names:
                     if name in new_state:
                         state[name] = new_state[name]
