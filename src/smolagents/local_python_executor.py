@@ -1053,6 +1053,21 @@ def evaluate_for(
     return result
 
 
+def _get_namedexpr_target_names(*nodes: ast.AST) -> frozenset[str]:
+    """Collect the target names bound by walrus operators (PEP 572) in the given nodes.
+
+    Walrus targets bind in the enclosing scope even when they appear inside a
+    comprehension or generator expression, so we need to know which names to
+    propagate back to the outer ``state``.
+    """
+    names: set[str] = set()
+    for node in nodes:
+        for child in ast.walk(node):
+            if isinstance(child, ast.NamedExpr) and isinstance(child.target, ast.Name):
+                names.add(child.target.id)
+    return frozenset(names)
+
+
 def _evaluate_comprehensions(
     comprehensions: list[ast.comprehension],
     evaluate_element: Callable[[dict[str, Any]], Any],
@@ -1060,6 +1075,7 @@ def _evaluate_comprehensions(
     static_tools: dict[str, Callable],
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
+    namedexpr_names: frozenset[str] = frozenset(),
 ) -> Generator[Any, None, None]:
     """
     Recursively evaluate nested comprehensions and yields elements.
@@ -1071,6 +1087,10 @@ def _evaluate_comprehensions(
         static_tools (`dict[str, Callable]`): Static tools.
         custom_tools (`dict[str, Callable]`): Custom tools.
         authorized_imports (`list[str]`): Authorized imports.
+        namedexpr_names (`frozenset[str]`): Names bound by walrus operators inside the
+            comprehension. These are propagated back to the enclosing ``state`` on each
+            iteration, matching PEP 572 semantics where a walrus inside a comprehension
+            binds in the outer scope rather than the per-iteration scope.
 
     Yields:
         `Any`: Individual elements produced by the comprehension
@@ -1092,8 +1112,18 @@ def _evaluate_comprehensions(
         ):
             # Recurse with remaining comprehensions
             yield from _evaluate_comprehensions(
-                comprehensions[1:], evaluate_element, new_state, static_tools, custom_tools, authorized_imports
+                comprehensions[1:],
+                evaluate_element,
+                new_state,
+                static_tools,
+                custom_tools,
+                authorized_imports,
+                namedexpr_names,
             )
+        # Propagate walrus bindings back to the enclosing scope (PEP 572)
+        for name in namedexpr_names:
+            if name in new_state:
+                state[name] = new_state[name]
 
 
 def evaluate_listcomp(
@@ -1111,6 +1141,9 @@ def evaluate_listcomp(
             static_tools,
             custom_tools,
             authorized_imports,
+            _get_namedexpr_target_names(
+                listcomp.elt, *(if_clause for gen in listcomp.generators for if_clause in gen.ifs)
+            ),
         )
     )
 
@@ -1130,6 +1163,9 @@ def evaluate_setcomp(
             static_tools,
             custom_tools,
             authorized_imports,
+            _get_namedexpr_target_names(
+                setcomp.elt, *(if_clause for gen in setcomp.generators for if_clause in gen.ifs)
+            ),
         )
     )
 
@@ -1152,6 +1188,9 @@ def evaluate_dictcomp(
             static_tools,
             custom_tools,
             authorized_imports,
+            _get_namedexpr_target_names(
+                dictcomp.key, dictcomp.value, *(if_clause for gen in dictcomp.generators for if_clause in gen.ifs)
+            ),
         )
     )
 
@@ -1349,6 +1388,10 @@ def evaluate_generatorexp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Generator[Any]:
+    namedexpr_names = _get_namedexpr_target_names(
+        genexp.elt, *(if_clause for gen in genexp.generators for if_clause in gen.ifs)
+    )
+
     def generator():
         for gen in genexp.generators:
             iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
@@ -1366,13 +1409,24 @@ def evaluate_generatorexp(
                     evaluate_ast(if_clause, new_state, static_tools, custom_tools, authorized_imports)
                     for if_clause in gen.ifs
                 ):
-                    yield evaluate_ast(
+                    result = evaluate_ast(
                         genexp.elt,
                         new_state,
                         static_tools,
                         custom_tools,
                         authorized_imports,
                     )
+                    # Propagate before yielding: any()/next() may stop as soon as the
+                    # element is received, so the loop below would not run in time (PEP 572).
+                    for name in namedexpr_names:
+                        if name in new_state:
+                            state[name] = new_state[name]
+                    yield result
+                # Propagate walrus bindings back to the enclosing scope (PEP 572),
+                # including iterations rejected by the filter.
+                for name in namedexpr_names:
+                    if name in new_state:
+                        state[name] = new_state[name]
 
     return generator()
 
@@ -1455,6 +1509,11 @@ def evaluate_ast(
         return evaluate_annassign(expression, *common_params)
     elif isinstance(expression, ast.AugAssign):
         return evaluate_augassign(expression, *common_params)
+    elif isinstance(expression, ast.NamedExpr):
+        # Walrus operator (PEP 572): evaluate the value, bind it to the target name, and return it
+        value = evaluate_ast(expression.value, *common_params)
+        set_value(expression.target, value, state, static_tools, custom_tools, authorized_imports)
+        return value
     elif isinstance(expression, ast.Call):
         # Function call -> we return the value of the function call
         return evaluate_call(expression, *common_params)

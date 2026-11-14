@@ -371,6 +371,58 @@ for result in search_results:
         assert result == 2
         self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
 
+    def test_evaluate_namedexpr_walrus(self):
+        # Walrus operator assigns to the target name and evaluates to the assigned value.
+        code = "(x := 5)"
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert result == 5
+        assert state["x"] == 5
+
+        # Walrus inside a larger expression and a while condition.
+        code = "y = (z := 10) + 1\nn = 0\nwhile (n := n + 1) < 3:\n    pass\nn"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 3
+
+    def test_evaluate_namedexpr_walrus_in_comprehension(self):
+        # PEP 572: a walrus inside a comprehension/generator binds in the
+        # enclosing scope, not the per-iteration scope.
+        code = "[(x := i) for i in range(3)]\nx"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 2
+
+        # The common "search and capture" idiom inside any().
+        code = "any((m := i) for i in range(3))\nm"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 1
+
+        # Accumulation across iterations.
+        code = "total = 0\n[total := total + x for x in [1, 2, 3]]\ntotal"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 6
+
+        # Walrus in a filter condition.
+        code = "[(y := i) for i in range(5) if i > 2]\ny"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 4
+
+        # Dict comprehension.
+        code = "{i: (k := i * 2) for i in range(3)}\nk"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 4
+
+        # Nested comprehension propagates the binding to the outermost scope.
+        code = "[[(x := j) for j in range(2)] for i in range(2)]\nx"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 1
+
+        # The iteration variable itself must not leak into the outer scope.
+        code = "[i * i for i in range(3)]"
+        state = {}
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        assert result == [0, 1, 4]
+        assert "i" not in state
+
     def test_evaluate_binop(self):
         code = "y + x"
         state = {"x": 3, "y": 6}
@@ -1801,6 +1853,22 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         result, _ = evaluate_python_code(code, state={})
         assert not isinstance(result, bool)
         assert str(result) == "a == b"
+
+
+@pytest.mark.parametrize("consume", ["any", "next"])
+def test_walrus_visible_after_partial_generator_consumption(consume):
+    code = (
+        "captured = -1\n"
+        "items = ((captured := value) for value in [7, 8])\n"
+        f"result = {consume}(items)\n"
+        "observed = captured"
+    )
+    native = {}
+    exec(code, native)
+    state = {}
+    evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+    assert state["result"] == native["result"]
+    assert state["observed"] == native["observed"] == 7
 
 
 class TestEvaluateBoolop:
