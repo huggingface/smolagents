@@ -468,23 +468,45 @@ def create_function(
 ) -> Callable:
     source_code = ast.unparse(func_def)
 
+    # Default expressions are evaluated once, when the def runs, exactly like CPython does it - a default
+    # that allocates used to allocate again on every call. They still see the scope the function was defined
+    # in, which is what evaluate_ast gets `state` for.
+    positional_defaults = [
+        evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
+    ]
+    keyword_defaults = {
+        arg.arg: evaluate_ast(d, state, static_tools, custom_tools, authorized_imports)
+        for arg, d in zip(func_def.args.kwonlyargs, func_def.args.kw_defaults)
+        if d is not None
+    }
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
-        arg_names = [arg.arg for arg in func_def.args.args]
-        default_values = [
-            evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
-        ]
+        # positional-only parameters (left of the `/`) are bound like the regular ones - they just can't be
+        # passed by keyword
+        arg_names = [arg.arg for arg in (*func_def.args.posonlyargs, *func_def.args.args)]
+        posonly_names = {arg.arg for arg in func_def.args.posonlyargs}
+        # real Python raises TypeError when a call doesn't bind, and executor code relies on that (it's how
+        # `try: f(x) except TypeError: f(y)` fallbacks work). We used to drop the extras and leave a missing
+        # argument to blow up later as "The variable `a` is not defined", which is both wrong and confusing.
+        # The exception is a `self`-first function called plainly (`f(1)` where f takes self, x): the executor
+        # has always left `self` unbound there (a bound method passes it in as the first positional argument),
+        # so keep that instead of suddenly refusing those calls.
+        strict_binding = not (arg_names and arg_names[0] == "self" and len(args) == len(arg_names) - 1)
 
-        # Apply default values
-        defaults = dict(zip(arg_names[-len(default_values) :], default_values))
+        # Apply default values (`kw_defaults` keeps a None placeholder for kw-only arguments without one,
+        # those were dropped when the dict above was built)
+        defaults = dict(zip(arg_names[len(arg_names) - len(positional_defaults) :], positional_defaults))
+        defaults.update(keyword_defaults)
 
         # Set positional arguments
         for name, value in zip(arg_names, args):
             func_state[name] = value
 
-        # Set keyword arguments
-        for name, value in kwargs.items():
-            func_state[name] = value
+        # Set keyword arguments. A positional-only name that shows up here doesn't bind the parameter, it
+        # lands in **kwargs instead (`def f(a, /, **kw)` called as f(1, a=2) -> a=1, kw={'a': 2})
+        passed_by_keyword = {name: value for name, value in kwargs.items() if name not in posonly_names}
+        func_state.update(passed_by_keyword)
 
         # Handle variable arguments
         if func_def.args.vararg:
@@ -493,12 +515,43 @@ def create_function(
 
         if func_def.args.kwarg:
             kwarg_name = func_def.args.kwarg.arg
-            func_state[kwarg_name] = kwargs
+            func_state[kwarg_name] = dict(kwargs)
 
         # Set default values for arguments that were not provided
         for name, value in defaults.items():
             if name not in func_state:
                 func_state[name] = value
+
+        # A call that doesn't bind is a TypeError in real Python, and code written for the executor relies on
+        # that (that's how `try: f(x) except TypeError: f(y)` fallbacks work). Until now the extra values were
+        # dropped and a missing one only surfaced as "The variable `a` is not defined" once the body touched it.
+        if strict_binding:
+            if len(args) > len(arg_names) and not func_def.args.vararg:
+                raise TypeError(
+                    f"{func_def.name}() takes {len(arg_names)} positional argument"
+                    f"{'' if len(arg_names) == 1 else 's'} but {len(args)} {'was' if len(args) == 1 else 'were'} given"
+                )
+            missing = [
+                name
+                for name in (*arg_names[len(args) :], *(arg.arg for arg in func_def.args.kwonlyargs))
+                if name not in func_state
+            ]
+            if missing:
+                raise TypeError(
+                    f"{func_def.name}() missing {len(missing)} required argument"
+                    f"{'' if len(missing) == 1 else 's'}: " + ", ".join(repr(name) for name in missing)
+                )
+            if not func_def.args.kwarg:
+                kwonly_names = {arg.arg for arg in func_def.args.kwonlyargs}
+                for name in kwargs:
+                    if name in posonly_names:
+                        raise TypeError(
+                            f"{func_def.name}() got some positional-only arguments passed as keyword arguments: {name!r}"
+                        )
+                    # `self` is the one keyword we can't judge from here: it may or may not be bound by the
+                    # call site, so leave it alone rather than rejecting a call the old code accepted
+                    if name != "self" and name not in arg_names and name not in kwonly_names:
+                        raise TypeError(f"{func_def.name}() got an unexpected keyword argument {name!r}")
 
         # Update function state with self and __class__
         if func_def.args.args and func_def.args.args[0].arg == "self":

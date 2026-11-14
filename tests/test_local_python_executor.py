@@ -1466,6 +1466,106 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert res.__name__ == "target_function"
         assert res.__source__ == "def target_function():\n    return 'Hello world'"
 
+    def test_keyword_only_default_arg_in_function(self):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+
+        result = executor(
+            dedent("""
+            def greet(name, *, greeting="hello", punct=""):
+                return greeting + " " + name + punct
+
+            r = greet("bob") + "|" + greet("bob", greeting="hi", punct="!")
+            """)
+        )
+        assert result.output == "hello bob|hi bob!"
+
+    def test_positional_only_arg_in_function(self):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+
+        result = executor(
+            dedent("""
+            def add(a, /, b=1):
+                return a + b
+
+            r = add(1) + add(1, 2)
+            """)
+        )
+        assert result.output == 5
+
+    def test_positional_only_name_passed_by_keyword_goes_to_kwargs(self):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+
+        result = executor(
+            dedent("""
+            def f(a, /, **kw):
+                return (a, kw)
+
+            r = f(1, a=2)
+            """)
+        )
+        assert result.output == (1, {"a": 2})
+
+    def test_default_values_are_evaluated_once_at_definition(self):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+
+        # a default with a side effect must not run on every call, CPython evaluates it when the def runs
+        result = executor(
+            dedent("""
+            calls = []
+
+            def allocate():
+                calls.append(1)
+                return len(calls)
+
+            def f(*, value=allocate()):
+                return value
+
+            r = [f(), f(value=99), f(), len(calls)]
+            """)
+        )
+        assert result.output == [1, 99, 1, 1]
+
+    def test_calling_function_with_wrong_arguments_raises_type_error(self):
+        # real Python refuses to run these calls at all, while the executor used to drop the extra value and
+        # leave `a` undefined, so `except TypeError` fallbacks never fired
+        for call, message in [
+            ("f(1, 2)", "takes 1 positional argument but 2 were given"),
+            ("f()", "missing 1 required argument: 'a'"),
+            ("f(a=1, b=2)", "got an unexpected keyword argument 'b'"),
+        ]:
+            state = {}
+            with pytest.raises(InterpreterError, match=message):
+                evaluate_python_code(f"def f(a):\n    return a\nr = {call}", {}, state=state)
+
+    def test_function_call_errors_can_be_caught_as_type_error(self):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+
+        # without the TypeError the call just blows up as an InterpreterError and the fallback never runs
+        result = executor(
+            dedent("""
+            def parse(value, strict):
+                return value if strict else None
+
+            tries = []
+
+            def parse(value):
+                return value
+
+            try:
+                tries.append(parse(1, True))
+            except TypeError:
+                tries.append("fallback")
+
+            tries
+            """)
+        )
+        assert result.output == ["fallback"]
+
     def test_evaluate_class_def_with_pass(self):
         code = dedent("""
             class TestClass:
