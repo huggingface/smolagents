@@ -304,6 +304,30 @@ test_func(**None)
             },
         )
 
+    def test_evaluate_f_string_repr_conversion(self):
+        code = "text = f'{x!r}'"
+        state = {"x": "hello"}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == "'hello'"
+
+    def test_evaluate_f_string_str_conversion(self):
+        code = "text = f'{x!s}'"
+        state = {"x": 42}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == "42"
+
+    def test_evaluate_f_string_ascii_conversion(self):
+        code = "text = f'{x!a}'"
+        state = {"x": "café"}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == "'caf\\xe9'"
+
+    def test_evaluate_f_string_conversion_with_format(self):
+        code = "text = f'{x!r:>10}'"
+        state = {"x": "hi"}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        assert result == "      'hi'"
+
     def test_evaluate_if(self):
         code = "if x <= 3:\n    y = 2\nelse:\n    y = 5"
         state = {"x": 3}
@@ -2987,3 +3011,37 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+@pytest.mark.parametrize("conversion", ["s", "r", "a"])
+def test_dynamic_spec_is_evaluated_before_conversion(conversion):
+    code = f'result = f"{{item!{conversion}:{{width()}}}}"'
+
+    def run(native):
+        events = []
+
+        class Value:
+            text = "before"
+
+            def __repr__(self):
+                events.append("repr")
+                return self.text
+
+            def __str__(self):
+                events.append("str")
+                return self.text
+
+        def width():
+            events.append("spec")
+            state["item"].text = "after"
+            return 10
+
+        state = {"item": Value()}
+        if native:
+            state["width"] = width
+            exec(code, state)
+        else:
+            evaluate_python_code(code, {**BASE_PYTHON_TOOLS, "width": width}, state=state)
+        return state["result"], events
+
+    assert run(False) == run(True)

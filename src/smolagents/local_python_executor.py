@@ -1506,11 +1506,23 @@ def evaluate_ast(
     elif isinstance(expression, ast.FormattedValue):
         # Formatted value (part of f-string) -> evaluate the content and format it
         value = evaluate_ast(expression.value, *common_params)
+        # CPython evaluates the format-spec expressions before applying the
+        # conversion, so side effects in a dynamic spec (e.g. {width()}) must
+        # be visible to str()/repr()/ascii(). Store the spec string first.
+        format_spec = None
+        if expression.format_spec is not None:
+            format_spec = evaluate_ast(expression.format_spec, *common_params)
+        # Apply the conversion flag (!s, !r, !a) before formatting (PEP 498).
+        if expression.conversion == 115:  # !s -> str()
+            value = str(value)
+        elif expression.conversion == 114:  # !r -> repr()
+            value = repr(value)
+        elif expression.conversion == 97:  # !a -> ascii()
+            value = ascii(value)
         # Early return if no format spec
-        if not expression.format_spec:
+        if format_spec is None:
             return value
-        # Apply format specification
-        format_spec = evaluate_ast(expression.format_spec, *common_params)
+        # Apply the stored format specification
         return format(value, format_spec)
     elif isinstance(expression, ast.If):
         # If -> execute the right branch
