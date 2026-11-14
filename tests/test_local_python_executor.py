@@ -3011,3 +3011,37 @@ class TestLocalPythonExecutorSecurity:
         )
         with expectation:
             executor(code)
+
+
+@pytest.mark.parametrize("conversion", ["s", "r", "a"])
+def test_dynamic_spec_is_evaluated_before_conversion(conversion):
+    code = f'result = f"{{item!{conversion}:{{width()}}}}"'
+
+    def run(native):
+        events = []
+
+        class Value:
+            text = "before"
+
+            def __repr__(self):
+                events.append("repr")
+                return self.text
+
+            def __str__(self):
+                events.append("str")
+                return self.text
+
+        def width():
+            events.append("spec")
+            state["item"].text = "after"
+            return 10
+
+        state = {"item": Value()}
+        if native:
+            state["width"] = width
+            exec(code, state)
+        else:
+            evaluate_python_code(code, {**BASE_PYTHON_TOOLS, "width": width}, state=state)
+        return state["result"], events
+
+    assert run(False) == run(True)
