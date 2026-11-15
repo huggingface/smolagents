@@ -36,17 +36,17 @@ the contributions we do receive get a real review, in reasonable time. Please re
 before you start writing code: they are meant to stop you wasting effort, not to keep
 you out.
 
-**Get an issue assigned to you first.** Every pull request must link an issue that a
-maintainer has assigned to you, with `Fixes #123` in its description. To get one, either
-open an issue describing the problem and say you would like to fix it, or ask for an open
-issue labelled `help wanted` or `good first issue`. If we want the change and want you to
-make it, we assign the issue to you. Issues assigned to someone else, including the ones
-maintainers open for themselves, are taken. This applies to documentation fixes too: report
-typos and broken links in an issue instead of opening one pull request per fix.
+**Get an issue validated and assigned to you first.** Every pull request must link an issue
+that a maintainer has validated and assigned to you, with `Fixes #123` in its description. To
+get one, either open an issue describing the problem and say you would like to fix it, or ask
+for an open issue labelled `help wanted` or `good first issue`. If we validate the change and
+want you to make it, we assign the issue to you. Issues assigned to someone else, including
+the ones maintainers open for themselves, are taken. This applies to documentation fixes too:
+report typos and broken links in an issue instead of opening one pull request per fix.
 
-Pull requests without an issue assigned to their author are closed and labelled
-`needs-assigned-issue`. Once the issue is assigned to you, comment on the pull request and
-we will reopen it: please do not open a new one.
+Pull requests without a validated issue assigned to their author are closed and labelled
+`needs-assigned-issue`. Once the issue is validated and assigned to you, comment on the pull
+request and we will reopen it: please do not open a new one.
 
 **One thing at a time, until your first pull request is merged.** Until then, you can have
 one issue assigned to you and one pull request open. After that, this limit no longer
@@ -84,8 +84,8 @@ There are several ways you can contribute to smolagents.
 ## Submitting a bug-related issue or feature request
 
 At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
-If you already have a fix in mind, say so in the issue: if we want the change and want you to
-make it, we assign the issue to you.
+If you already have a fix in mind, say so in the issue: if we validate the change and want you
+to make it, we assign the issue to you.
 
 Do your best to follow these guidelines when submitting a bug-related issue or a feature
 request. It will make it easier for us to come back to you quickly and with good
@@ -133,7 +133,7 @@ happy to make the changes or help you make a contribution if you're interested!
 ## Fixing outstanding issues
 
 If you notice an issue with the existing code and have a fix in mind, comment on the issue to
-ask for it. Once a maintainer assigns it to you, go ahead and
+ask for it. Once a maintainer validates it and assigns it to you, go ahead and
 [open a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
 
 Issues labelled `good first issue` and `help wanted` are the ones open to contributors, and the best place to start.
