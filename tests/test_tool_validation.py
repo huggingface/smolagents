@@ -1,5 +1,6 @@
 import ast
 from textwrap import dedent
+from typing import Optional
 
 import pytest
 
@@ -256,7 +257,7 @@ def test_undefined_names_in_decorators_and_return_annotations_still_reported():
     assert any("Name 'MissingReturn' is undefined." in error for error in method_checker.errors)
 
 
-def test_undefined_names_in_nested_def_decorators_and_annotations_reported():
+def test_undefined_names_in_nested_def_decorators_and_return_annotation_reported():
     source_code = dedent(
         """
         def forward(self, x):
@@ -269,19 +270,23 @@ def test_undefined_names_in_nested_def_decorators_and_annotations_reported():
     method_checker = MethodChecker(set())
     method_checker.visit(ast.parse(source_code))
     assert any("Name 'missing_dec' is undefined." in error for error in method_checker.errors)
-    assert any("Name 'MissingAnn' is undefined." in error for error in method_checker.errors)
     assert any("Name 'MissingRet' is undefined." in error for error in method_checker.errors)
+    # Parameter annotations are not checked, matching main's visit_arguments.
+    assert not any("Name 'MissingAnn' is undefined." in error for error in method_checker.errors)
 
 
-def test_undefined_name_in_default_expression_reported():
-    # New capability vs main: visit_arguments never recursed, so a default
-    # expression referencing an undefined name was never checked.
-    source_code = dedent(
-        """
-        def forward(self, x=missing_default):
-            return x
-        """
-    )
-    method_checker = MethodChecker(set())
-    method_checker.visit(ast.parse(source_code))
-    assert any("Name 'missing_default' is undefined." in error for error in method_checker.errors)
+@tool
+def greet(name: Optional[str] = None) -> str:
+    """Greet someone.
+
+    Args:
+        name: who to greet
+    """
+    return f"Hello {name}"
+
+
+def test_undefined_name_in_parameter_annotation_not_reported():
+    # Regression guard for a supported pattern: `Optional` is intentionally
+    # undefined here, and main's visit_arguments never looked inside
+    # parameters, so this tool must still validate.
+    assert greet.to_dict()
