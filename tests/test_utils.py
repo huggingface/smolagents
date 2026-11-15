@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import ast
+import importlib.util
 import inspect
 import os
 import textwrap
@@ -21,7 +23,7 @@ import pytest
 from IPython.core.interactiveshell import InteractiveShell
 
 from smolagents import Tool
-from smolagents.tools import tool
+from smolagents.tools import get_tools_definition_code, tool
 from smolagents.utils import (
     create_agent_gradio_app_template,
     get_source,
@@ -62,11 +64,11 @@ VALID_TOOL_SOURCE = """\
 from smolagents.tools import Tool
 
 class ValidTool(Tool):
-    name = "valid_tool"
-    description = "A valid tool"
+    name = 'valid_tool'
+    description = 'A valid tool'
     inputs = {'input': {'type': 'string', 'description': 'input'}}
-    output_type = "string"
-    simple_attr = "string"
+    output_type = 'string'
+    simple_attr = 'string'
     dict_attr = {'key': 'value'}
 
     def __init__(self, optional_param="default"):
@@ -81,10 +83,10 @@ VALID_TOOL_FUNCTION_SOURCE = '''\
 from smolagents.tools import Tool
 
 class SimpleTool(Tool):
-    name = "valid_tool_function"
-    description = "A valid tool function."
+    name = 'valid_tool_function'
+    description = 'A valid tool function.'
     inputs = {'input': {'type': 'string', 'description': 'Input string.'}}
-    output_type = "string"
+    output_type = 'string'
 
     def __init__(self):
         self.is_initialized = True
@@ -210,6 +212,59 @@ def test_instance_to_source(tool, expected_tool_source):
     assert tool_source == expected_tool_source
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "\U0001f600",
+        "First\nC:\\new\\test",
+        'quotes """\nbackslash\\',
+        "ordinary text",
+        "",
+        "caf\u00e9",
+        "\U0001f600\n",
+        "\r\t\x00",
+        "literal\\n\\t",
+        "'\"\\",
+    ],
+)
+@pytest.mark.parametrize("export_path", ["source", "save", "dict", "definitions"])
+def test_export_preserves_string_attributes(value, export_path, tmp_path):
+    class SavedValueTool(Tool):
+        name = "saved_value_tool"
+        description = "Return saved text."
+        inputs = {}
+        output_type = "string"
+        message = ""
+
+        def forward(self) -> str:
+            return self.message
+
+    SavedValueTool.message = value
+    original = SavedValueTool()
+    if export_path == "source":
+        tree = ast.parse(instance_to_source(original, base_cls=Tool))
+        cls = next(node for node in tree.body if isinstance(node, ast.ClassDef))
+        assignment = next(
+            node for node in cls.body if isinstance(node, ast.Assign) and node.targets[0].id == "message"
+        )
+        actual = ast.literal_eval(assignment.value)
+    elif export_path == "save":
+        original.save(tmp_path, make_gradio_app=False)
+        spec = importlib.util.spec_from_file_location("saved_value_module", tmp_path / "tool.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        actual = module.SavedValueTool()()
+    elif export_path == "dict":
+        actual = Tool.from_dict(original.to_dict())()
+    else:
+        namespace = {}
+        exec(get_tools_definition_code({original.name: original}), namespace)
+        actual = namespace[original.name]()
+    assert actual == value
+    assert list(map(ord, actual)) == list(map(ord, value))
+    assert actual.encode("utf-8") == value.encode("utf-8")
+
+
 def test_e2e_class_tool_save(tmp_path):
     class TestTool(Tool):
         name = "test_tool"
@@ -237,10 +292,10 @@ def test_e2e_class_tool_save(tmp_path):
         import IPython
 
         class TestTool(Tool):
-            name = "test_tool"
-            description = "Test tool description"
+            name = 'test_tool'
+            description = 'Test tool description'
             inputs = {'task': {'type': 'string', 'description': 'tool input'}}
-            output_type = "string"
+            output_type = 'string'
 
             def forward(self, task: str):
                 import IPython  # noqa: F401
@@ -294,10 +349,10 @@ def test_e2e_ipython_class_tool_save(tmp_path):
         import IPython
 
         class TestTool(Tool):
-            name = "test_tool"
-            description = "Test tool description"
+            name = 'test_tool'
+            description = 'Test tool description'
             inputs = {'task': {'type': 'string', 'description': 'tool input'}}
-            output_type = "string"
+            output_type = 'string'
 
             def forward(self, task: str):
                 import IPython  # noqa: F401

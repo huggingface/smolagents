@@ -309,15 +309,8 @@ def instance_to_source(instance, base_cls=None):
     }
 
     for name, value in class_attrs.items():
-        if isinstance(value, str):
-            # multiline value
-            if "\n" in value:
-                escaped_value = value.replace('"""', r"\"\"\"")  # Escape triple quotes
-                class_lines.append(f'    {name} = """{escaped_value}"""')
-            else:
-                class_lines.append(f"    {name} = {json.dumps(value)}")
-        else:
-            class_lines.append(f"    {name} = {repr(value)}")
+        # Python literals preserve Unicode and backslashes when the source is reloaded.
+        class_lines.append(f"    {name} = {value!r}")
 
     if class_attrs:
         class_lines.append("")
