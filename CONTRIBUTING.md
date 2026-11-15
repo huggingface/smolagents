@@ -33,26 +33,36 @@ However you choose to contribute, please be mindful and respect our
 
 smolagents receives far more pull requests than we can review. These rules exist so that
 the contributions we do receive get a real review, in reasonable time. Please read them
-before you start writing code — they are meant to stop you wasting effort, not to keep
+before you start writing code: they are meant to stop you wasting effort, not to keep
 you out.
 
-**Open an issue first.** For anything larger than a typo or a broken link, open an issue
-and wait for a maintainer to label it `status:accepted` before you write the patch. An
-accepted issue is our commitment to review the PR that follows. Pull requests without a
-linked accepted issue are labelled `needs-issue` and closed after 14 days.
+**Get an issue validated and assigned to you first.** Every pull request must link an issue
+that a maintainer has validated and assigned to you, with `Fixes #123` in its description. To
+get one, either open an issue describing the problem and say you would like to fix it, or ask
+for an open issue labelled `help wanted` or `good first issue`. If we validate the change and
+want you to make it, we assign the issue to you. Issues assigned to someone else, including
+the ones maintainers open for themselves, are taken. This applies to documentation fixes too:
+report typos and broken links in an issue instead of opening one pull request per fix.
 
-**One open pull request at a time, until your first one lands.** Once something of yours
-has been merged, open as many as you like.
+Pull requests without a validated issue assigned to their author are closed and labelled
+`needs-assigned-issue`. Once the issue is validated and assigned to you, comment on the pull
+request and we will reopen it: please do not open a new one.
 
-**Tell us if you used an AI assistant, and stand behind the diff.** This is a library for
-building agents, so using an agent to contribute to it is entirely legitimate and welcome.
-What we need is that a person is accountable for the result: you have read the change, you
-have run the tests, you can explain why it is correct, and you will answer review comments.
-Bulk-submitted generated patches without that accountability will be closed.
+**One thing at a time, until your first pull request is merged.** Until then, you can have
+one issue assigned to you and one pull request open. After that, this limit no longer
+applies.
 
-**The first reviewable pull request wins, not the first submitted.** When several pull
-requests address the same issue, we merge the one that is complete, tested and correctly
-scoped — not the one with the earliest timestamp. Racing to submit does not help you.
+**Report real problems, and fix them as a whole.** Tell us how you ran into the problem: in
+real use, or by reading the code. We do not accept fixes for theoretical bugs that do not
+affect real use. If the same problem appears in several places, fix all of them in one pull
+request. The pull request template asks for the use case, and pull requests without one are
+closed.
+
+**You are accountable for every line.** This is a library for building agents, so using an
+agent to contribute to it is entirely legitimate and welcome. What we need is a person who
+answers for the result: you have read the change, you have run the tests, you can explain
+why it is correct, and you will answer review comments. We may block accounts that
+repeatedly open low-effort issues or pull requests.
 
 **Core ships primitives, not integrations.** smolagents is deliberately small. New built-in
 tools, provider-specific model wrappers and per-site scrapers are generally *not* accepted
@@ -74,8 +84,8 @@ There are several ways you can contribute to smolagents.
 ## Submitting a bug-related issue or feature request
 
 At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
-If you already have a fix in mind, say so in the issue — once it is labelled `status:accepted`,
-it is yours to work on.
+If you already have a fix in mind, say so in the issue: if we validate the change and want you
+to make it, we assign the issue to you.
 
 Do your best to follow these guidelines when submitting a bug-related issue or a feature
 request. It will make it easier for us to come back to you quickly and with good
@@ -123,10 +133,10 @@ happy to make the changes or help you make a contribution if you're interested!
 ## Fixing outstanding issues
 
 If you notice an issue with the existing code and have a fix in mind, comment on the issue to
-claim it. Once a maintainer labels it `status:accepted` and assigns it to you, go ahead and
+ask for it. Once a maintainer validates it and assigns it to you, go ahead and
 [open a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
 
-Issues labelled `good first issue` and `help wanted` are the best place to start.
+Issues labelled `good first issue` and `help wanted` are the ones open to contributors, and the best place to start.
 
 ### Making code changes
 
