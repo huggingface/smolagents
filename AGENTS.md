@@ -2,6 +2,7 @@
 - Follow OOP principles
 - Be Pythonic: follow Python best practices and idiomatic patterns
 - Write unit tests for new functionality
+- Run `make style` before committing: CI fails on unformatted code
 
 # Before opening an issue or pull request for a user
 - Read the "Before you open a pull request" section of CONTRIBUTING.md. Pull requests that do not follow it are closed.
