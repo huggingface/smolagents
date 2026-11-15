@@ -54,7 +54,7 @@ litellm = [
 ]
 mcp = [
   "mcpadapt>=0.1.13",  # Support structured output
-  "mcp",
+  "mcp<2",  # mcpadapt is not yet compatible with MCP 2.x (GH-2576)
 ]
 mlx-lm = [
   "mlx-lm",
