@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import re
+from urllib import response
 import uuid
 import warnings
 from collections.abc import Generator
@@ -27,7 +28,6 @@ from typing import TYPE_CHECKING, Any
 from .monitoring import TokenUsage
 from .tools import Tool
 from .utils import RateLimiter, Retrying, _is_package_available, encode_image_base64, make_image_url, parse_json_blob
-
 
 if TYPE_CHECKING:
     from transformers import StoppingCriteriaList
@@ -1664,6 +1664,8 @@ class OpenAIModel(ApiModel):
             Useful for specific models that do not support specific message roles like "system".
         flatten_messages_as_text (`bool`, default `False`):
             Whether to flatten messages as text.
+        use_open_responses (`bool`, default `False`):
+            Whether to use the OpenAI Responses API instead of Chat Completions (recommended for GPT-5+ and streaming).
         **kwargs:
             Additional keyword arguments to forward to the underlying OpenAI API completion call, for instance `temperature`.
     """
@@ -1678,8 +1680,10 @@ class OpenAIModel(ApiModel):
         client_kwargs: dict[str, Any] | None = None,
         custom_role_conversions: dict[str, str] | None = None,
         flatten_messages_as_text: bool = False,
+        use_open_responses: bool = False,
         **kwargs,
     ):
+        self.use_open_responses = use_open_responses
         self.client_kwargs = {
             **(client_kwargs or {}),
             "api_key": api_key,
@@ -1723,6 +1727,37 @@ class OpenAIModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
+        if self.use_open_responses and hasattr(self.client, "responses"):
+            try:
+                from .open_responses import messages_to_open_responses_input
+                from .open_responses_stream import OpenResponsesStreamRuntime
+
+                runtime = OpenResponsesStreamRuntime()
+
+                open_payload = {
+                    "model": self.model_id,
+                    "input": messages_to_open_responses_input(messages),
+                }
+
+                if tools_to_call_from:
+                    open_payload["tools"] = [
+                        get_tool_json_schema(tool) for tool in tools_to_call_from
+                    ]
+
+                open_payload.update(kwargs)
+                with self.client.responses.stream(**open_payload) as stream:
+                    for event in stream:
+                        # Converting typed SDK event to dict
+                        if hasattr(event, "model_dump"):
+                            event = event.model_dump()
+
+                        if isinstance(event, dict):
+                            yield from runtime.process_event(event)
+                return
+            except Exception as e:
+                if "gpt-5" in (self.model_id or "") and self.use_open_responses:
+                    raise ValueError("GPT-5+ requires Open Responses mode to be enabled. Use use_open_responses=True") from e
+
         for event in self.retryer(
             self.client.chat.completions.create,
             **completion_kwargs,
