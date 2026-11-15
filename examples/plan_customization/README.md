@@ -51,7 +51,7 @@ agent = CodeAgent(
     planning_interval=5,  # Plan every 5 steps
     step_callbacks={PlanningStep: interrupt_after_plan},  # Register callback for PlanningStep
     max_steps=10,
-    verbosity_level=1
+    verbosity_level=1,
 )
 ```
 
@@ -117,7 +117,7 @@ The example shows how to inspect the agent's memory:
 print(f"Current memory contains {len(agent.memory.steps)} steps:")
 for i, step in enumerate(agent.memory.steps):
     step_type = type(step).__name__
-    print(f"  {i+1}. {step_type}")
+    print(f"  {i + 1}. {step_type}")
 ```
 
 ### Error Handling

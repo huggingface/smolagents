@@ -687,6 +687,18 @@ simple_set = {
         with pytest.raises(InterpreterError, match=re.escape(message)):
             evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
 
+    def test_unpacking_getitem_only_iterable(self):
+        class GetItemOnly:
+            def __getitem__(self, index):
+                if index >= 3:
+                    raise IndexError
+                return index + 1
+
+        result, _ = evaluate_python_code(
+            "a, *b = source\n(a, b)", BASE_PYTHON_TOOLS, state={"source": GetItemOnly()}
+        )
+        assert result == (1, [2, 3])
+
     def test_while(self):
         code = "i = 0\nwhile i < 3:\n    i += 1\ni"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
@@ -1987,9 +1999,8 @@ class TestEvaluateCondition:
                     "b": pd.Series([2, 2, 2]),
                     "c": pd.Series([3, 3, 3]),
                 },
-                ValueError(
-                    "The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
-                ),
+                # Match only the stable prefix: pandas 3 dropped "a.bool()" from the suggestion list
+                ValueError("The truth value of a Series is ambiguous."),
             ),
             (
                 "a == b == c",
@@ -1998,9 +2009,8 @@ class TestEvaluateCondition:
                     "b": pd.DataFrame({"x": [2, 2], "y": [2, 2]}),
                     "c": pd.DataFrame({"x": [3, 3], "y": [3, 3]}),
                 },
-                ValueError(
-                    "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
-                ),
+                # Match only the stable prefix: pandas 3 dropped "a.bool()" from the suggestion list
+                ValueError("The truth value of a DataFrame is ambiguous."),
             ),
         ],
     )

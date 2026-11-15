@@ -29,6 +29,47 @@ However you choose to contribute, please be mindful and respect our
 
 **This guide was heavily inspired by the awesome [scikit-learn guide to contributing](https://github.com/scikit-learn/scikit-learn/blob/main/CONTRIBUTING.md).**
 
+## Before you open a pull request
+
+smolagents receives far more pull requests than we can review. These rules exist so that
+the contributions we do receive get a real review, in reasonable time. Please read them
+before you start writing code: they are meant to stop you wasting effort, not to keep
+you out.
+
+**Get an issue validated and assigned to you first.** Every pull request must link an issue
+that a maintainer has validated and assigned to you, with `Fixes #123` in its description. To
+get one, either open an issue describing the problem and say you would like to fix it, or ask
+for an open issue labelled `help wanted` or `good first issue`. If we validate the change and
+want you to make it, we assign the issue to you. Issues assigned to someone else, including
+the ones maintainers open for themselves, are taken. This applies to documentation fixes too:
+report typos and broken links in an issue instead of opening one pull request per fix.
+
+Pull requests without a validated issue assigned to their author are closed and labelled
+`needs-assigned-issue`. Once the issue is validated and assigned to you, comment on the pull
+request and we will reopen it: please do not open a new one.
+
+**One thing at a time, until your first pull request is merged.** Until then, you can have
+one issue assigned to you and one pull request open. After that, this limit no longer
+applies.
+
+**Report real problems, and fix them as a whole.** Tell us how you ran into the problem: in
+real use, or by reading the code. We do not accept fixes for theoretical bugs that do not
+affect real use. If the same problem appears in several places, fix all of them in one pull
+request. The pull request template asks for the use case, and pull requests without one are
+closed.
+
+**You are accountable for every line.** This is a library for building agents, so using an
+agent to contribute to it is entirely legitimate and welcome. What we need is a person who
+answers for the result: you have read the change, you have run the tests, you can explain
+why it is correct, and you will answer review comments. We may block accounts that
+repeatedly open low-effort issues or pull requests.
+
+**Core ships primitives, not integrations.** smolagents is deliberately small. New built-in
+tools, provider-specific model wrappers and per-site scrapers are generally *not* accepted
+into the core library; publish them on the Hub instead, where they can evolve on your
+schedule rather than ours. If you are unsure whether something is in scope, ask in an issue
+before building it.
+
 ## Ways to contribute
 
 There are several ways you can contribute to smolagents.
@@ -36,13 +77,15 @@ There are several ways you can contribute to smolagents.
 * Submit issues related to bugs or desired new features.
 * Contribute to the examples or to the documentation.
 * Fix outstanding issues with the existing code.
+* Help triage: reproduce reported bugs, answer questions, and review open pull requests.
 
 > All contributions are equally valuable to the community. 🥰
 
 ## Submitting a bug-related issue or feature request
 
 At any moment, feel welcome to open an issue, citing your exact error traces and package versions if it's a bug.
-It's often even better to open a PR with your proposed fixes/changes!
+If you already have a fix in mind, say so in the issue: if we validate the change and want you
+to make it, we assign the issue to you.
 
 Do your best to follow these guidelines when submitting a bug-related issue or a feature
 request. It will make it easier for us to come back to you quickly and with good
@@ -89,8 +132,11 @@ happy to make the changes or help you make a contribution if you're interested!
 
 ## Fixing outstanding issues
 
-If you notice an issue with the existing code and have a fix in mind, feel free to [start contributing](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) and open
-a Pull Request!
+If you notice an issue with the existing code and have a fix in mind, comment on the issue to
+ask for it. Once a maintainer validates it and assigns it to you, go ahead and
+[open a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
+
+Issues labelled `good first issue` and `help wanted` are the ones open to contributors, and the best place to start.
 
 ### Making code changes
 

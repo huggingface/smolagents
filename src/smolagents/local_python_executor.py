@@ -810,9 +810,10 @@ def set_value(
         starred_positions = [i for i, elem in enumerate(elts) if isinstance(elem, ast.Starred)]
         if len(starred_positions) > 1:
             raise InterpreterError("multiple starred expressions in assignment")
-        if not hasattr(value, "__iter__"):
-            raise InterpreterError(f"cannot unpack non-iterable {type(value).__name__} object")
-        values = list(value)
+        try:
+            values = list(value)
+        except TypeError:
+            raise InterpreterError(f"cannot unpack non-iterable {type(value).__name__} object") from None
         if starred_positions:
             star_index = starred_positions[0]
             n_after = len(elts) - star_index - 1
