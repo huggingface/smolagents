@@ -1,0 +1,85 @@
+# Closes pull requests that do not link an issue a maintainer has validated and assigned to their
+# author, as required by the "Before you open a pull request" section of CONTRIBUTING.md.
+# Only applies to authors without a merged pull request (FIRST_TIME_CONTRIBUTOR, FIRST_TIMER, NONE)
+# and without write access. Runs only when a pull request is opened: a pull request a maintainer
+# reopens is not checked again.
+#
+# Uses `pull_request_target` so that GITHUB_TOKEN can comment on and close pull requests from forks.
+# It never checks out the pull request and never runs its code: it only reads the pull request
+# description from the event payload, and the issues it references through the API.
+#
+# Rollout: until the repository variable PR_POLICY_ENFORCE is set to "true", the job only logs what
+# it would do.
+
+name: PR policy check
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ENFORCE: ${{ vars.PR_POLICY_ENFORCE }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const author = pr.user.login;
+            if (pr.user.type === "Bot") return;
+            if (!["FIRST_TIME_CONTRIBUTOR", "FIRST_TIMER", "NONE"].includes(pr.author_association)) return;
+            // Private organization members show up as NONE, so also check repository access.
+            const { data: access } = await github.rest.repos.getCollaboratorPermissionLevel({ ...context.repo, username: author });
+            if (["admin", "maintain", "write"].includes(access.permission)) return;
+
+            // Look for a referenced issue assigned to the author, ignoring the template's HTML comments.
+            const body = (pr.body ?? "").replace(/<!--[\s\S]*?-->/g, "");
+            const refs = [...new Set([...body.matchAll(/(?:^|[^\w\/])#(\d+)\b/g)].map((m) => Number(m[1])))];
+            const unassigned = [];
+            for (const ref of refs.slice(0, 10)) {
+              let issue;
+              try {
+                issue = (await github.rest.issues.get({ ...context.repo, issue_number: ref })).data;
+              } catch (error) {
+                if (error.status === 404 || error.status === 410) continue;
+                throw error;
+              }
+              if (issue.pull_request) continue;
+              if (issue.assignees.some((assignee) => assignee.login === author)) {
+                core.info(`#${pr.number} links #${ref}, assigned to @${author}.`);
+                return;
+              }
+              unassigned.push(`#${ref}`);
+            }
+
+            const problem = unassigned.length
+              ? `It links ${unassigned.join(", ")}, which ${unassigned.length === 1 ? "is" : "are"} not assigned to you`
+              : "It does not link an issue assigned to you";
+            const message = [
+              "Thank you for this pull request.",
+              "",
+              "Under our [contribution guidelines](https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md#before-you-open-a-pull-request), " +
+                "a pull request needs to link an issue that a maintainer has validated and assigned to its author, " +
+                `for example with \`Fixes #123\` in its description. ${problem}, so it is closed for now.`,
+              "",
+              "To get an issue validated and assigned, open one describing the problem and say you would like to fix it, " +
+                "or ask for an open issue labelled `help wanted` or `good first issue`. " +
+                "Once the issue is assigned to you, comment here and we will reopen this pull request: please do not open a new one.",
+              "",
+              "This check is automated, and it is not a judgement on your work.",
+            ].join("\n");
+
+            if (process.env.ENFORCE !== "true") {
+              core.info(`[log only] Would close #${pr.number} with:\n${message}`);
+              return;
+            }
+            await github.rest.issues.createComment({ ...context.repo, issue_number: pr.number, body: message });
+            await github.rest.issues.addLabels({ ...context.repo, issue_number: pr.number, labels: ["needs-assigned-issue"] });
+            await github.rest.pulls.update({ ...context.repo, pull_number: pr.number, state: "closed" });
