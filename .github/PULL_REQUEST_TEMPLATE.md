@@ -3,7 +3,7 @@ Read https://github.com/huggingface/smolagents/blob/main/CONTRIBUTING.md#before-
 Pull requests that do not follow it are closed.
 -->
 
-Fixes #<!-- an issue a maintainer has assigned to you -->
+Fixes #<!-- an issue a maintainer has validated and assigned to you -->
 
 ## Use case
 
