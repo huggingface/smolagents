@@ -2626,3 +2626,337 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class TestManagedAgentErrorPropagation:
+    """Tests that ManagedAgent propagates error information from sub-agents to the manager."""
+
+    def test_max_steps_exhaustion_includes_warning(self):
+        """When a sub-agent exhausts max_steps, the response should include a warning."""
+
+        class NeverFinishModel(Model):
+            """Model that never calls final_answer, forcing max_steps exhaustion."""
+
+            model_id = "never_finish"
+            call_count = 0
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                self.call_count += 1
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=f"""
+Thought: I'm still working on it. Step {self.call_count}.
+<code>
+print("Still searching...")
+</code>
+""",
+                )
+
+        class ManagerModel(Model):
+            """Manager model that delegates to a sub-agent then returns the result."""
+
+            model_id = "manager"
+            call_count = 0
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                self.call_count += 1
+                if self.call_count == 1:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="""
+Thought: Let me delegate to the search agent.
+<code>
+result = search_agent(task="Find information")
+final_answer(result)
+</code>
+""",
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""
+Thought: Return the result.
+<code>
+final_answer("done")
+</code>
+""",
+                )
+
+        sub_agent = CodeAgent(
+            tools=[],
+            model=NeverFinishModel(),
+            max_steps=2,
+            name="search_agent",
+            description="Searches for information.",
+        )
+
+        manager = CodeAgent(
+            tools=[],
+            model=ManagerModel(),
+            managed_agents=[sub_agent],
+            max_steps=3,
+        )
+
+        result = manager.run("Find some info")
+        assert isinstance(result, str)
+        assert "[WARNING]" in result
+        assert "exhausted its maximum steps" in result
+        assert "search_agent" in result
+
+    def test_tool_errors_during_subagent_run_are_reported(self):
+        """When a sub-agent encounters tool errors, these should be surfaced to the manager."""
+
+        class ErrorThenFinishModel(Model):
+            """Model that triggers a tool error then finishes."""
+
+            model_id = "error_then_finish"
+            call_count = 0
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                self.call_count += 1
+                if self.call_count == 1:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="""
+Thought: Let me try something that will error.
+<code>
+def bad():
+    raise ValueError("tool broke")
+bad()
+</code>
+""",
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""
+Thought: Previous step had an error, let me return what I have.
+<code>
+final_answer("partial result after error")
+</code>
+""",
+                )
+
+        class ManagerModel(Model):
+            model_id = "manager"
+            call_count = 0
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                self.call_count += 1
+                if self.call_count == 1:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="""
+Thought: Delegate to worker.
+<code>
+result = worker(task="Do something")
+final_answer(result)
+</code>
+""",
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""
+Thought: Done.
+<code>
+final_answer("done")
+</code>
+""",
+                )
+
+        sub_agent = CodeAgent(
+            tools=[],
+            model=ErrorThenFinishModel(),
+            max_steps=5,
+            name="worker",
+            description="Does work.",
+        )
+
+        manager = CodeAgent(
+            tools=[],
+            model=ManagerModel(),
+            managed_agents=[sub_agent],
+            max_steps=3,
+        )
+
+        result = manager.run("Do the work")
+        assert isinstance(result, str)
+        assert "[WARNING]" in result
+        assert "error" in result.lower()
+        assert "worker" in result
+
+    def test_successful_subagent_has_no_warning(self):
+        """A sub-agent that succeeds normally should not include error warnings."""
+
+        class SuccessModel(Model):
+            model_id = "success"
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""
+Thought: I know the answer.
+<code>
+final_answer("here is the answer")
+</code>
+""",
+                )
+
+        class ManagerModel(Model):
+            model_id = "manager"
+            call_count = 0
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                self.call_count += 1
+                if self.call_count == 1:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="""
+Thought: Delegate to helper.
+<code>
+result = helper(task="Answer question")
+final_answer(result)
+</code>
+""",
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""
+Thought: Done.
+<code>
+final_answer("done")
+</code>
+""",
+                )
+
+        sub_agent = CodeAgent(
+            tools=[],
+            model=SuccessModel(),
+            max_steps=5,
+            name="helper",
+            description="Helps with tasks.",
+        )
+
+        manager = CodeAgent(
+            tools=[],
+            model=ManagerModel(),
+            managed_agents=[sub_agent],
+            max_steps=3,
+        )
+
+        result = manager.run("Help me")
+        assert isinstance(result, str)
+        assert "exhausted its maximum steps" not in result
+        assert "error" not in result.lower() or "error" in result.lower()  # No error warnings
+        # The actual answer content should be present
+        assert "here is the answer" in result
+
+    def test_empty_result_from_subagent_includes_warning(self):
+        """When a sub-agent returns an empty final answer, the manager should be warned."""
+
+        class EmptyAnswerModel(Model):
+            model_id = "empty_answer"
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""
+Thought: I'll return empty.
+<code>
+final_answer("")
+</code>
+""",
+                )
+
+        class ManagerModel(Model):
+            model_id = "manager"
+            call_count = 0
+
+            def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+                self.call_count += 1
+                if self.call_count == 1:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="""
+Thought: Delegate to finder.
+<code>
+result = finder(task="Find data")
+final_answer(result)
+</code>
+""",
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="""
+Thought: Done.
+<code>
+final_answer("fallback")
+</code>
+""",
+                )
+
+        sub_agent = CodeAgent(
+            tools=[],
+            model=EmptyAnswerModel(),
+            max_steps=5,
+            name="finder",
+            description="Finds data.",
+        )
+
+        manager = CodeAgent(
+            tools=[],
+            model=ManagerModel(),
+            managed_agents=[sub_agent],
+            max_steps=3,
+        )
+
+        result = manager.run("Find data")
+        assert isinstance(result, str)
+        assert "[WARNING]" in result
+        assert "empty result" in result.lower()
+        assert "finder" in result
+
+    def test_collect_error_context_with_no_errors(self):
+        """_collect_error_context should return empty string when no errors occurred."""
+        agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            max_steps=5,
+            name="test_agent",
+            description="Test agent.",
+        )
+        # Simulate a successful run with a non-empty final answer
+        agent.memory.steps.append(FinalAnswerStep("some result"))
+        result = agent._collect_error_context("success")
+        assert result == ""
+
+    def test_collect_error_context_with_max_steps(self):
+        """_collect_error_context should report max_steps exhaustion."""
+        agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            max_steps=3,
+            name="test_agent",
+            description="Test agent.",
+        )
+        result = agent._collect_error_context("max_steps_error")
+        assert "exhausted its maximum steps (3)" in result
+        assert "test_agent" in result
+
+    def test_collect_error_context_with_step_errors(self):
+        """_collect_error_context should report tool errors from action steps."""
+        agent = CodeAgent(
+            tools=[],
+            model=MagicMock(),
+            max_steps=5,
+            name="test_agent",
+            description="Test agent.",
+        )
+        # Add steps with errors
+        error_step = ActionStep(step_number=1, timing=Timing(start_time=0.0, end_time=1.0))
+        error_step.error = AgentError("Something went wrong", agent.logger)
+        agent.memory.steps.append(error_step)
+        agent.memory.steps.append(FinalAnswerStep("some result"))
+
+        result = agent._collect_error_context("success")
+        assert "[WARNING]" in result
+        assert "1 error(s)" in result
+        assert "Something went wrong" in result
