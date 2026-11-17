@@ -694,9 +694,7 @@ simple_set = {
                     raise IndexError
                 return index + 1
 
-        result, _ = evaluate_python_code(
-            "a, *b = source\n(a, b)", BASE_PYTHON_TOOLS, state={"source": GetItemOnly()}
-        )
+        result, _ = evaluate_python_code("a, *b = source\n(a, b)", BASE_PYTHON_TOOLS, state={"source": GetItemOnly()})
         assert result == (1, [2, 3])
 
     def test_while(self):
