@@ -1504,8 +1504,15 @@ def evaluate_ast(
         # For loop -> execute the loop
         return evaluate_for(expression, *common_params)
     elif isinstance(expression, ast.FormattedValue):
-        # Formatted value (part of f-string) -> evaluate the content and format it
+        # Formatted value (part of f-string) -> evaluate the content, apply the
+        # conversion (!s, !r, !a) and then format it
         value = evaluate_ast(expression.value, *common_params)
+        if expression.conversion == ord("s"):
+            value = str(value)
+        elif expression.conversion == ord("r"):
+            value = repr(value)
+        elif expression.conversion == ord("a"):
+            value = ascii(value)
         # Early return if no format spec
         if not expression.format_spec:
             return value

@@ -304,6 +304,21 @@ test_func(**None)
             },
         )
 
+    def test_evaluate_f_string_conversion(self):
+        code = "text = f'{x!r:>10}'"
+        state = {"x": "hi"}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        expected = format(repr("hi"), ">10")
+        assert result == expected
+        assert state["text"] == expected
+
+    def test_evaluate_f_string_conversion_without_format_spec(self):
+        code = "text = f'{number!r} {label!s} {text!a}'"
+        state = {"number": 3, "label": "ok", "text": "café"}
+        result, _ = evaluate_python_code(code, {}, state=state)
+        expected = f"{3!r} {'ok'!s} {'café'!a}"
+        assert result == expected
+
     def test_evaluate_if(self):
         code = "if x <= 3:\n    y = 2\nelse:\n    y = 5"
         state = {"x": 3}
