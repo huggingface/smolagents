@@ -347,6 +347,17 @@ def get_clean_message_list(
     """
     output_message_list: list[dict[str, Any]] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
+
+    def _message_content_as_text(content: str | list[dict[str, Any]] | None) -> str:
+        if isinstance(content, list):
+            return content[0]["text"]
+        return content or ""
+
+    def _message_content_as_blocks(content: str | list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+        if isinstance(content, list):
+            return content
+        return [{"type": "text", "text": content or ""}]
+
     for message in message_list:
         if isinstance(message, dict):
             message = ChatMessage.from_dict(message)
@@ -373,11 +384,16 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
-                output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
+                output_message_list[-1]["content"] += "\n" + _message_content_as_text(message.content)
             else:
-                for el in message.content:
+                previous_content = output_message_list[-1]["content"]
+                if isinstance(previous_content, str) and not isinstance(message.content, list):
+                    output_message_list[-1]["content"] += "\n" + _message_content_as_text(message.content)
+                    continue
+                if isinstance(previous_content, str):
+                    output_message_list[-1]["content"] = _message_content_as_blocks(previous_content)
+                for el in _message_content_as_blocks(message.content):
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
                         output_message_list[-1]["content"][-1]["text"] += "\n" + el["text"]
@@ -385,7 +401,7 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                content = message.content[0]["text"]
+                content = _message_content_as_text(message.content)
             else:
                 content = message.content
             output_message_list.append(
