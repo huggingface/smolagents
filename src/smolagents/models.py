@@ -2051,7 +2051,7 @@ class AmazonBedrockModel(ApiModel):
         return ChatMessage(
             role=response["output"]["message"]["role"],
             content=content,
-            tool_calls=response["output"]["message"]["tool_calls"],
+            tool_calls=response["output"]["message"].get("tool_calls"),
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response["usage"]["inputTokens"],
