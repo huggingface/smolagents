@@ -1226,6 +1226,25 @@ n = f(1, n=667)
         assert res == 1000
         assert not is_final_answer
 
+    def test_keyword_only_default_arg_in_function(self):
+        code = """
+def f(*, a=3, b):
+    return a * 10 + b
+res = f(b=4)
+"""
+        res, is_final_answer = evaluate_python_code(code, {}, {})
+        assert res == 34
+        assert not is_final_answer
+
+    def test_keyword_only_default_is_overridden(self):
+        code = """
+def f(*, a=3):
+    return a
+res = f(a=4)
+"""
+        res, _ = evaluate_python_code(code, {}, {})
+        assert res == 4
+
     def test_set(self):
         code = """
 S1 = {'a', 'b', 'c'}
