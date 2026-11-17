@@ -1,5 +1,6 @@
 import importlib
 import io
+import json
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
@@ -17,8 +18,9 @@ from smolagents.remote_executors import (
     E2BExecutor,
     ModalExecutor,
     RemotePythonExecutor,
+    _websocket_run_code_raise_errors,
 )
-from smolagents.serialization import SerializationError
+from smolagents.serialization import SafeSerializer, SerializationError
 from smolagents.utils import AgentError
 
 from .utils.markers import require_run_all
@@ -615,3 +617,43 @@ class TestBlaxelExecutorUnit:
         assert mock_delete_sandbox.sync.called
         # Verify sandbox reference was cleaned up
         assert not hasattr(executor, "sandbox")
+
+
+class _FakeWebSocket:
+    """Minimal websocket stand-in: echoes the execute request's msg_id on every reply."""
+
+    def __init__(self, replies):
+        self.replies = replies
+        self.msg_id = None
+
+    def send(self, payload):
+        self.msg_id = json.loads(payload)["header"]["msg_id"]
+
+    def recv(self):
+        message = self.replies.pop(0)
+        message["parent_header"] = {"msg_id": self.msg_id}
+        return json.dumps(message)
+
+
+class TestWebsocketRunCode:
+    def test_execute_result_after_final_answer_keeps_the_final_answer(self):
+        final_payload = "safe:" + json.dumps(SafeSerializer.to_json_safe("final answer"))
+        ws = _FakeWebSocket(
+            [
+                {"msg_type": "execute_result", "content": {"data": {"text/plain": "before"}}},
+                {
+                    "msg_type": "error",
+                    "content": {
+                        "ename": RemotePythonExecutor.FINAL_ANSWER_EXCEPTION,
+                        "evalue": final_payload,
+                    },
+                },
+                {"msg_type": "execute_result", "content": {"data": {"text/plain": "after"}}},
+                {"msg_type": "status", "content": {"execution_state": "idle"}},
+            ]
+        )
+
+        output = _websocket_run_code_raise_errors("x", ws, MagicMock())
+
+        assert output.is_final_answer is True
+        assert output.output == "final answer"
