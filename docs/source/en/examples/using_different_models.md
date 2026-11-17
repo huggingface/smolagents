@@ -50,6 +50,33 @@ model = OpenAIModel(
 )
 ```
 
+## Using Anthropic Claude Models
+
+Claude models are available through [`LiteLLMModel`]. If you access Anthropic through a gateway or
+self-hosted proxy that exposes the Anthropic Messages API, point `api_base` at it:
+
+```python
+from smolagents import LiteLLMModel
+
+model = LiteLLMModel(
+    # model ID served by your endpoint, not necessarily Anthropic's naming
+    model_id="anthropic/claude-sonnet-4-5",
+    # server root URL, no /v1 suffix
+    api_base="https://api.teapotrouter.com",
+    api_key=ANTHROPIC_API_KEY,
+)
+```
+
+Two details differ from the OpenAI-compatible examples above and cause most failures:
+
+- `api_base` is the server root **without** a `/v1` suffix: LiteLLM builds the `/v1/messages` path
+  itself, so adding `/v1` yourself results in a 404.
+- The model ID is resolved by the endpoint, not by Anthropic. Query the endpoint's model list
+  (usually `GET /v1/models` with the same key) and use the IDs it serves.
+
+*Disclosure: the endpoint in the example, [TeapotRouter](https://teapotrouter.com), is one I work on;
+the steps are the same for any Anthropic-compatible endpoint.*
+
 ## Using OpenRouter Models
 
 OpenRouter provides access to a wide variety of language models through a unified OpenAI-compatible API.
