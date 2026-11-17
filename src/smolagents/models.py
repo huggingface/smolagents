@@ -1263,6 +1263,17 @@ class LiteLLMModel(ApiModel):
 
         return litellm
 
+    def _get_credentials_kwargs(self) -> dict[str, str]:
+        """Build credential kwargs, passing api_base and api_key only when they are set.
+
+        Unset (None) values must not be forwarded: litellm's Router merges completion kwargs over each
+        deployment's litellm_params with `{**litellm_params, **kwargs}`, so explicit Nones would override
+        the api_base and api_key configured on each deployment.
+        """
+        return {
+            key: value for key, value in (("api_base", self.api_base), ("api_key", self.api_key)) if value is not None
+        }
+
     def generate(
         self,
         messages: list[ChatMessage | dict],
@@ -1277,8 +1288,7 @@ class LiteLLMModel(ApiModel):
             response_format=response_format,
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
-            api_base=self.api_base,
-            api_key=self.api_key,
+            **self._get_credentials_kwargs(),
             convert_images_to_image_urls=True,
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
@@ -1320,8 +1330,7 @@ class LiteLLMModel(ApiModel):
             response_format=response_format,
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
-            api_base=self.api_base,
-            api_key=self.api_key,
+            **self._get_credentials_kwargs(),
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
             **kwargs,
