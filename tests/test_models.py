@@ -605,7 +605,7 @@ class TestAmazonBedrockModel:
         """Test that generate() handles responses without tool_calls key (issue #1941)."""
         model_id = "us.amazon.nova-pro-v1:0"
 
-        with patch("boto3.client") as MockBoto3:
+        with patch("boto3.client"):
             model = AmazonBedrockModel(model_id=model_id)
 
         # Mock a text-only response (no tool_calls key in message)
