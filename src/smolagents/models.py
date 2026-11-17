@@ -1821,6 +1821,54 @@ class OpenAIModel(ApiModel):
 OpenAIServerModel = OpenAIModel
 
 
+class LlamaCppModel(OpenAIModel):
+    """This model connects to an already-running [Llama App](https://llama.app/docs/serve) server.
+
+    Llama App owns the server, model weights, and runtime. This class only supplies an OpenAI-compatible client.
+
+    Parameters:
+        model_id (`str`):
+            The full model identifier from Llama App's `/v1/models` catalog. The identifier is forwarded verbatim,
+            including any organization prefix, alias, or quantization suffix.
+        api_base (`str`, *optional*):
+            The base URL of the Llama App OpenAI-compatible API. Override this for a different host or port.
+            Defaults to `"http://127.0.0.1:9931/v1"`.
+        api_key (`str`, *optional*, defaults to `"no-key-required"`):
+            The API key for a key-protected Llama App instance. The default placeholder works with an unauthenticated
+            local app and prevents credentials from `OPENAI_API_KEY` being used implicitly.
+        client_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to the OpenAI client, such as `timeout` or `max_retries`.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+        flatten_messages_as_text (`bool`, default `False`):
+            Whether to flatten messages as text.
+        **kwargs:
+            Additional generation options to forward to chat completion calls, such as `temperature`, `max_tokens`,
+            or `top_p`.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        api_base: str = "http://127.0.0.1:9931/v1",
+        api_key: str = "no-key-required",
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        flatten_messages_as_text: bool = False,
+        **kwargs,
+    ):
+        self.api_base = api_base
+        super().__init__(
+            model_id=model_id,
+            api_base=api_base,
+            api_key=api_key,
+            client_kwargs=client_kwargs,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
+
+
 class AzureOpenAIModel(OpenAIModel):
     """This model connects to an Azure OpenAI deployment.
 
@@ -2100,6 +2148,7 @@ MODEL_REGISTRY = {
     "LiteLLMRouterModel": LiteLLMRouterModel,
     "InferenceClientModel": InferenceClientModel,
     "OpenAIModel": OpenAIModel,
+    "LlamaCppModel": LlamaCppModel,
     "AzureOpenAIModel": AzureOpenAIModel,
     "AmazonBedrockModel": AmazonBedrockModel,
 }
@@ -2118,6 +2167,7 @@ __all__ = [
     "LiteLLMRouterModel",
     "OpenAIServerModel",
     "OpenAIModel",
+    "LlamaCppModel",
     "VLLMModel",
     "AzureOpenAIServerModel",
     "AzureOpenAIModel",
