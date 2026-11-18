@@ -10,12 +10,12 @@ This guide will show you how to use different model types with your agents.
 `smolagents` supports several model types out of the box:
 1. [`InferenceClientModel`]: Uses Hugging Face's Inference API to access models
 2. [`TransformersModel`]: Runs models locally using the Transformers library
-3. [`VLLMModel`]: Uses vLLM for fast inference with optimized serving
-4. [`MLXModel`]: Optimized for Apple Silicon devices using MLX
-5. [`LiteLLMModel`]: Provides access to hundreds of LLMs through LiteLLM
-6. [`LiteLLMRouterModel`]: Distributes requests among multiple models
-7. [`OpenAIModel`]: Provides access to any provider that implements an OpenAI-compatible API
-8. [`LlamaCppModel`]: Connects to models served by an already-running Llama App
+3. [`LlamaCppModel`]: Connects to models served by an already-running Llama App
+4. [`VLLMModel`]: Uses vLLM for fast inference with optimized serving
+5. [`MLXModel`]: Optimized for Apple Silicon devices using MLX
+6. [`LiteLLMModel`]: Provides access to hundreds of LLMs through LiteLLM
+7. [`LiteLLMRouterModel`]: Distributes requests among multiple models
+8. [`OpenAIModel`]: Provides access to any provider that implements an OpenAI-compatible API
 9. [`AzureOpenAIModel`]: Uses Azure's OpenAI service
 10. [`AmazonBedrockModel`]: Connects to AWS Bedrock's API
 
