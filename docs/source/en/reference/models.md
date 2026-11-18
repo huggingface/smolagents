@@ -172,6 +172,29 @@ model = OpenAIModel(
 
 [[autodoc]] OpenAIModel
 
+### LlamaCppModel
+
+`LlamaCppModel` connects to an already-running [Llama App](https://llama.app/docs/serve) through its OpenAI-compatible API. You must provide the full `model_id` from the app's `/v1/models` catalog; it is forwarded verbatim, including any organization prefix, alias, or quantization suffix. The app handles model routing and on-demand loading.
+
+The default `api_base` is `http://127.0.0.1:9931/v1`. An unauthenticated local app needs no configuration beyond `model_id`; the default SDK placeholder key is `no-key-required`, so an `OPENAI_API_KEY` environment variable is never used implicitly. Pass `api_key` explicitly for a key-protected instance, and override `api_base` for a different host or port.
+
+Inherited generation options such as `temperature`, `max_tokens`, and `top_p` can be passed directly to the constructor and are forwarded to chat completion calls:
+
+```py
+from smolagents import LlamaCppModel
+
+model = LlamaCppModel(
+    model_id="ggml-org/gpt-oss-20b-GGUF:MXFP4",
+    temperature=0.7,
+    max_tokens=1000,
+    top_p=0.9,
+)
+```
+
+See the [Llama App walkthrough](../examples/using_different_models#using-llamacpp-models-with-llama-app) for a complete tool-calling example.
+
+[[autodoc]] LlamaCppModel
+
 ### AzureOpenAIModel
 
 `AzureOpenAIModel` allows you to connect to any Azure OpenAI deployment. 

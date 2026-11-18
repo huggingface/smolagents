@@ -145,6 +145,15 @@ model = TransformersModel(
 ```
 </details>
 <details>
+<summary> <b>Local models served by Llama App (llama.cpp)</b></summary>
+
+```py
+from smolagents import LlamaCppModel
+
+model = LlamaCppModel(model_id="ggml-org/gpt-oss-20b-GGUF:MXFP4")
+```
+</details>
+<details>
 <summary> <b>Azure models</b></summary>
 
 ```py
