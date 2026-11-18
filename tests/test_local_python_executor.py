@@ -1274,6 +1274,16 @@ f = lambda x=3: x + 1
         res, _ = evaluate_python_code(code, {}, state={})
         assert res == (4, 11)
 
+    def test_default_arg_overridden(self):
+        # A value passed explicitly still overrides a def default.
+        code = """
+def f(x=3):
+    return x
+(f(), f(10))
+"""
+        res, _ = evaluate_python_code(code, {}, {})
+        assert res == (3, 10)
+
     def test_set(self):
         code = """
 S1 = {'a', 'b', 'c'}
