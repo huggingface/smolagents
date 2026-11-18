@@ -1379,6 +1379,9 @@ class ToolCallingAgent(MultiStepAgent):
             yield tool_call
             parallel_calls[tool_call.id] = tool_call
 
+        memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
+        memory_step.observations = memory_step.observations or ""
+
         # Helper function to process a single tool call
         def process_single_tool_call(tool_call: ToolCall) -> ToolOutput:
             tool_name = tool_call.name
@@ -1415,31 +1418,44 @@ class ToolCallingAgent(MultiStepAgent):
 
         # Process tool calls in parallel
         outputs = {}
+        initial_observations = (memory_step.observations or "").rstrip("\n")
+
+        def record_completed(tool_output: ToolOutput) -> None:
+            outputs[tool_output.id] = tool_output
+            obs_parts = [initial_observations] if initial_observations else []
+            obs_parts.extend(outputs[k].observation for k in sorted(outputs.keys()))
+            memory_step.observations = "\n".join(obs_parts)
+
         if len(parallel_calls) == 1:
             # If there's only one call, process it directly
             tool_call = list(parallel_calls.values())[0]
             tool_output = process_single_tool_call(tool_call)
-            outputs[tool_output.id] = tool_output
+            record_completed(tool_output)
             yield tool_output
-        else:
+        elif parallel_calls:
             # If multiple tool calls, process them in parallel
-            with ThreadPoolExecutor(self.max_tool_threads) as executor:
-                futures = []
-                for tool_call in parallel_calls.values():
-                    ctx = copy_context()
-                    futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
-                for future in as_completed(futures):
-                    tool_output = future.result()
-                    outputs[tool_output.id] = tool_output
-                    yield tool_output
-
-        memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
-        memory_step.observations = memory_step.observations or ""
-        for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
-            memory_step.observations += tool_output.observation + "\n"
-        memory_step.observations = (
-            memory_step.observations.rstrip("\n") if memory_step.observations else memory_step.observations
-        )
+            futures = []
+            try:
+                with ThreadPoolExecutor(self.max_tool_threads) as executor:
+                    for tool_call in parallel_calls.values():
+                        ctx = copy_context()
+                        futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
+                    for future in as_completed(futures):
+                        tool_output = future.result()
+                        record_completed(tool_output)
+                        yield tool_output
+            finally:
+                updated = False
+                for future in futures:
+                    if future.done() and not future.cancelled() and future.exception() is None:
+                        tool_output = future.result()
+                        if tool_output.id not in outputs:
+                            outputs[tool_output.id] = tool_output
+                            updated = True
+                if updated:
+                    obs_parts = [initial_observations] if initial_observations else []
+                    obs_parts.extend(outputs[k].observation for k in sorted(outputs.keys()))
+                    memory_step.observations = "\n".join(obs_parts)
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
