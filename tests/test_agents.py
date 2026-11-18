@@ -1031,7 +1031,7 @@ class TestMultiStepAgent:
                 {
                     "MemoryStep": 0,
                     "ActionStep": 1,
-                    "PlanningStep": 0,
+                    "PlanningStep": 1,
                     "TaskStep": 0,
                     "SystemPromptStep": 0,
                     "FinalAnswerStep": 0,
@@ -1043,7 +1043,7 @@ class TestMultiStepAgent:
                 {
                     "MemoryStep": 0,
                     "ActionStep": 3,
-                    "PlanningStep": 0,
+                    "PlanningStep": 1,
                     "TaskStep": 0,
                     "SystemPromptStep": 0,
                     "FinalAnswerStep": 0,
@@ -1055,7 +1055,7 @@ class TestMultiStepAgent:
                 {
                     "MemoryStep": 0,
                     "ActionStep": 2,
-                    "PlanningStep": 1,
+                    "PlanningStep": 2,
                     "TaskStep": 0,
                     "SystemPromptStep": 0,
                     "FinalAnswerStep": 0,
@@ -1067,7 +1067,7 @@ class TestMultiStepAgent:
                 {
                     "MemoryStep": 0,
                     "ActionStep": 3,
-                    "PlanningStep": 0,
+                    "PlanningStep": 1,
                     "TaskStep": 0,
                     "SystemPromptStep": 0,
                     "FinalAnswerStep": 0,
@@ -1079,7 +1079,7 @@ class TestMultiStepAgent:
                 {
                     "MemoryStep": 2,
                     "ActionStep": 2,
-                    "PlanningStep": 0,
+                    "PlanningStep": 1,
                     "TaskStep": 0,
                     "SystemPromptStep": 0,
                     "FinalAnswerStep": 0,

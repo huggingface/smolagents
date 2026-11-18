@@ -97,6 +97,30 @@ class MonitoringTester(unittest.TestCase):
             agent.run("Fake task")
         assert "Cannot generate" in str(e.value)
 
+    def test_monitor_token_totals_include_planning_steps(self):
+        class FakeLLMModelPlanning(Model):
+            def generate(self, messages, stop_sequences=None, **kwargs):
+                if stop_sequences == ["<end_plan>"]:  # planning call
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="1. Answer.",
+                        token_usage=TokenUsage(input_tokens=1000, output_tokens=100),
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="<code>\nfinal_answer('This is the final answer.')\n</code>",
+                    token_usage=TokenUsage(input_tokens=10, output_tokens=20),
+                )
+
+        agent = CodeAgent(
+            tools=[],
+            model=FakeLLMModelPlanning(),
+            planning_interval=1,
+        )
+        result = agent.run("Fake task", return_full_result=True)
+
+        assert agent.monitor.get_total_token_counts() == result.token_usage
+
     def test_streaming_agent_text_output(self):
         agent = CodeAgent(
             tools=[],
