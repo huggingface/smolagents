@@ -2382,6 +2382,99 @@ def test_check_import_authorized(module: str, authorized_imports: list[str], exp
 
 
 class TestLocalPythonExecutor:
+    @pytest.mark.parametrize("super_call", ["super()", "super(Dog, self)"])
+    def test_default_tools_super(self, super_call):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        output = executor(f"""
+class Animal:
+    def __init__(self, name):
+        self.name = name
+
+    def describe(self):
+        return self.name
+
+class Dog(Animal):
+    def __init__(self, name, breed):
+        {super_call}.__init__(name)
+        self.breed = breed
+
+    def describe(self):
+        return {super_call}.describe() + " the " + self.breed
+
+dog = Dog("Rex", "Labrador")
+(dog.name, dog.breed, dog.describe())
+""")
+        assert output.output == ("Rex", "Labrador", "Rex the Labrador")
+
+    def test_default_tools_super_multiple_inheritance(self):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        output = executor("""
+class Root:
+    def describe(self):
+        return "root"
+
+class Left(Root):
+    def describe(self):
+        return "left " + super(Left, self).describe()
+
+class Right(Root):
+    def describe(self):
+        return "right " + super(Right, self).describe()
+
+class Child(Left, Right):
+    pass
+
+Child().describe()
+""")
+        assert output.output == "left right root"
+
+    @pytest.mark.parametrize(
+        "call, message",
+        [
+            ("super()", "super() needs at least one argument"),
+            ("super(1)", "super() argument 1 must be type"),
+            ("super(int, 1, 2)", "super() takes at most 2 arguments"),
+            ("super(int, 'invalid')", "instance or subtype of type"),
+        ],
+    )
+    def test_default_tools_super_invalid_arguments(self, call, message):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        with pytest.raises(InterpreterError, match=re.escape(message)):
+            executor(call)
+
+    @pytest.mark.parametrize("attribute", ["__class__", "__dict__", "__self__", "__thisclass__"])
+    @pytest.mark.parametrize("access", ["super().{attribute}", "getattr(super(Child, self), '{attribute}')"])
+    def test_default_tools_super_restricted_attributes(self, attribute, access):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        with pytest.raises(InterpreterError, match=f"Forbidden access to dunder attribute: {attribute}"):
+            executor(
+                "class Child:\n    def inspect(self):\n        return "
+                + access.format(attribute=attribute)
+                + "\nChild().inspect()"
+            )
+
+    @pytest.mark.parametrize(
+        "expression, message",
+        [
+            ("super(Child, Child()).__getattribute__('__class__')", "Forbidden call to dunder function"),
+            ("super(Child, Child()).__reduce_ex__(4)", "Forbidden call to dunder function"),
+            ("eval('1 + 1')", "Forbidden function evaluation: 'eval'"),
+            ("exec('value = 1')", "Forbidden function evaluation: 'exec'"),
+            ("open('forbidden.txt', 'w')", "Forbidden function evaluation: 'open'"),
+            ("__import__('os')", "Forbidden function evaluation: '__import__'"),
+            ("import os", "Import of os is not allowed"),
+        ],
+    )
+    def test_default_tools_super_preserves_restrictions(self, expression, message):
+        executor = LocalPythonExecutor([])
+        executor.send_tools({})
+        with pytest.raises(InterpreterError, match=re.escape(message)):
+            executor("class Child:\n    pass\n" + expression)
+
     @pytest.mark.parametrize(
         "additional_authorized_imports, should_raise",
         [

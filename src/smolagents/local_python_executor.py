@@ -122,6 +122,7 @@ BASE_PYTHON_TOOLS = {
     "hasattr": hasattr,
     "setattr": setattr,
     "issubclass": issubclass,
+    "super": super,
     "type": type,
     "complex": complex,
 }
