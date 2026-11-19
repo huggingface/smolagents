@@ -1125,7 +1125,7 @@ You have been provided with these additional arguments, that you can access dire
         """
         # Load agent.json
         folder = Path(folder)
-        agent_dict = json.loads((folder / "agent.json").read_text())
+        agent_dict = json.loads((folder / "agent.json").read_text(encoding="utf-8"))
         # Handle HfApiModel -> InferenceClientModel rename for old agents
         if agent_dict.get("model", {}).get("class") == "HfApiModel":
             agent_dict["model"]["class"] = "InferenceClientModel"
@@ -1147,7 +1147,7 @@ You have been provided with these additional arguments, that you can access dire
         # Load tools
         tools = []
         for tool_name in agent_dict["tools"]:
-            tool_code = (folder / "tools" / f"{tool_name}.py").read_text()
+            tool_code = (folder / "tools" / f"{tool_name}.py").read_text(encoding="utf-8")
             tools.append({"name": tool_name, "code": tool_code})
         agent_dict["tools"] = tools
 
