@@ -505,8 +505,11 @@ def create_function(
             None if default is None else evaluate_ast(default, state, static_tools, custom_tools, authorized_imports)
             for default in func_def.args.kw_defaults
         ]
-        for arg, default in zip(func_def.args.kwonlyargs, kwonly_defaults):
-            if default is not None and arg.arg not in func_state:
+        for arg, default, default_ast in zip(func_def.args.kwonlyargs, kwonly_defaults, func_def.args.kw_defaults):
+            # The AST entry tells "no default" apart from an explicit default of None, which
+            # `default is not None` could not. `kwargs` tells whether the caller supplied the
+            # argument; `func_state` would also match an outer name that the parameter shadows.
+            if default_ast is not None and arg.arg not in kwargs:
                 func_state[arg.arg] = default
 
         # Update function state with self and __class__
