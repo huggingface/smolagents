@@ -1329,7 +1329,9 @@ class LiteLLMModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-            ),
+            )
+            if getattr(response, "usage", None) is not None
+            else None,
         )
 
     def generate_stream(
@@ -1610,7 +1612,9 @@ class InferenceClientModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-            ),
+            )
+            if getattr(response, "usage", None) is not None
+            else None,
         )
 
     def generate_stream(
@@ -1814,7 +1818,9 @@ class OpenAIModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-            ),
+            )
+            if getattr(response, "usage", None) is not None
+            else None,
         )
 
 
@@ -2129,7 +2135,9 @@ class AmazonBedrockModel(ApiModel):
             token_usage=TokenUsage(
                 input_tokens=response["usage"]["inputTokens"],
                 output_tokens=response["usage"]["outputTokens"],
-            ),
+            )
+            if response.get("usage") is not None
+            else None,
         )
 
 
