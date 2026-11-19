@@ -72,6 +72,9 @@ telemetry = [
   "opentelemetry-exporter-otlp",
   "openinference-instrumentation-smolagents>=0.1.15"  # Use new TokenUsage structure
 ]
+tui = [
+  "textual>=0.80.0",
+]
 toolkit = [
   "ddgs>=9.0.0",  # DuckDuckGoSearchTool
   "markdownify>=0.14.1",  # VisitWebpageTool
@@ -90,7 +93,7 @@ vllm = [
   "torch"
 ]
 all = [
-  "smolagents[audio,blaxel,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,vision,bedrock]",
+  "smolagents[audio,blaxel,docker,e2b,gradio,litellm,mcp,mlx-lm,modal,openai,telemetry,toolkit,transformers,tui,vision,bedrock]",
 ]
 quality = [
   "ruff>=0.9.0",
