@@ -23,6 +23,7 @@ from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
+from threading import Event
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
@@ -2087,6 +2088,121 @@ class TestToolCallingAgent:
                     ToolCall(name=tool_call.function.name, arguments=tool_call.function.arguments, id=tool_call.id)
                     for tool_call in test_case["tool_calls"]
                 ]
+
+    def test_process_tool_calls_records_before_yield_single_call(self, test_tool):
+        """Test that single tool call outputs and calls are recorded in memory before yield and preserved on early close."""
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock())
+        mock_tool_call = ChatMessageToolCall(
+            id="call_1",
+            type="function",
+            function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "test_value"}),
+        )
+        chat_message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=[mock_tool_call])
+        memory_step = ActionStep(step_number=1, timing="mock", model_output="")
+
+        gen = agent.process_tool_calls(chat_message, memory_step)
+        tc = next(gen)
+        assert isinstance(tc, ToolCall)
+        to = next(gen)
+        assert isinstance(to, ToolOutput)
+
+        # Verified immediately after yield: tool_calls and observations must already be recorded
+        assert memory_step.tool_calls == [ToolCall(name="test_tool", arguments={"input": "test_value"}, id="call_1")]
+        assert memory_step.observations == "Processed: test_value"
+
+        # Early close of generator must preserve recorded results
+        gen.close()
+        assert memory_step.tool_calls == [ToolCall(name="test_tool", arguments={"input": "test_value"}, id="call_1")]
+        assert memory_step.observations == "Processed: test_value"
+
+    def test_process_tool_calls_records_before_yield_parallel_calls(self, test_tool):
+        """Test that parallel tool call outputs and calls are recorded in memory before yield and preserved on early close."""
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock())
+        mock_tool_calls = [
+            ChatMessageToolCall(
+                id="call_1",
+                type="function",
+                function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "val_1"}),
+            ),
+            ChatMessageToolCall(
+                id="call_2",
+                type="function",
+                function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "val_2"}),
+            ),
+        ]
+        chat_message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=mock_tool_calls)
+        memory_step = ActionStep(step_number=1, timing="mock", model_output="")
+
+        gen = agent.process_tool_calls(chat_message, memory_step)
+        tc1 = next(gen)
+        tc2 = next(gen)
+        assert isinstance(tc1, ToolCall) and isinstance(tc2, ToolCall)
+
+        to1 = next(gen)
+        assert isinstance(to1, ToolOutput)
+
+        # Immediately after first ToolOutput: tool_calls must include all calls and observations must include completed output
+        assert memory_step.tool_calls == [
+            ToolCall(name="test_tool", arguments={"input": "val_1"}, id="call_1"),
+            ToolCall(name="test_tool", arguments={"input": "val_2"}, id="call_2"),
+        ]
+        assert to1.observation in memory_step.observations
+
+        # Early close of generator must preserve all completed parallel executions
+        gen.close()
+        assert memory_step.tool_calls == [
+            ToolCall(name="test_tool", arguments={"input": "val_1"}, id="call_1"),
+            ToolCall(name="test_tool", arguments={"input": "val_2"}, id="call_2"),
+        ]
+        assert "Processed: val_1" in memory_step.observations
+        assert "Processed: val_2" in memory_step.observations
+
+    @pytest.mark.parametrize("early_close", [False, True])
+    def test_parallel_completed_actions_survive_sibling_failure(self, early_close):
+        """Test that parallel completed actions remain recorded in memory when a sibling fails or the stream closes early."""
+        release = Event()
+
+        class ControlledTool(Tool):
+            name = "controlled"
+            description = "Coordinate deterministic local test results."
+            inputs = {"kind": {"type": "string", "description": "Test result selector."}}
+            output_type = "string"
+
+            def forward(self, kind: str) -> str:
+                if kind != "first":
+                    assert release.wait(5), "test did not release sibling tools"
+                if kind == "fail":
+                    raise RuntimeError("sibling failed")
+                return {"first": "COMMITTED_A", "last": "COMMITTED_C"}[kind]
+
+        agent = ToolCallingAgent(tools=[ControlledTool()], model=MagicMock(), max_tool_threads=3)
+        calls = [
+            ChatMessageToolCall(
+                id=str(i),
+                type="function",
+                function=ChatMessageToolCallFunction(name="controlled", arguments={"kind": kind}),
+            )
+            for i, kind in enumerate(["first", "fail", "last"])
+        ]
+        message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=calls)
+        step = ActionStep(step_number=1, timing=Timing(start_time=0), observations="earlier")
+        stream = agent.process_tool_calls(message, step)
+        try:
+            for _ in calls:
+                next(stream)
+            first = next(stream)
+            assert isinstance(first, ToolOutput) and first.observation == "COMMITTED_A"
+            release.set()
+            if early_close:
+                stream.close()
+            else:
+                with pytest.raises(AgentToolExecutionError, match="sibling failed"):
+                    list(stream)
+        finally:
+            release.set()
+            stream.close()
+        assert [call.id for call in step.tool_calls] == ["0", "1", "2"]
+        assert step.observations.splitlines() == ["earlier", "COMMITTED_A", "COMMITTED_C"]
 
 
 class TestCodeAgent:
