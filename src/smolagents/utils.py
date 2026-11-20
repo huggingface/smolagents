@@ -138,7 +138,16 @@ class AgentGenerationError(AgentError):
 
 
 def make_json_serializable(obj: Any) -> Any:
-    """Recursive function to make objects JSON serializable"""
+    """Recursive function to make objects JSON serializable.
+
+    Objects that contain themselves (through a list, a dict or their ``__dict__``) are replaced by
+    `"..."` instead of recursing forever. Only the objects on the current path count as a cycle, so
+    the same object referenced twice side by side is still serialized twice.
+    """
+    return _make_json_serializable(obj, set())
+
+
+def _make_json_serializable(obj: Any, active: set[int]) -> Any:
     if obj is None:
         return None
     elif isinstance(obj, (str, int, float, bool)):
@@ -147,20 +156,31 @@ def make_json_serializable(obj: Any) -> Any:
             try:
                 if (obj.startswith("{") and obj.endswith("}")) or (obj.startswith("[") and obj.endswith("]")):
                     parsed = json.loads(obj)
-                    return make_json_serializable(parsed)
+                    return _make_json_serializable(parsed, active)
             except json.JSONDecodeError:
                 pass
         return obj
-    elif isinstance(obj, (list, tuple)):
-        return [make_json_serializable(item) for item in obj]
-    elif isinstance(obj, dict):
-        return {str(k): make_json_serializable(v) for k, v in obj.items()}
-    elif hasattr(obj, "__dict__"):
-        # For custom objects, convert their __dict__ to a serializable format
-        return {"_type": obj.__class__.__name__, **{k: make_json_serializable(v) for k, v in obj.__dict__.items()}}
-    else:
-        # For any other type, convert to string
-        return str(obj)
+
+    obj_id = id(obj)
+    if obj_id in active:
+        return "..."
+    active.add(obj_id)
+    try:
+        if isinstance(obj, (list, tuple)):
+            return [_make_json_serializable(item, active) for item in obj]
+        elif isinstance(obj, dict):
+            return {str(k): _make_json_serializable(v, active) for k, v in obj.items()}
+        elif hasattr(obj, "__dict__"):
+            # For custom objects, convert their __dict__ to a serializable format
+            return {
+                "_type": obj.__class__.__name__,
+                **{k: _make_json_serializable(v, active) for k, v in obj.__dict__.items()},
+            }
+        else:
+            # For any other type, convert to string
+            return str(obj)
+    finally:
+        active.discard(obj_id)
 
 
 def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
