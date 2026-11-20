@@ -25,7 +25,15 @@ import PIL.Image
 import pytest
 
 from smolagents.agent_types import _AGENT_TYPE_MAPPING
-from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
+from smolagents.tools import (
+    AUTHORIZED_TYPES,
+    RetryPolicy,
+    Tool,
+    ToolCollection,
+    launch_gradio_demo,
+    tool,
+    validate_tool_arguments,
+)
 
 from .utils.markers import require_run_all
 
@@ -1066,3 +1074,163 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class TestRetryPolicy:
+    def test_retry_policy_validation(self):
+        policy = RetryPolicy(max_retries=2, retry_backoff=0.5, retry_exceptions=TimeoutError)
+        assert policy.retry_exceptions == (TimeoutError,)
+        assert policy.has_fallback is False
+
+        with_none_fallback = RetryPolicy(max_retries=1, fallback_value=None)
+        assert with_none_fallback.has_fallback is True
+
+        with pytest.raises(ValueError, match="max_retries"):
+            RetryPolicy(max_retries=-1)
+        with pytest.raises(ValueError, match="max_retries"):
+            RetryPolicy(max_retries=True)
+        with pytest.raises(ValueError, match="retry_backoff"):
+            RetryPolicy(retry_backoff=-0.1)
+        with pytest.raises(ValueError, match="backoff_multiplier"):
+            RetryPolicy(backoff_multiplier=-1.0)
+        with pytest.raises(ValueError, match="max_backoff"):
+            RetryPolicy(max_backoff=-1.0)
+        with pytest.raises(ValueError, match="jitter"):
+            RetryPolicy(jitter=-0.5)
+        with pytest.raises(ValueError, match="retry_exceptions"):
+            RetryPolicy(retry_exceptions=())
+        with pytest.raises(TypeError, match="retry_exceptions"):
+            RetryPolicy(retry_exceptions=("not_an_exception",))
+
+    def test_retry_policy_backoff_and_recovery(self):
+        sleeps: list[float] = []
+        calls = 0
+
+        def flaky(x: int) -> int:
+            nonlocal calls
+            calls += 1
+            if calls <= 2:
+                raise ConnectionError("temporary reset")
+            return x * 10
+
+        policy = RetryPolicy(
+            max_retries=3,
+            retry_backoff=1.5,
+            backoff_multiplier=2.0,
+            max_backoff=4.0,
+            retry_exceptions=(ConnectionError, TimeoutError),
+        )
+        assert policy.compute_delay(0) == 1.5
+        assert policy.compute_delay(1) == 3.0
+        assert policy.compute_delay(2) == 4.0
+
+        result = policy.execute(flaky, 7, sleep_fn=sleeps.append)
+        assert result == 70
+        assert calls == 3
+        assert sleeps == [1.5, 3.0]
+
+    def test_retry_policy_non_matching_exception_fails_fast_without_fallback(self):
+        sleeps: list[float] = []
+        calls = 0
+
+        def bad_input() -> str:
+            nonlocal calls
+            calls += 1
+            raise ValueError("bad coordinates")
+
+        policy = RetryPolicy(
+            max_retries=3,
+            retry_backoff=1.0,
+            retry_exceptions=(TimeoutError,),
+            fallback_value="fallback",
+        )
+        with pytest.raises(ValueError, match="bad coordinates"):
+            policy.execute(bad_input, sleep_fn=sleeps.append)
+        assert calls == 1
+        assert sleeps == []
+
+    def test_tool_decorator_declarative_retry_and_fallback(self):
+        from smolagents import RetryPolicy as TopLevelRetryPolicy
+
+        assert TopLevelRetryPolicy is RetryPolicy
+
+        state = {"calls": 0}
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            @tool(
+                max_retries=2,
+                retry_backoff=0.01,
+                retry_exceptions=(TimeoutError,),
+                fallback_value="Weather service temporarily unavailable.",
+            )
+            def get_live_weather(location: str) -> str:
+                """Fetch live weather for a location.
+
+                Args:
+                    location: City name.
+                """
+                state["calls"] += 1
+                raise TimeoutError(f"Timed out querying {location}")
+
+            @tool(
+                max_retries=2,
+                retry_backoff=0.05,
+                retry_exceptions=(TimeoutError,),
+            )
+            def exportable_weather(location: str) -> str:
+                """Self-contained weather lookup tool.
+
+                Args:
+                    location: City name.
+                """
+                return f"Forecast for {location}"
+
+        assert not [w for w in caught if "decorators other than @tool" in str(w.message)]
+
+        with patch("smolagents.tools.time.sleep") as mock_sleep:
+            out = get_live_weather("Tokyo", sanitize_inputs_outputs=True)
+
+        assert str(out) == "Weather service temporarily unavailable."
+        assert state["calls"] == 3
+        assert [c.args[0] for c in mock_sleep.call_args_list] == [0.01, 0.02]
+
+        serialized = exportable_weather.to_dict()
+        reloaded = Tool.from_code(serialized["code"])
+        assert reloaded.name == "exportable_weather"
+        assert reloaded("Paris") == "Forecast for Paris"
+
+    def test_tool_decorator_rejects_conflicting_retry_arguments(self):
+        with pytest.raises(ValueError, match="Cannot specify both"):
+
+            @tool(retry_policy=RetryPolicy(max_retries=1), max_retries=2)
+            def invalid_tool(query: str) -> str:
+                """Query helper.
+
+                Args:
+                    query: Search string.
+                """
+                return query
+
+    def test_tool_subclass_retry_policy(self):
+        class FlakySubclassTool(Tool):
+            name = "flaky_subclass"
+            description = "Subclass tool with declarative RetryPolicy"
+            inputs = {"query": {"type": "string", "description": "Query string"}}
+            output_type = "string"
+            retry_policy = RetryPolicy(max_retries=1, retry_backoff=0.0, retry_exceptions=RuntimeError)
+
+            def __init__(self):
+                super().__init__()
+                self.attempts = 0
+
+            def forward(self, query: str) -> str:
+                self.attempts += 1
+                if self.attempts == 1:
+                    raise RuntimeError("transient glitch")
+                return f"ok:{query}"
+
+        instance = FlakySubclassTool()
+        assert instance("hello") == "ok:hello"
+        assert instance.attempts == 2
