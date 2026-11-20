@@ -2626,3 +2626,48 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class _ScriptedCodeModel(Model):
+    """Returns one fixed code block per call, in order."""
+
+    def __init__(self, codes):
+        super().__init__(model_id="scripted")
+        self.codes = list(codes)
+
+    def generate(self, messages, **kwargs):
+        code = self.codes.pop(0)
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="Thought: x\n<code>\n" + code + "\n</code>",
+        )
+
+
+def test_reset_clears_executor_variables_between_runs():
+    """run(reset=True) must give the new run a clean executor namespace: code
+    from an earlier run must not be visible (issue #3234)."""
+    model = _ScriptedCodeModel(
+        [
+            'api_key = "sk-test-123"\nfinal_answer("done")',
+            'final_answer(api_key)',
+        ]
+    )
+    agent = CodeAgent(tools=[], model=model, max_steps=2)
+
+    agent.run("task 1")
+    # reset=True is the default: the second run must fail to resolve the
+    # variable defined by the first run.
+    with pytest.raises(AgentError):
+        agent.run("task 2")
+
+
+def test_reset_keeps_additional_args_working():
+    """After a reset, caller-supplied additional_args must still reach the
+    executor (the reset clears only leftover state)."""
+    model = _ScriptedCodeModel(['final_answer(secret_key)', 'final_answer(secret_key)'])
+    agent = CodeAgent(tools=[], model=model, max_steps=2)
+
+    agent.run("task 1", additional_args={"secret_key": "s3cret"})
+
+    result = agent.run("task 2", additional_args={"secret_key": "s3cret"})
+    assert result == "s3cret"

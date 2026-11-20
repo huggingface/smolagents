@@ -1712,6 +1712,14 @@ class PythonExecutor(ABC):
     @abstractmethod
     def __call__(self, code_action: str) -> CodeOutput: ...
 
+    def reset(self) -> None:
+        """Reset the executor's internal state between runs.
+
+        The base implementation is a no-op: remote executors (Docker, E2B,
+        Modal, Blaxel) keep a live Jupyter kernel whose namespace survives
+        across runs. Subclasses that hold state locally should clear it here.
+        """
+
 
 class LocalPythonExecutor(PythonExecutor):
     """
@@ -1787,6 +1795,14 @@ class LocalPythonExecutor(PythonExecutor):
 
     def send_variables(self, variables: dict[str, Any]):
         self.state.update(variables)
+
+    def reset(self):
+        """Clear all variables from the executor namespace.
+
+        The base `__name__` entry is restored; tools and additional arguments
+        are re-sent by the agent on the next run.
+        """
+        self.state = {"__name__": "__main__"}
 
     def send_tools(self, tools: dict[str, Tool]):
         # Combine agent tools, base Python tools, and additional Python functions
