@@ -35,6 +35,45 @@ class MethodChecker(ast.NodeVisitor):
         if node.vararg:
             self.arg_names.add(node.vararg.arg)
 
+    def _visit_function_scope(self, node):
+        """Walk a nested function or lambda as its own scope: the enclosing
+        scope's parameters stay visible inside (lexical scoping), the inner
+        scope's arguments do not leak out, and a nested def's name becomes
+        usable in the enclosing scope. Decorators and the return annotation
+        evaluate in the enclosing scope; parameter annotations and default
+        expressions are not checked, matching main's visit_arguments, which
+        never recursed into them."""
+        if hasattr(node, "name"):
+            self.assigned_names.add(node.name)
+        # Decorators and the return annotation evaluate in the enclosing
+        # scope, so they keep being checked here. Parameter annotations and
+        # defaults are deliberately left unvisited: main's visit_arguments
+        # never looked inside the parameters, and checking them would flag
+        # supported patterns such as `def f(x: Optional[str] = None)`.
+        for decorator in getattr(node, "decorator_list", None) or []:
+            self.visit(decorator)
+        return_annotation = getattr(node, "returns", None)
+        if return_annotation is not None:
+            self.visit(return_annotation)
+        enclosing_arg_names = self.arg_names
+        self.visit_arguments(node.args)
+        self.arg_names |= enclosing_arg_names
+        if isinstance(node.body, list):
+            for stmt in node.body:
+                self.visit(stmt)
+        else:  # Lambda body is a single expression
+            self.visit(node.body)
+        self.arg_names = enclosing_arg_names
+
+    def visit_FunctionDef(self, node):
+        self._visit_function_scope(node)
+
+    def visit_AsyncFunctionDef(self, node):
+        self._visit_function_scope(node)
+
+    def visit_Lambda(self, node):
+        self._visit_function_scope(node)
+
     def visit_Import(self, node):
         for name in node.names:
             actual_name = name.asname or name.name
