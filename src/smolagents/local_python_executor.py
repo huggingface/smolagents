@@ -421,11 +421,20 @@ def evaluate_lambda(
     authorized_imports: list[str],
 ) -> Callable:
     args = [arg.arg for arg in lambda_expression.args.args]
+    # Evaluate default values once, when the lambda is created, mirroring
+    # CPython: a default is bound at definition time, not on every call.
+    default_values = [
+        evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in lambda_expression.args.defaults
+    ]
+    defaults = dict(zip(args[-len(default_values) :], default_values))
 
     def lambda_func(*values: Any) -> Any:
         new_state = state.copy()
         for arg, value in zip(args, values):
             new_state[arg] = value
+        for name, value in defaults.items():
+            if name not in new_state:
+                new_state[name] = value
         return evaluate_ast(
             lambda_expression.body,
             new_state,
@@ -467,16 +476,19 @@ def create_function(
     authorized_imports: list[str],
 ) -> Callable:
     source_code = ast.unparse(func_def)
+    # Evaluate default values once, when the `def` statement executes, mirroring
+    # CPython: a default is bound at definition time, not re-evaluated on every
+    # call. Evaluating them inside `new_func` re-read the call-time state, so a
+    # mutable default was rebuilt on each call and a default naming an outer
+    # variable saw that variable's current value instead of its value at `def`.
+    arg_names = [arg.arg for arg in func_def.args.args]
+    default_values = [
+        evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
+    ]
+    defaults = dict(zip(arg_names[-len(default_values) :], default_values))
 
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
-        arg_names = [arg.arg for arg in func_def.args.args]
-        default_values = [
-            evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
-        ]
-
-        # Apply default values
-        defaults = dict(zip(arg_names[-len(default_values) :], default_values))
 
         # Set positional arguments
         for name, value in zip(arg_names, args):
