@@ -21,14 +21,17 @@ import inspect
 import json
 import logging
 import os
+import random
 import sys
 import tempfile
 import textwrap
+import time
 import types
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -65,6 +68,141 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+_UNSET = object()
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    """Declarative retry, exponential backoff, and fallback policy for tool execution.
+
+    Args:
+        max_retries (`int`, default `0`):
+            Maximum number of retry attempts after the initial call fails (`>= 0`).
+        retry_backoff (`float`, default `0.0`):
+            Initial backoff delay in seconds before the first retry (`>= 0.0`).
+        backoff_multiplier (`float`, default `2.0`):
+            Multiplier applied to `retry_backoff` on subsequent retries (`>= 0.0`).
+        max_backoff (`float`, *optional*):
+            Optional upper bound in seconds for any single backoff delay (`>= 0.0`).
+        jitter (`float`, default `0.0`):
+            Optional uniform random jitter ratio (`>= 0.0`) added to each delay (`delay * uniform(0, jitter)`).
+        retry_exceptions (`type[BaseException] | tuple[type[BaseException], ...]`, default `(Exception,)`):
+            Exception class or tuple of exception classes eligible for retry and `fallback_value` recovery.
+        fallback_value (`Any`, *optional*):
+            If provided, returned instead of re-raising when an exception matching `retry_exceptions` exhausts retries.
+    """
+
+    max_retries: int = 0
+    retry_backoff: float = 0.0
+    backoff_multiplier: float = 2.0
+    max_backoff: float | None = None
+    jitter: float = 0.0
+    retry_exceptions: tuple[type[BaseException], ...] = (Exception,)
+    fallback_value: Any = _UNSET
+
+    def __post_init__(self) -> None:
+        if isinstance(self.max_retries, bool) or not isinstance(self.max_retries, int) or self.max_retries < 0:
+            raise ValueError(f"`max_retries` must be a non-negative integer, got {self.max_retries!r}.")
+        if (
+            isinstance(self.retry_backoff, bool)
+            or not isinstance(self.retry_backoff, (int, float))
+            or self.retry_backoff < 0
+        ):
+            raise ValueError(f"`retry_backoff` must be a non-negative number, got {self.retry_backoff!r}.")
+        if (
+            isinstance(self.backoff_multiplier, bool)
+            or not isinstance(self.backoff_multiplier, (int, float))
+            or self.backoff_multiplier < 0
+        ):
+            raise ValueError(f"`backoff_multiplier` must be a non-negative number, got {self.backoff_multiplier!r}.")
+        if self.max_backoff is not None and (
+            isinstance(self.max_backoff, bool)
+            or not isinstance(self.max_backoff, (int, float))
+            or self.max_backoff < 0
+        ):
+            raise ValueError(f"`max_backoff` must be None or a non-negative number, got {self.max_backoff!r}.")
+        if isinstance(self.jitter, bool) or not isinstance(self.jitter, (int, float)) or self.jitter < 0:
+            raise ValueError(f"`jitter` must be a non-negative number, got {self.jitter!r}.")
+
+        raw_exceptions = self.retry_exceptions
+        if isinstance(raw_exceptions, type) and issubclass(raw_exceptions, BaseException):
+            normalized = (raw_exceptions,)
+        elif isinstance(raw_exceptions, (tuple, list, set)):
+            normalized = tuple(raw_exceptions)
+            if not normalized:
+                raise ValueError("`retry_exceptions` must contain at least one exception class.")
+            for exc_type in normalized:
+                if not (isinstance(exc_type, type) and issubclass(exc_type, BaseException)):
+                    raise TypeError(
+                        f"Elements of `retry_exceptions` must be BaseException subclasses, got {exc_type!r}."
+                    )
+        else:
+            raise TypeError(
+                f"`retry_exceptions` must be an exception class or a tuple of exception classes, got {raw_exceptions!r}."
+            )
+        object.__setattr__(self, "retry_exceptions", normalized)
+
+    @property
+    def has_fallback(self) -> bool:
+        return self.fallback_value is not _UNSET
+
+    def compute_delay(self, attempt: int) -> float:
+        delay = float(self.retry_backoff) * (float(self.backoff_multiplier) ** attempt)
+        if self.max_backoff is not None:
+            delay = min(delay, float(self.max_backoff))
+        if self.jitter > 0 and delay > 0:
+            delay += random.uniform(0.0, float(self.jitter) * delay)
+        return delay
+
+    def execute(
+        self,
+        func: Callable[..., Any],
+        *args: Any,
+        sleep_fn: Callable[[float], None] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        sleeper = time.sleep if sleep_fn is None else sleep_fn
+        for attempt in range(self.max_retries + 1):
+            try:
+                return func(*args, **kwargs)
+            except self.retry_exceptions:
+                if attempt < self.max_retries:
+                    delay = self.compute_delay(attempt)
+                    if delay > 0:
+                        sleeper(delay)
+                    continue
+                if self.has_fallback:
+                    return self.fallback_value
+                raise
+
+
+def _is_tool_decorator(node: ast.expr) -> bool:
+    target = node.func if isinstance(node, ast.Call) else node
+    return (isinstance(target, ast.Name) and target.id == "tool") or (
+        isinstance(target, ast.Attribute) and target.attr == "tool"
+    )
+
+
+def _strip_tool_decorator(source_code: str) -> str:
+    dedented = textwrap.dedent(source_code)
+    try:
+        tree = ast.parse(dedented)
+    except SyntaxError:
+        return source_code.replace("@tool", "")
+    func_node = next((node for node in tree.body if isinstance(node, ast.FunctionDef)), None)
+    if func_node is None or not func_node.decorator_list:
+        return dedented
+    lines = dedented.splitlines()
+    remove_lines: set[int] = set()
+    for decorator in func_node.decorator_list:
+        if _is_tool_decorator(decorator):
+            end_lineno = decorator.end_lineno or decorator.lineno
+            remove_lines.update(range(decorator.lineno - 1, end_lineno))
+    if not remove_lines:
+        return dedented
+    return "\n".join(line for idx, line in enumerate(lines) if idx not in remove_lines)
 
 
 def validate_after_init(cls):
@@ -133,8 +271,11 @@ class Tool(BaseTool):
     inputs: dict[str, dict[str, str | type | bool]]
     output_type: str
     output_schema: dict[str, Any] | None = None
+    retry_policy: RetryPolicy | None = None
 
     def __init__(self, *args, **kwargs):
+        if "retry_policy" in kwargs:
+            self.retry_policy = kwargs.pop("retry_policy")
         self.is_initialized = False
 
     def __init_subclass__(cls, **kwargs):
@@ -162,6 +303,10 @@ class Tool(BaseTool):
         output_schema = getattr(self, "output_schema", None)
         if output_schema is not None and not isinstance(output_schema, dict):
             raise TypeError(f"Attribute output_schema should have type dict, got {type(output_schema)} instead.")
+
+        retry_policy = getattr(self, "retry_policy", None)
+        if retry_policy is not None and not isinstance(retry_policy, RetryPolicy):
+            raise TypeError(f"Attribute retry_policy should have type RetryPolicy, got {type(retry_policy)} instead.")
 
         # - Validate name
         if not is_valid_name(self.name):
@@ -243,7 +388,11 @@ class Tool(BaseTool):
 
         if sanitize_inputs_outputs:
             args, kwargs = handle_agent_input_types(*args, **kwargs)
-        outputs = self.forward(*args, **kwargs)
+        retry_policy = getattr(self, "retry_policy", None)
+        if retry_policy is not None:
+            outputs = retry_policy.execute(self.forward, *args, **kwargs)
+        else:
+            outputs = self.forward(*args, **kwargs)
         if sanitize_inputs_outputs:
             outputs = handle_agent_output_types(outputs, self.output_type)
         return outputs
@@ -294,7 +443,7 @@ class Tool(BaseTool):
         class_name = self.__class__.__name__
         if type(self).__name__ == "SimpleTool":
             # Check that imports are self-contained
-            source_code = get_source(self.forward).replace("@tool", "")
+            source_code = _strip_tool_decorator(get_source(self.forward))
             forward_node = ast.parse(source_code)
             # If tool was created using '@tool' decorator, it has only a forward pass, so it's simpler to just get its code
             method_checker = MethodChecker(set())
@@ -304,7 +453,7 @@ class Tool(BaseTool):
                 errors = [f"- {error}" for error in method_checker.errors]
                 raise (ValueError(f"SimpleTool validation failed for {self.name}:\n" + "\n".join(errors)))
 
-            forward_source_code = get_source(self.forward)
+            forward_source_code = _strip_tool_decorator(get_source(self.forward))
             tool_code = textwrap.dedent(
                 f"""
             from smolagents import Tool
@@ -337,7 +486,7 @@ class Tool(BaseTool):
 
             forward_source_code = forward_source_code.replace(self.name, "forward")
             forward_source_code = add_self_argument(forward_source_code)
-            forward_source_code = forward_source_code.replace("@tool", "").strip()
+            forward_source_code = forward_source_code.strip()
             tool_code += "\n\n" + textwrap.indent(forward_source_code, "    ")
 
         else:  # If the tool was not created by the @tool decorator, it was made by subclassing Tool
@@ -1058,16 +1207,68 @@ class ToolCollection:
             yield cls(tools)
 
 
-def tool(tool_function: Callable) -> Tool:
+def tool(
+    tool_function: Callable | None = None,
+    *,
+    retry_policy: RetryPolicy | None = None,
+    max_retries: int | None = None,
+    retry_backoff: float | None = None,
+    backoff_multiplier: float | None = None,
+    max_backoff: float | None = None,
+    jitter: float | None = None,
+    retry_exceptions: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    fallback_value: Any = _UNSET,
+) -> Tool | Callable[[Callable], Tool]:
     """
-    Convert a function into an instance of a dynamically created Tool subclass.
+    Convert a function into an instance of a dynamically created Tool subclass, optionally attaching a [`RetryPolicy`].
+
+    Can be used either as `@tool` or with declarative retry parameters `@tool(max_retries=3, retry_backoff=1.5, ...)`.
 
     Args:
-        tool_function (`Callable`): Function to convert into a Tool subclass.
+        tool_function (`Callable`, *optional*): Function to convert into a Tool subclass.
             Should have type hints for each input and a type hint for the output.
             Should also have a docstring including the description of the function
             and an 'Args:' part where each argument is described.
+        retry_policy (`RetryPolicy`, *optional*): Explicit [`RetryPolicy`] instance to attach to the tool.
+        max_retries (`int`, *optional*): Maximum number of retry attempts after an initial failure.
+        retry_backoff (`float`, *optional*): Initial backoff delay in seconds before the first retry.
+        backoff_multiplier (`float`, *optional*): Exponential multiplier applied to `retry_backoff` across retries.
+        max_backoff (`float`, *optional*): Upper cap in seconds for any single backoff delay.
+        jitter (`float`, *optional*): Uniform random jitter ratio added to each delay.
+        retry_exceptions (`type[BaseException] | tuple[type[BaseException], ...]`, *optional*):
+            Exception type(s) eligible for retry and `fallback_value` recovery.
+        fallback_value (`Any`, *optional*): Value returned when an eligible exception exhausts all retries.
     """
+    has_inline_retry_args = any(
+        param is not None
+        for param in (max_retries, retry_backoff, backoff_multiplier, max_backoff, jitter, retry_exceptions)
+    ) or (fallback_value is not _UNSET)
+
+    if retry_policy is not None and has_inline_retry_args:
+        raise ValueError("Cannot specify both `retry_policy` and individual retry parameters on `@tool`.")
+
+    if retry_policy is not None:
+        if not isinstance(retry_policy, RetryPolicy):
+            raise TypeError(f"`retry_policy` must be a RetryPolicy instance, got {type(retry_policy)} instead.")
+        resolved_retry_policy: RetryPolicy | None = retry_policy
+    elif has_inline_retry_args:
+        resolved_retry_policy = RetryPolicy(
+            max_retries=0 if max_retries is None else max_retries,
+            retry_backoff=0.0 if retry_backoff is None else retry_backoff,
+            backoff_multiplier=2.0 if backoff_multiplier is None else backoff_multiplier,
+            max_backoff=max_backoff,
+            jitter=0.0 if jitter is None else jitter,
+            retry_exceptions=(Exception,) if retry_exceptions is None else retry_exceptions,
+            fallback_value=fallback_value,
+        )
+    else:
+        resolved_retry_policy = None
+
+    if tool_function is None:
+        return lambda fn: tool(fn, retry_policy=resolved_retry_policy)
+    if not callable(tool_function):
+        raise TypeError(f"`tool_function` must be callable, got {type(tool_function)} instead.")
+
     tool_json_schema = get_json_schema(tool_function)["function"]
     if "return" not in tool_json_schema:
         if len(tool_json_schema["parameters"]["properties"]) == 0:
@@ -1086,6 +1287,8 @@ def tool(tool_function: Callable) -> Tool:
     SimpleTool.description = tool_json_schema["description"]
     SimpleTool.inputs = tool_json_schema["parameters"]["properties"]
     SimpleTool.output_type = tool_json_schema["return"]["type"]
+    if resolved_retry_policy is not None:
+        SimpleTool.retry_policy = resolved_retry_policy
 
     # Set output_schema if it exists in the JSON schema
     if "output_schema" in tool_json_schema:
@@ -1125,7 +1328,7 @@ def tool(tool_function: Callable) -> Tool:
     #   - Extract decorator lines
     decorator_lines = ""
     if func_node.decorator_list:
-        tool_decorators = [d for d in func_node.decorator_list if isinstance(d, ast.Name) and d.id == "tool"]
+        tool_decorators = [d for d in func_node.decorator_list if _is_tool_decorator(d)]
         if len(tool_decorators) > 1:
             raise ValueError(
                 f"Multiple @tool decorators found on function '{func_node.name}'. Only one @tool decorator is allowed."
@@ -1414,6 +1617,7 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
 
 __all__ = [
     "AUTHORIZED_TYPES",
+    "RetryPolicy",
     "Tool",
     "tool",
     "load_tool",
