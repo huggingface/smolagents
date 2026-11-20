@@ -400,6 +400,24 @@ class TestInferenceClientModel:
         messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello!"}])]
         model(messages, stop_sequences=["great"])
 
+    def test_generate_when_usage_is_none(self):
+        """Test that InferenceClientModel.generate succeeds when endpoint omits usage metadata."""
+        model = InferenceClientModel(model_id="test-model", token="test-token")
+        model.client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.content = "Response without usage metadata"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage = None
+        model.client.chat_completion.return_value = mock_response
+
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+        result = model.generate(messages)
+
+        assert result.content == "Response without usage metadata"
+        assert result.token_usage is None
+
     @require_run_all
     def test_get_hfapi_message_no_tool_external_provider(self):
         model = InferenceClientModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=10)
@@ -633,6 +651,24 @@ class TestLiteLLMRouterModel:
         assert completion.call_args.kwargs["api_base"] == "http://10.0.0.9:9000/v1"
         assert completion.call_args.kwargs["api_key"] == "sk-router-override"
 
+    def test_generate_when_usage_is_none(self):
+        """Test that LiteLLMModel.generate succeeds when endpoint omits usage metadata."""
+        pytest.importorskip("litellm")
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.content = "Response without usage metadata"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage = None
+
+        with patch("litellm.completion", return_value=mock_response):
+            model = LiteLLMModel(model_id="gpt-4o-mini")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+            result = model.generate(messages)
+
+            assert result.content == "Response without usage metadata"
+            assert result.token_usage is None
+
 
 class TestOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
@@ -705,6 +741,27 @@ class TestOpenAIModel:
             assert result.content == "This is some text"
             assert "<STOP>" not in result.content
             assert "and this should be removed" not in result.content
+
+    def test_generate_when_usage_is_none(self):
+        """Test that OpenAIModel.generate succeeds when endpoint omits usage information."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.content = "Response without usage metadata"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage = None
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            mock_client = MagicMock()
+            MockOpenAI.return_value = mock_client
+            mock_client.chat.completions.create.return_value = mock_response
+
+            model = OpenAIModel(model_id="gpt-4o-mini")
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Hello"}])]
+            result = model.generate(messages)
+
+            assert result.content == "Response without usage metadata"
+            assert result.token_usage is None
 
 
 class TestLlamaCppModel:
@@ -844,6 +901,30 @@ class TestAmazonBedrockModel:
 
         assert result.content == "Here is my response."
         assert result.tool_calls is None
+
+    def test_generate_when_usage_is_none(self):
+        """Test that AmazonBedrockModel.generate succeeds when response omits usage."""
+        pytest.importorskip("boto3")
+        model_id = "us.amazon.nova-pro-v1:0"
+
+        with patch("boto3.client"):
+            model = AmazonBedrockModel(model_id=model_id)
+
+        mock_response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Response without usage metadata"}],
+                }
+            },
+        }
+        model.client.converse.return_value = mock_response
+
+        messages = [ChatMessage(role="user", content="Hello")]
+        result = model.generate(messages)
+
+        assert result.content == "Response without usage metadata"
+        assert result.token_usage is None
 
 
 class TestAzureOpenAIModel:
