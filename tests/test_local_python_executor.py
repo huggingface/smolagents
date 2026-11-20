@@ -998,6 +998,30 @@ except ValueError as e:
         )
         assert state["exception_message"] == "An error occurred"
 
+    def test_exception_target_is_unbound_after_handler(self):
+        code = """
+try:
+    1 / 0
+except ZeroDivisionError as caught:
+    handled = str(caught)
+"""
+        state = {}
+        evaluate_python_code(code, {"str": str}, state=state)
+        assert state["handled"] == "division by zero"
+        assert "caught" not in state
+
+    def test_exception_target_is_unbound_when_handler_raises(self):
+        code = """
+try:
+    1 / 0
+except ZeroDivisionError as caught:
+    raise ValueError(str(caught))
+"""
+        state = {}
+        with pytest.raises(InterpreterError):
+            evaluate_python_code(code, {"str": str}, state=state)
+        assert "caught" not in state
+
     def test_print(self):
         code = "print(min([1, 2, 3]))"
         state = {}
