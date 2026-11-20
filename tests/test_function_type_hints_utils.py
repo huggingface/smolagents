@@ -451,6 +451,26 @@ class TestGetJsonSchema:
         schema = get_json_schema(keywords_in_description_func)
         assert schema["function"]["description"] == "Function with Args: or Returns: keywords in its description."
 
+    def test_wrapped_description_keeps_lines_that_look_like_args(self):
+        def fetch(url: str, count: int) -> str:
+            """Fetch a page.
+
+            Args:
+                url: See the docs at
+                    https://example.com/a
+                    Note: include the scheme
+                count: How many items.
+
+            Returns:
+                str: The body.
+            """
+            return url * count
+
+        schema = get_json_schema(fetch)
+        props = schema["function"]["parameters"]["properties"]
+        assert props["url"]["description"] == "See the docs at https://example.com/a Note: include the scheme"
+        assert props["count"]["description"] == "How many items."
+
 
 class TestGetCode:
     @pytest.mark.parametrize(

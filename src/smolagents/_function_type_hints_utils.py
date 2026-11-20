@@ -234,13 +234,14 @@ def get_json_schema(func: Callable) -> dict:
 # Extracts the initial segment of the docstring, containing the function description
 description_re = re.compile(r"^(.*?)(?=\n\s*(Args:|Returns:|Raises:)|\Z)", re.DOTALL)
 # Extracts the Args: block from the docstring
-args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
+args_re = re.compile(r"\n\s*Args:\n(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
 # Splits the Args: block into individual arguments
 args_split_re = re.compile(
     r"(?:^|\n)"  # Match the start of the args block, or a newline
-    r"\s*(\w+)\s*(?:\([^)]*?\))?:\s*"  # Capture the argument name (ignore the type) and strip spacing
+    r"(?P<indent>[ \t]*)"  # Argument names share one indent; wrapped lines are indented further
+    r"(\w+)\s*(?:\([^)]*?\))?:\s*"  # Capture the argument name (ignore the type) and strip spacing
     r"(.*?)\s*"  # Capture the argument description, which can span multiple lines, and strip trailing spacing
-    r"(?=\n\s*\w+\s*(?:\([^)]*?\))?:|\Z)",  # Stop when you hit the next argument (with or without type) or the end of the block
+    r"(?=\n(?P=indent)\w+\s*(?:\([^)]*?\))?:|\Z)",  # Next argument is the next name at the same indent
     re.DOTALL | re.VERBOSE,
 )
 # Extracts the Returns: block from the docstring, if present. Note that most chat templates ignore the return type/doc!
@@ -274,14 +275,17 @@ def _parse_google_format_docstring(
 
     # Clean and store the sections
     description = description_match.group(1).strip() if description_match else None
-    docstring_args = args_match.group(1).strip() if args_match else None
+    # rstrip only: lstrip would drop the indent of the first argument, and the
+    # splitter uses that indent to tell an argument from a wrapped "Note:" line.
+    docstring_args = args_match.group(1).rstrip() if args_match else None
     returns = returns_match.group(1).strip() if returns_match else None
 
     # Parsing the arguments into a dictionary
     if docstring_args is not None:
         docstring_args = "\n".join([line for line in docstring_args.split("\n") if line.strip()])  # Remove blank lines
         matches = args_split_re.findall(docstring_args)
-        args_dict = {match[0]: re.sub(r"\s*\n+\s*", " ", match[1].strip()) for match in matches}
+        # Groups are indent, name, description. The indent only anchors the next argument.
+        args_dict = {match[1]: re.sub(r"\s*\n+\s*", " ", match[2].strip()) for match in matches}
     else:
         args_dict = {}
 
