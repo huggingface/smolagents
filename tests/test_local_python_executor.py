@@ -641,6 +641,70 @@ simple_set = {
         result, _ = evaluate_python_code(code, {}, state={})
         assert result == 5
 
+    def test_lambda_default_arguments(self):
+        code = "f = lambda a, b=2: a + b\nresult = f(1)"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 3
+
+    def test_lambda_keyword_only_default_arguments(self):
+        code = "f = lambda *, a=3: a\nresult = f()"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 3
+
+    def test_lambda_varargs_and_kwargs(self):
+        code = "f = lambda a, *rest: (a, rest)\nresult = f(1, 2, 3)"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, (2, 3))
+
+        code = "f = lambda **kw: kw\nresult = f(a=1)"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == {"a": 1}
+
+    def test_lambda_does_not_pass_bound_keywords_into_kwargs(self):
+        code = "f = lambda a, *, d=2, **kw: (a, d, kw)\nresult = f(1, d=4, z=5)"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (1, 4, {"z": 5})
+
+    def test_lambda_positional_only_arguments(self):
+        code = "f = lambda a, /, b: a - b\nresult = f(5, 3)"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 2
+
+    def test_lambda_default_shadows_outer_value(self):
+        # A parameter is a local name, so the default must win over an outer name of the same spelling.
+        code = "a = 99\nf = lambda a=2: a\nresult = f()"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 2
+
+        # Explicit bindings still override the default.
+        code = "a = 99\nf = lambda a=2: a\nresult = f(7)"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 7
+
+        code = "a = 99\nf = lambda a=2: a\nresult = f(a=8)"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 8
+
+        # Only the parameter is shadowed; a positional default stays in place after another argument.
+        code = "a, b = 1, 2\nf = lambda a, b=20: (a, b)\nresult = f(9)"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == (9, 20)
+
+    def test_lambda_keyword_only_default_of_none(self):
+        # An explicit None default must not be confused with "no default at all".
+        code = "f = lambda *, a=None: a\nresult = f()"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result is None
+
+        # The same holds when an outer name would otherwise satisfy the reference.
+        code = "a = 99\nf = lambda *, a=None: a\nresult = f()"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result is None
+
+        code = "f = lambda *, a=None: a\nresult = f(a=5)"
+        result, _ = evaluate_python_code(code, {}, state={})
+        assert result == 5
+
     def test_tuple_assignment(self):
         code = "a, b = 0, 1\nb"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
