@@ -91,6 +91,36 @@ def remove_content_after_stop_sequences(content: str | None, stop_sequences: lis
     return content
 
 
+class StopSequenceCutter:
+    """Cut a streamed reply at the first stop sequence, for a model that does not take `stop` (#3228).
+
+    `generate()` removes everything after a stop sequence once the whole reply is in; a stream has to
+    stop yielding at that point instead, or the caller keeps the text the model wrote past it - for a
+    `CodeAgent` that is the invented `Observation:` and the code blocks after it, which then run.
+    """
+
+    def __init__(self, stop_sequences: list[str]) -> None:
+        self._stop_sequences = list(stop_sequences)
+        self._seen = ""
+        self.finished = False
+
+    def push(self, text: str | None) -> str:
+        """Return the part of `text` that comes before the earliest stop sequence seen so far."""
+        if text is None:
+            return ""
+
+        self._seen += text
+        start = len(self._seen) - len(text)
+        earliest = min((self._seen.find(stop) for stop in self._stop_sequences if stop in self._seen), default=None)
+
+        if earliest is None:
+            return text
+
+        self.finished = True
+
+        return self._seen[start:earliest] if earliest > start else ""
+
+
 @dataclass
 class ChatMessageToolCallFunction:
     arguments: Any
@@ -1352,6 +1382,9 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
+        # A model that takes `stop` is cut by the server; one that does not needs the same cut here.
+        cutter = StopSequenceCutter(stop_sequences) if stop_sequences and not self.supports_stop_parameter else None
+
         for event in self.retryer(
             self.client.completion, **completion_kwargs, stream=True, stream_options={"include_usage": True}
         ):
@@ -1367,7 +1400,7 @@ class LiteLLMModel(ApiModel):
                 choice = event.choices[0]
                 if choice.delta:
                     yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
+                        content=cutter.push(choice.delta.content) if cutter is not None else choice.delta.content,
                         tool_calls=[
                             ChatMessageToolCallStreamDelta(
                                 index=delta.index,
@@ -1380,6 +1413,9 @@ class LiteLLMModel(ApiModel):
                         if choice.delta.tool_calls
                         else None,
                     )
+
+                    if cutter is not None and cutter.finished:
+                        return
                 else:
                     if not getattr(choice, "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
@@ -1632,6 +1668,9 @@ class InferenceClientModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
+        # A model that takes `stop` is cut by the server; one that does not needs the same cut here.
+        cutter = StopSequenceCutter(stop_sequences) if stop_sequences and not self.supports_stop_parameter else None
+
         for event in self.retryer(
             self.client.chat.completions.create,
             **completion_kwargs,
@@ -1650,7 +1689,7 @@ class InferenceClientModel(ApiModel):
                 choice = event.choices[0]
                 if choice.delta:
                     yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
+                        content=cutter.push(choice.delta.content) if cutter is not None else choice.delta.content,
                         tool_calls=[
                             ChatMessageToolCallStreamDelta(
                                 index=delta.index,
@@ -1663,6 +1702,9 @@ class InferenceClientModel(ApiModel):
                         if choice.delta.tool_calls
                         else None,
                     )
+
+                    if cutter is not None and cutter.finished:
+                        return
                 else:
                     if not getattr(choice, "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
@@ -1748,6 +1790,9 @@ class OpenAIModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
+        # A model that takes `stop` is cut by the server; one that does not needs the same cut here.
+        cutter = StopSequenceCutter(stop_sequences) if stop_sequences and not self.supports_stop_parameter else None
+
         for event in self.retryer(
             self.client.chat.completions.create,
             **completion_kwargs,
@@ -1766,7 +1811,7 @@ class OpenAIModel(ApiModel):
                 choice = event.choices[0]
                 if choice.delta:
                     yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
+                        content=cutter.push(choice.delta.content) if cutter is not None else choice.delta.content,
                         tool_calls=[
                             ChatMessageToolCallStreamDelta(
                                 index=delta.index,
@@ -1779,6 +1824,9 @@ class OpenAIModel(ApiModel):
                         if choice.delta.tool_calls
                         else None,
                     )
+
+                    if cutter is not None and cutter.finished:
+                        return
                 else:
                     if not getattr(choice, "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
