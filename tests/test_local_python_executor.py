@@ -353,6 +353,38 @@ test_func(**None)
         evaluate_python_code(code, {"min": min, "print": print, "round": round}, state=state)
         assert state["vendor"] == {"revenue": 31000, "rent": 50312, "ratio": 0.62}
 
+    def test_evaluate_subscript_evaluates_container_before_index(self):
+        # CPython evaluates the container expression first, then the index expression.
+        calls = []
+
+        def get_container():
+            calls.append("container")
+            return [42]
+
+        def get_index():
+            calls.append("index")
+            return 0
+
+        def broken_container():
+            calls.append("container")
+            raise ValueError("container exploded")
+
+        state = {
+            "calls": calls,
+            "get_container": get_container,
+            "get_index": get_index,
+            "broken_container": broken_container,
+        }
+        result, _ = evaluate_python_code("get_container()[get_index()]", state=state)
+        assert result == 42
+        assert calls == ["container", "index"]
+
+        # A container that raises must short-circuit: the index expression never runs.
+        calls.clear()
+        with pytest.raises(InterpreterError):
+            evaluate_python_code("broken_container()[get_index()]", state=state)
+        assert calls == ["container"]
+
     def test_subscript_string_with_string_index_raises_appropriate_error(self):
         code = """
 search_results = "[{'title': 'Paris, Ville de Paris, France Weather Forecast | AccuWeather', 'href': 'https://www.accuweather.com/en/fr/paris/623/weather-forecast/623', 'body': 'Get the latest weather forecast for Paris, Ville de Paris, France , including hourly, daily, and 10-day outlooks. AccuWeather provides you with reliable and accurate information on temperature ...'}]"
