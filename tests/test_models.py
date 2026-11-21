@@ -361,6 +361,34 @@ class TestModel:
 
 
 class TestInferenceClientModel:
+    def test_base_url_keeps_the_caller_model_and_leaves_the_client_its_base_url(self):
+        """`InferenceClient` refuses `model` with `base_url`, so the model goes per request (#3230)."""
+        model = InferenceClientModel(model_id="mlx-community/Llama-3.2-3B", base_url="http://127.0.0.1:8080/v1")
+
+        assert model.client_kwargs["base_url"] == "http://127.0.0.1:8080/v1"
+        assert "model" not in model.client_kwargs
+        assert model.per_request_model is True
+
+    def test_a_base_url_model_reaches_the_server_with_the_callers_model_id(self):
+        """Without it the client sends its "dummy" placeholder and a local server answers 404 (#3230)."""
+        model = InferenceClientModel(model_id="mlx-community/Llama-3.2-3B", base_url="http://127.0.0.1:8080/v1")
+        model.client = MagicMock()
+        response = model.client.chat_completion.return_value
+        response.choices[0].message = ChatCompletionOutputMessage(role=MessageRole.ASSISTANT, content="ok")
+        response.usage = MagicMock(prompt_tokens=1, completion_tokens=1)
+
+        model([ChatMessage(role=MessageRole.USER, content="Test message")])
+
+        assert model.client.chat_completion.call_args.kwargs["model"] == "mlx-community/Llama-3.2-3B"
+
+    def test_a_model_without_a_base_url_still_gives_its_name_to_the_client(self):
+        """The Inferences Providers path is unchanged: the client keeps the model (#3230)."""
+        model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking")
+
+        assert model.client_kwargs["model"] == "Qwen/Qwen3-Next-80B-A3B-Thinking"
+        assert "base_url" not in model.client_kwargs or model.client_kwargs["base_url"] is None
+        assert model.per_request_model is False
+
     def test_call_with_custom_role_conversions(self):
         custom_role_conversions = {MessageRole.USER: MessageRole.SYSTEM}
         model = InferenceClientModel(model_id="test-model", custom_role_conversions=custom_role_conversions)
