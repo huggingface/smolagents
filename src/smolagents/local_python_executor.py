@@ -468,6 +468,13 @@ def create_function(
 ) -> Callable:
     source_code = ast.unparse(func_def)
 
+    # The class body marks the defining class for zero-arg super() with a
+    # holder dict that evaluate_class_def fills in once the class object
+    # exists (see evaluate_class_def). CPython resolves zero-arg super()
+    # through the class where the method is DEFINED, not the instance's
+    # runtime class.
+    defining_class_holder = state.get("__class__")
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
         arg_names = [arg.arg for arg in func_def.args.args]
@@ -504,7 +511,16 @@ def create_function(
         if func_def.args.args and func_def.args.args[0].arg == "self":
             if args:
                 func_state["self"] = args[0]
-                func_state["__class__"] = args[0].__class__
+                if isinstance(defining_class_holder, dict):
+                    # Resolved against the defining class so an inherited
+                    # method's super() skips the defining class, not the
+                    # instance's (possibly grandchild) class.
+                    defining_cls = defining_class_holder.get("cls")
+                    func_state["__class__"] = (
+                        defining_cls if defining_cls is not None else args[0].__class__
+                    )
+                else:
+                    func_state["__class__"] = args[0].__class__
 
         result = None
         try:
@@ -522,6 +538,8 @@ def create_function(
     new_func.__ast__ = func_def
     new_func.__source__ = source_code
     new_func.__name__ = func_def.name
+    if isinstance(defining_class_holder, dict):
+        new_func.__defining_class_holder__ = defining_class_holder
 
     return new_func
 
@@ -562,9 +580,19 @@ def evaluate_class_def(
     else:
         class_dict = {}
 
+    # Zero-arg super() must resolve through the class where the method is
+    # DEFINED (CPython's __class__ cell), not the instance's runtime class:
+    # an inherited method called on a grandchild instance would otherwise
+    # resolve super() against the grandchild and recurse forever. Mark the
+    # body state with a holder that is filled in once the class object
+    # exists, so methods created below capture their defining class.
+    defining_class_holder = {"cls": None}
+    body_state = dict(state)
+    body_state["__class__"] = defining_class_holder
+
     for stmt in class_def.body:
         if isinstance(stmt, ast.FunctionDef):
-            class_dict[stmt.name] = evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+            class_dict[stmt.name] = evaluate_ast(stmt, body_state, static_tools, custom_tools, authorized_imports)
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value:
                 value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
@@ -614,6 +642,12 @@ def evaluate_class_def(
             raise InterpreterError(f"Unsupported statement in class body: {stmt.__class__.__name__}")
 
     new_class = metaclass(class_name, tuple(bases), class_dict)
+    # Publish the now-existing class to every method created in this body.
+    for stmt in class_def.body:
+        if isinstance(stmt, ast.FunctionDef):
+            holder = getattr(class_dict[stmt.name], "__defining_class_holder__", None)
+            if isinstance(holder, dict):
+                holder["cls"] = new_class
     state[class_name] = new_class
     return new_class
 
