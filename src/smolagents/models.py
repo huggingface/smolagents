@@ -2075,6 +2075,13 @@ class AmazonBedrockModel(ApiModel):
                 if "type" in content:
                     del content["type"]
 
+        if stop_sequences:
+            # Bedrock takes stop sequences through `inferenceConfig.stopSequences` (Converse API)
+            # instead of the OpenAI-style `stop` argument, so they never reach the base method.
+            inference_config = dict(completion_kwargs.get("inferenceConfig") or {})
+            inference_config["stopSequences"] = stop_sequences
+            completion_kwargs["inferenceConfig"] = inference_config
+
         return {
             "modelId": self.model_id,
             **completion_kwargs,
@@ -2102,6 +2109,7 @@ class AmazonBedrockModel(ApiModel):
             raise ValueError("Amazon Bedrock does not support response_format")
         completion_kwargs: dict = self._prepare_completion_kwargs(
             messages=messages,
+            stop_sequences=stop_sequences,
             tools_to_call_from=tools_to_call_from,
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
