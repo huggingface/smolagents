@@ -79,6 +79,7 @@ BASE_PYTHON_TOOLS = {
     "int": int,
     "bool": bool,
     "str": str,
+    "repr": repr,
     "set": set,
     "list": list,
     "dict": dict,
