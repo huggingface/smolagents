@@ -248,6 +248,121 @@ test_func(**None)
         assert state["TestClass"].data.attr1 == "value1"
         assert state["TestClass"].data.attr2 == "value2"
 
+    def test_evaluate_function_decorator(self):
+        code = dedent("""\
+            def deco(f):
+                return lambda: f() + 1
+            @deco
+            def g():
+                return 0
+            g()
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 1
+
+    def test_evaluate_multiple_decorators_apply_bottom_up(self):
+        code = dedent("""\
+            def d1(f):
+                return lambda: f() + "1"
+            def d2(f):
+                return lambda: f() + "2"
+            @d1
+            @d2
+            def h():
+                return "v"
+            h()
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == "v21"
+
+    def test_evaluate_staticmethod_decorator(self):
+        code = dedent("""\
+            class C:
+                @staticmethod
+                def m(x):
+                    return x * 2
+            C.m(3) + C().m(4)
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 14
+
+    def test_evaluate_property_decorator(self):
+        code = dedent("""\
+            class C:
+                def __init__(self):
+                    self._v = 5
+                @property
+                def v(self):
+                    return self._v
+            C().v
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 5
+
+    def test_evaluate_class_decorator(self):
+        code = dedent("""\
+            def add_attr(cls):
+                cls.extra = 9
+                return cls
+            @add_attr
+            class C:
+                pass
+            C.extra
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 9
+
+    def test_evaluate_user_defined_decorator_shadows_structural_builtin(self):
+        code = dedent("""\
+            def property(f):
+                return lambda: "shadowed"
+            @property
+            def g():
+                return "real"
+            g()
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == "shadowed"
+
+    def test_evaluate_unknown_decorator_raises(self):
+        code = "@not_defined_anywhere\ndef g():\n    return 1"
+        with pytest.raises(InterpreterError, match="not defined"):
+            evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+
+    def test_evaluate_decorated_function_remains_callable_after_definition(self):
+        # A decorator returning a plain function keeps the definition usable, including recursion.
+        code = dedent("""\
+            def deco(f):
+                def wrapper(n):
+                    return f(n) + 1
+                return wrapper
+            @deco
+            def fact(n):
+                if n <= 1:
+                    return 0
+                return n + fact(n - 1)
+            fact(3)
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        # Recursive calls go through the decorated name, as in CPython:
+        # fact(1)=1, fact(2)=4, fact(3)=8.
+        assert result == 8
+
+    def test_repr_is_available_as_a_tool(self):
+        code = "repr('hello')"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == "'hello'"
+
+    def test_repr_invokes_user_defined_dunder_repr(self):
+        code = dedent("""\
+            class C:
+                def __repr__(self):
+                    return "C!"
+            repr(C())
+        """)
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == "C!"
+
     def test_evaluate_constant(self):
         code = "x = 3"
         state = {}
@@ -371,6 +486,62 @@ for result in search_results:
         result, _ = evaluate_python_code(code, {"range": range}, state=state)
         assert result == 2
         self.assertDictEqualNoPrint(state, {"x": 2, "i": 2, "_operations_count": {"counter": 11}})
+
+    def test_evaluate_for_else_runs_when_loop_ends_normally(self):
+        code = "total = 0\nfor i in range(3):\n    total += i\nelse:\n    total += 100\ntotal"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 103
+
+    def test_evaluate_for_else_skipped_on_break(self):
+        # The search-loop idiom: without the break the else clause resets `found`;
+        # with the break the else clause is skipped and the found value is kept.
+        code = "found = 'stale'\nfor item in [1, 2, 3]:\n    if item == 2:\n        found = item\n        break\nelse:\n    found = None\nfound"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 2
+
+        code = "found = 'stale'\nfor item in [1, 2, 3]:\n    if item == 99:\n        found = item\n        break\nelse:\n    found = None\nfound"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result is None
+
+    def test_evaluate_for_else_runs_with_continue(self):
+        code = "total = 0\nfor i in range(3):\n    if i == 1:\n        continue\n    total += i\nelse:\n    total += 10\ntotal"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 12
+
+    def test_evaluate_for_else_on_empty_iterator(self):
+        code = "total = 7\nfor i in []:\n    total += i\nelse:\n    total += 5\ntotal"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 12
+
+    def test_evaluate_while_else_runs_when_condition_turns_false(self):
+        code = "n = 0\nwhile n < 3:\n    n += 1\nelse:\n    n += 100\nn"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 103
+
+    def test_evaluate_while_else_skipped_on_break(self):
+        code = "n = 0\nwhile True:\n    n += 1\n    if n == 2:\n        break\nelse:\n    n = -1\nn"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={})
+        assert result == 2
+
+    def test_evaluate_nested_for_break_only_skips_inner_else(self):
+        code = dedent("""\
+            inner_result = 'inner-else-ran'
+            outer_result = 'outer-else-ran'
+            for i in range(2):
+                for j in range(2):
+                    if j == 1:
+                        break
+                else:
+                    inner_result = 'inner-else-skipped'
+            else:
+                outer_result = 'outer-else-skipped'
+        """)
+        state = {}
+        evaluate_python_code(code, BASE_PYTHON_TOOLS, state=state)
+        # The inner break skips the inner else clause...
+        assert state["inner_result"] == "inner-else-ran"
+        # ...but must not skip the outer loop's else clause.
+        assert state["outer_result"] == "outer-else-skipped"
 
     def test_evaluate_binop(self):
         code = "y + x"
