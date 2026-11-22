@@ -845,6 +845,88 @@ class TestAmazonBedrockModel:
         assert result.content == "Here is my response."
         assert result.tool_calls is None
 
+    def _make_mock_model_with_reply(self):
+        with patch("boto3.client"):
+            model = AmazonBedrockModel(model_id="us.amazon.nova-pro-v1:0")
+        model.client.converse.return_value = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Hello"}]}},
+            "usage": {"inputTokens": 10, "outputTokens": 20},
+        }
+        return model
+
+    def test_generate_sends_stop_sequences_in_inference_config(self):
+        """stop_sequences must reach the Converse request as inferenceConfig.stopSequences (issue #3040)."""
+        model = self._make_mock_model_with_reply()
+
+        messages = [ChatMessage(role="user", content="Hello")]
+        model.generate(messages, stop_sequences=["STOP"])
+
+        request_kwargs = model.client.converse.call_args.kwargs
+        assert request_kwargs["inferenceConfig"]["stopSequences"] == ["STOP"]
+        # The OpenAI-style `stop` argument must not leak into the Converse request.
+        assert "stop" not in request_kwargs
+
+    def test_generate_without_stop_sequences_omits_stop_sequences(self):
+        model = self._make_mock_model_with_reply()
+
+        messages = [ChatMessage(role="user", content="Hello")]
+        model.generate(messages)
+
+        request_kwargs = model.client.converse.call_args.kwargs
+        assert "stopSequences" not in request_kwargs.get("inferenceConfig", {})
+        assert "stop" not in request_kwargs
+
+    def test_generate_stop_sequences_merge_with_user_inference_config(self):
+        """An inferenceConfig passed by the user must be kept when stop_sequences are added."""
+        with patch("boto3.client"):
+            model = AmazonBedrockModel(model_id="us.amazon.nova-pro-v1:0")
+        model.client.converse.return_value = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Hello"}]}},
+            "usage": {"inputTokens": 10, "outputTokens": 20},
+        }
+
+        messages = [ChatMessage(role="user", content="Hello")]
+        model.generate(messages, stop_sequences=["STOP"], inferenceConfig={"maxTokens": 3000})
+
+        request_kwargs = model.client.converse.call_args.kwargs
+        assert request_kwargs["inferenceConfig"] == {"maxTokens": 3000, "stopSequences": ["STOP"]}
+
+    def test_stop_sequences_reach_the_converse_request(self):
+        """Reproduction from issue #3040: a real boto3 client records the parameters sent to Converse.
+
+        Unlike the MagicMock-based tests above, botocore's Stubber validates the request
+        parameters against the actual Bedrock service model, so a misplaced or misspelled
+        `inferenceConfig.stopSequences` key would fail this test.
+        """
+        import boto3
+        from botocore.stub import Stubber
+
+        reply = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Hello"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+            "metrics": {"latencyMs": 1},
+        }
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="x",
+            aws_secret_access_key="x",
+        )
+        sent = {}
+        client.meta.events.register(
+            "provide-client-params.bedrock-runtime.Converse", lambda params, **_: sent.update(params)
+        )
+        stubber = Stubber(client)
+        stubber.add_response("converse", reply)
+        model = AmazonBedrockModel(model_id="anthropic.claude-3-haiku-20240307-v1:0", client=client)
+        with stubber:
+            model.generate(
+                [{"role": "user", "content": [{"type": "text", "text": "Hi"}]}],
+                stop_sequences=["STOP"],
+            )
+        assert sent.get("inferenceConfig", {}).get("stopSequences") == ["STOP"], f"request sent: {sent}"
+
 
 class TestAzureOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
