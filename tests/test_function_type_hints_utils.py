@@ -16,7 +16,12 @@ from typing import Any
 
 import pytest
 
-from smolagents._function_type_hints_utils import DocstringParsingException, get_imports, get_json_schema
+from smolagents._function_type_hints_utils import (
+    DocstringParsingException,
+    _get_json_schema_type,
+    get_imports,
+    get_json_schema,
+)
 
 
 @pytest.fixture
@@ -512,3 +517,60 @@ class TestGetCode:
     )
     def test_get_imports(self, code: str, expected: list[str]):
         assert sorted(get_imports(code)) == sorted(expected)
+
+
+class TestGetJsonSchemaType:
+    def test_pil_image(self):
+        PIL_Image = pytest.importorskip("PIL.Image")
+        assert _get_json_schema_type(PIL_Image.Image) == {"type": "image"}
+
+    def test_pil_image_subclasses(self):
+        PIL_Image = pytest.importorskip("PIL.Image")
+        from PIL import PngImagePlugin
+
+        class MyImage(PIL_Image.Image):
+            pass
+
+        assert _get_json_schema_type(PngImagePlugin.PngImageFile) == {"type": "image"}
+        assert _get_json_schema_type(MyImage) == {"type": "image"}
+
+    def test_torch_tensor_is_audio(self):
+        torch = pytest.importorskip("torch")
+        assert _get_json_schema_type(torch.Tensor) == {"type": "audio"}
+
+    def test_tensor_subclass_is_audio_with_stubbed_torch(self, monkeypatch):
+        import sys
+        import types
+
+        class Tensor:
+            pass
+
+        class MyTensor(Tensor):
+            pass
+
+        monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(Tensor=Tensor))
+        assert _get_json_schema_type(Tensor) == {"type": "audio"}
+        assert _get_json_schema_type(MyTensor) == {"type": "audio"}
+
+    def test_arbitrary_class_is_object(self):
+        class Foo:
+            pass
+
+        assert _get_json_schema_type(Foo) == {"type": "object"}
+
+    def test_get_json_schema_with_pil_image_annotation(self):
+        PIL_Image = pytest.importorskip("PIL.Image")
+
+        def describe(img: PIL_Image.Image) -> str:
+            """
+            Describes an image.
+
+            Args:
+                img: The image.
+            Returns:
+                A description.
+            """
+            return "ok"
+
+        schema = get_json_schema(describe)
+        assert schema["function"]["parameters"]["properties"]["img"]["type"] == "image"

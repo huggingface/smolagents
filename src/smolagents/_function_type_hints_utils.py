@@ -25,6 +25,7 @@ TODO: move them to `huggingface_hub` to avoid code duplication.
 import inspect
 import json
 import re
+import sys
 import types
 from collections.abc import Callable
 from copy import copy
@@ -415,17 +416,13 @@ _BASE_TYPE_MAPPING = {
 def _get_json_schema_type(param_type: type) -> dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
-    if str(param_type) == "Image":
-        from PIL.Image import Image
-
-        if param_type == Image:
+    # Look up PIL/torch in sys.modules instead of importing them: if a param type is an instance of one of their
+    # classes, the module has necessarily been imported already, and this keeps import time low.
+    if isinstance(param_type, type):
+        pil_image_module = sys.modules.get("PIL.Image")
+        if pil_image_module is not None and issubclass(param_type, pil_image_module.Image):
             return {"type": "image"}
-    if str(param_type) == "Tensor":
-        try:
-            from torch import Tensor
-
-            if param_type == Tensor:
-                return {"type": "audio"}
-        except ModuleNotFoundError:
-            pass
+        torch_module = sys.modules.get("torch")
+        if torch_module is not None and issubclass(param_type, torch_module.Tensor):
+            return {"type": "audio"}
     return {"type": "object"}
