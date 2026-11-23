@@ -2185,7 +2185,7 @@ class TestToolCallingAgent:
             for i, kind in enumerate(["first", "fail", "last"])
         ]
         message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=calls)
-        step = ActionStep(step_number=1, timing=Timing(start_time=0), observations="earlier")
+        step = ActionStep(step_number=1, timing=Timing(start_time=0), observations="earlier\n")
         stream = agent.process_tool_calls(message, step)
         try:
             for _ in calls:
@@ -2203,6 +2203,32 @@ class TestToolCallingAgent:
             stream.close()
         assert [call.id for call in step.tool_calls] == ["0", "1", "2"]
         assert step.observations.splitlines() == ["earlier", "COMMITTED_A", "COMMITTED_C"]
+
+    def test_process_tool_calls_observation_concatenation_parity(self):
+        """Test observation accumulation semantics match origin/main without trailing newlines on empty output."""
+
+        class BlankTool(Tool):
+            name = "blank_tool"
+            description = "Returns empty string."
+            inputs = {}
+            output_type = "string"
+
+            def forward(self) -> str:
+                return ""
+
+        agent = ToolCallingAgent(tools=[BlankTool()], model=MagicMock())
+        calls = [
+            ChatMessageToolCall(
+                id="call_blank",
+                type="function",
+                function=ChatMessageToolCallFunction(name="blank_tool", arguments={}),
+            )
+        ]
+        message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=calls)
+        step = ActionStep(step_number=1, timing=Timing(start_time=0), observations="")
+        list(agent.process_tool_calls(message, step))
+        assert step.observations == ""
+        assert not step.observations.endswith("\n")
 
 
 class TestCodeAgent:

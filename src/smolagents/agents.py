@@ -1420,13 +1420,17 @@ class ToolCallingAgent(MultiStepAgent):
 
         # Process tool calls in parallel
         outputs = {}
-        initial_observations = (memory_step.observations or "").rstrip("\n")
+        initial_observations = memory_step.observations or ""
+
+        def _sync_observations() -> None:
+            obs = initial_observations
+            for k in sorted(outputs.keys()):
+                obs += outputs[k].observation + "\n"
+            memory_step.observations = obs.rstrip("\n") if obs else obs
 
         def record_completed(tool_output: ToolOutput) -> None:
             outputs[tool_output.id] = tool_output
-            obs_parts = [initial_observations] if initial_observations else []
-            obs_parts.extend(outputs[k].observation for k in sorted(outputs.keys()))
-            memory_step.observations = "\n".join(obs_parts)
+            _sync_observations()
 
         if len(parallel_calls) == 1:
             # If there's only one call, process it directly
@@ -1455,9 +1459,7 @@ class ToolCallingAgent(MultiStepAgent):
                             outputs[tool_output.id] = tool_output
                             updated = True
                 if updated:
-                    obs_parts = [initial_observations] if initial_observations else []
-                    obs_parts.extend(outputs[k].observation for k in sorted(outputs.keys()))
-                    memory_step.observations = "\n".join(obs_parts)
+                    _sync_observations()
 
     def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
         """Replace string values in arguments with their corresponding state values if they exist."""
