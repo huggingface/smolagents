@@ -2654,3 +2654,28 @@ def test_streaming_planning_step_sums_input_tokens():
     plan = steps[-1]
     assert plan.token_usage.input_tokens == 1500
     assert plan.token_usage.output_tokens == 5
+
+
+class _StreamingPlanAndAnswerModel(_StreamingPlanModel):
+    def generate_stream(self, messages, stop_sequences=None, **kwargs):
+        if stop_sequences == ["<end_plan>"]:
+            yield from super().generate_stream(messages, stop_sequences, **kwargs)
+        else:
+            yield ChatMessageStreamDelta(content="<code>final_answer('ok')</code>", token_usage=TokenUsage(20, 7))
+
+
+def test_streaming_plan_usage_reaches_run_result_and_resets():
+    agent = CodeAgent(
+        tools=[],
+        model=_StreamingPlanAndAnswerModel(),
+        planning_interval=1,
+        stream_outputs=True,
+        return_full_result=True,
+        verbosity_level=0,
+    )
+
+    for _ in range(2):
+        result = agent.run("Say ok.")
+        assert result.output == "ok"
+        assert result.state == "success"
+        assert result.token_usage == TokenUsage(1520, 12)
