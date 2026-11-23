@@ -2081,6 +2081,13 @@ class AmazonBedrockModel(ApiModel):
                 if "type" in content:
                     del content["type"]
 
+        if stop_sequences:
+            # Bedrock takes stop sequences through `inferenceConfig.stopSequences` (Converse API)
+            # instead of the OpenAI-style `stop` argument, so they never reach the base method.
+            inference_config = dict(completion_kwargs.get("inferenceConfig") or {})
+            inference_config["stopSequences"] = stop_sequences
+            completion_kwargs["inferenceConfig"] = inference_config
+
         return {
             "modelId": self.model_id,
             **completion_kwargs,
