@@ -352,7 +352,15 @@ class Tool(BaseTool):
 
             validate_tool_attributes(self.__class__)
 
-            tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
+            source = getattr(type(self), "__source__", None)
+
+            if source is not None:
+                # A class built by `Tool.from_code` kept the code it was built from, and that
+                # code is the whole file. Reuse it: its methods have no file to read, so
+                # rebuilding the class from them raised "could not get source code" (#3244).
+                tool_code = source
+            else:
+                tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
 
         requirements = {el for el in get_imports(tool_code) if el not in sys.stdlib_module_names} | {"smolagents"}
 
@@ -586,6 +594,11 @@ class Tool(BaseTool):
 
         if tool_class is None:
             raise ValueError("No Tool subclass found in the code.")
+
+        # An exec'd class has no file for `inspect.getsource`, and `to_dict()` needs the
+        # source to validate the tool and to write it back out: `save()` and
+        # `push_to_hub()` failed on any tool built here with "is a built-in class" (#3244).
+        tool_class.__source__ = tool_code
 
         if not isinstance(tool_class.inputs, dict):
             tool_class.inputs = ast.literal_eval(tool_class.inputs)
