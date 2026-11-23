@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import inspect
+import json
 import os
 import textwrap
 import unittest
@@ -27,6 +28,7 @@ from smolagents.utils import (
     get_source,
     instance_to_source,
     is_valid_name,
+    make_json_serializable,
     parse_code_blobs,
     parse_json_blob,
 )
@@ -552,3 +554,45 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+class TestMakeJsonSerializableCircular:
+    PLACEHOLDER = "<circular reference>"
+
+    def test_circular_list(self):
+        items = []
+        items.append(items)
+        result = make_json_serializable(items)
+        assert result == [self.PLACEHOLDER]
+        json.dumps(result)
+
+    def test_circular_dict(self):
+        d = {}
+        d["self"] = d
+        result = make_json_serializable(d)
+        assert result == {"self": self.PLACEHOLDER}
+        json.dumps(result)
+
+    def test_circular_object_dict(self):
+        class Node:
+            pass
+
+        node = Node()
+        node.me = node
+        node.name = "n"
+        result = make_json_serializable(node)
+        assert result == {"_type": "Node", "me": self.PLACEHOLDER, "name": "n"}
+        json.dumps(result)
+
+    def test_indirect_cycle(self):
+        a = {"name": "a"}
+        b = {"name": "b", "a": a}
+        a["b"] = b
+        result = make_json_serializable(a)
+        assert result == {"name": "a", "b": {"name": "b", "a": self.PLACEHOLDER}}
+        json.dumps(result)
+
+    def test_shared_non_circular_reference(self):
+        shared = [1, 2]
+        result = make_json_serializable({"x": shared, "y": shared, "z": [shared, shared]})
+        assert result == {"x": [1, 2], "y": [1, 2], "z": [[1, 2], [1, 2]]}
