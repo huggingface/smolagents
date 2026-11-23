@@ -47,6 +47,18 @@ class MemoryStep:
         raise NotImplementedError
 
 
+def model_output_as_text(model_output: str | list[dict[str, Any]]) -> str:
+    """Render a step's model output as text: it is the model's `ChatMessage.content`, which
+    providers that answer with content parts return as a list of blocks instead of a string."""
+    if isinstance(model_output, str):
+        return model_output
+    return "\n".join(
+        block["text"]
+        for block in model_output
+        if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)
+    )
+
+
 @dataclass
 class ActionStep(MemoryStep):
     step_number: int
@@ -93,7 +105,10 @@ class ActionStep(MemoryStep):
         messages = []
         if self.model_output is not None and not summary_mode:
             messages.append(
-                ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.model_output.strip()}])
+                ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=[{"type": "text", "text": model_output_as_text(self.model_output).strip()}],
+                )
             )
 
         if self.tool_calls is not None:
@@ -263,7 +278,11 @@ class AgentMemory:
                 if detailed and step.model_input_messages is not None:
                     logger.log_messages(step.model_input_messages, level=LogLevel.ERROR)
                 if step.model_output is not None:
-                    logger.log_markdown(title="Agent output:", content=step.model_output, level=LogLevel.ERROR)
+                    logger.log_markdown(
+                        title="Agent output:",
+                        content=model_output_as_text(step.model_output),
+                        level=LogLevel.ERROR,
+                    )
             elif isinstance(step, PlanningStep):
                 logger.log_rule("Planning step", level=LogLevel.ERROR)
                 if detailed and step.model_input_messages is not None:
