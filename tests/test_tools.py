@@ -657,6 +657,23 @@ class TestTool:
         assert isinstance(union_type_return_tool_function, Tool)
         assert union_type_return_tool_function.output_type == "any"
 
+    @patch("smolagents.tools.metadata_update")
+    @patch("smolagents.tools.create_repo")
+    def test_initialize_hub_repo_overwrites_existing_metadata(self, mock_create_repo, mock_metadata_update):
+        """Republishing a tool to an existing Space must overwrite its tags, like agents do."""
+        mock_create_repo.return_value = MagicMock(repo_id="user/my-tool")
+
+        repo_id = Tool._initialize_hub_repo("user/my-tool", token="token", private=False)
+
+        assert repo_id == "user/my-tool"
+        mock_metadata_update.assert_called_once_with(
+            "user/my-tool",
+            {"tags": ["smolagents", "tool"]},
+            repo_type="space",
+            token="token",
+            overwrite=True,
+        )
+
 
 class TestToolDecorator:
     def test_tool_decorator_source_extraction_with_multiple_decorators(self):
