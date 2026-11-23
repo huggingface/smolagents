@@ -1111,7 +1111,11 @@ def tool(tool_function: Callable) -> Tool:
 
     # Create and attach the source code of the dynamically created tool class and forward method
     # - Get the source code of tool_function
-    tool_source = textwrap.dedent(inspect.getsource(tool_function))
+    # `get_source` falls back to `__source__` for a function that has no file to read
+    # (one that was exec'd, e.g. reloaded from a string), which plain
+    # `inspect.getsource` cannot do: decorating such a function raised
+    # "OSError: could not get source code" (#3244).
+    tool_source = textwrap.dedent(get_source(tool_function))
     # - Remove the tool decorator and function definition line
     lines = tool_source.splitlines()
     tree = ast.parse(tool_source)

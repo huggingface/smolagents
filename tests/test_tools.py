@@ -1066,3 +1066,43 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class TestToolDecoratorWithoutASourceFile:
+    """`@tool` accepts a function that has no file to read, when its code is known (#3244)."""
+
+    CODE = (
+        "def tally(items: list[int]) -> int:\n"
+        '    """Sum the items.\n'
+        "\n"
+        "    Args:\n"
+        "        items: the numbers to add up.\n"
+        '    """\n'
+        "    return sum(items)\n"
+    )
+
+    @staticmethod
+    def _reloaded_function():
+        namespace = {}
+        exec(TestToolDecoratorWithoutASourceFile.CODE, namespace)  # noqa: S102
+        function = namespace["tally"]
+        # What a reloader can hand over: `get_source` reads this before asking `inspect`.
+        function.__source__ = "@tool\n" + TestToolDecoratorWithoutASourceFile.CODE
+        return function
+
+    def test_decorates_a_function_that_has_no_source_file(self):
+        reloaded_tool = tool(self._reloaded_function())
+
+        assert reloaded_tool.name == "tally"
+        assert reloaded_tool([1, 2, 3]) == 6
+
+    def test_such_a_tool_can_still_be_saved(self, tmp_path):
+        reloaded_tool = tool(self._reloaded_function())
+
+        reloaded_tool.save(tmp_path)
+
+        assert set(os.listdir(tmp_path)) == {"requirements.txt", "app.py", "tool.py"}
+        saved = (tmp_path / "tool.py").read_text()
+        assert 'name = "tally"' in saved
+        assert "def forward(self, items: list[int]) -> int:" in saved
+        assert Tool.from_code(saved)([4, 5]) == 9
