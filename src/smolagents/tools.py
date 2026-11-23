@@ -320,7 +320,10 @@ class Tool(BaseTool):
 
             # Add output_schema if it exists
             if hasattr(self, "output_schema") and self.output_schema is not None:
-                tool_code += f"\n                output_schema = {repr(self.output_schema)}"
+                # The class body above sits at four spaces after the dedent, so this line
+                # has to match it: sixteen spaces left the generated source with an
+                # "unexpected indent", and `save()` wrote a tool.py that would not load.
+                tool_code += f"\n    output_schema = {repr(self.output_schema)}"
             import re
 
             def add_self_argument(source_code: str) -> str:

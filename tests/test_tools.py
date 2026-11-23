@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import inspect
 import os
 import warnings
@@ -28,6 +29,16 @@ from smolagents.agent_types import _AGENT_TYPE_MAPPING
 from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_gradio_demo, tool, validate_tool_arguments
 
 from .utils.markers import require_run_all
+
+
+@tool
+def report_total(items: list[int]) -> int:
+    """Sum the items.
+
+    Args:
+        items: the numbers to add up.
+    """
+    return sum(items)
 
 
 class ToolTesterMixin:
@@ -1066,3 +1077,27 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class TestSimpleToolWithOutputSchema:
+    """`to_dict` must emit source that is still Python when the tool carries `output_schema`."""
+
+    def build(self):
+        built = copy.copy(report_total)
+        built.output_schema = {"type": "object", "properties": {"total": {"type": "integer"}}}
+        return built
+
+    def test_the_generated_code_compiles(self):
+        code = self.build().to_dict()["code"]
+
+        compile(code, "<tool>", "exec")
+        assert "    output_schema = {" in code
+
+    def test_the_saved_tool_loads_again_with_its_schema(self, tmp_path):
+        built = self.build()
+
+        built.save(tmp_path)
+        reloaded = Tool.from_code((tmp_path / "tool.py").read_text())
+
+        assert reloaded([2, 3]) == 5
+        assert reloaded.output_schema == built.output_schema
