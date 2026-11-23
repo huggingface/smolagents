@@ -430,8 +430,10 @@ class MultiStepAgent(ABC):
                         self.step_callbacks.register(step_cls, callback)
             else:
                 raise ValueError("step_callbacks must be a list or a dict")
-        # Register monitor update_metrics only for ActionStep for backward compatibility
+        # Register monitor update_metrics for ActionStep and PlanningStep, so that monitor
+        # totals include planning tokens, consistent with RunResult.token_usage
         self.step_callbacks.register(ActionStep, self.monitor.update_metrics)
+        self.step_callbacks.register(PlanningStep, self.monitor.update_metrics)
 
     def run(
         self,

@@ -29,6 +29,7 @@ from smolagents.models import (
     InferenceClientModel,
     LiteLLMModel,
     LiteLLMRouterModel,
+    LlamaCppModel,
     MessageRole,
     MLXModel,
     Model,
@@ -242,6 +243,38 @@ class TestModel:
         message2 = ChatMessage.from_dict(message_data)
         assert isinstance(message2.role, MessageRole)
         assert message2.role == MessageRole.ASSISTANT
+
+    def test_get_clean_message_list_merges_consecutive_string_messages(self):
+        messages = [
+            {"role": "system", "content": "Start with FOO"},
+            {"role": "system", "content": "End with BAR"},
+            {"role": "user", "content": "Just say '.'"},
+        ]
+
+        assert get_clean_message_list(messages) == [
+            {"role": MessageRole.SYSTEM, "content": "Start with FOO\nEnd with BAR"},
+            {"role": MessageRole.USER, "content": "Just say '.'"},
+        ]
+
+    def test_get_clean_message_list_flattens_consecutive_string_messages(self):
+        messages = [
+            {"role": "system", "content": "Start with FOO"},
+            {"role": "system", "content": "End with BAR"},
+        ]
+
+        assert get_clean_message_list(messages, flatten_messages_as_text=True) == [
+            {"role": MessageRole.SYSTEM, "content": "Start with FOO\nEnd with BAR"},
+        ]
+
+    def test_get_clean_message_list_merges_string_with_text_blocks(self):
+        messages = [
+            {"role": "system", "content": "Start with FOO"},
+            {"role": "system", "content": [{"type": "text", "text": "End with BAR"}]},
+        ]
+
+        assert get_clean_message_list(messages) == [
+            {"role": MessageRole.SYSTEM, "content": [{"type": "text", "text": "Start with FOO\nEnd with BAR"}]},
+        ]
 
     @pytest.mark.skipif(not sys.platform.startswith("darwin"), reason="requires macOS")
     def test_get_mlx_message_no_tool(self):
@@ -517,6 +550,89 @@ class TestLiteLLMRouterModel:
             assert mock_router.call_args.kwargs["routing_strategy"] == "simple-shuffle"
             assert router_model.client == mock_router.return_value
 
+    @pytest.fixture
+    def vllm_model_list(self):
+        return [
+            {
+                "model_name": "vllm-group",
+                "litellm_params": {
+                    "model": "openai/my-model",
+                    "api_base": "http://10.0.0.5:8000/v1",
+                    "api_key": "sk-deployment",
+                },
+            }
+        ]
+
+    @pytest.fixture
+    def mock_litellm_completion_response(self):
+        import litellm
+
+        return litellm.ModelResponse(
+            choices=[{"message": {"role": "assistant", "content": "hi"}}],
+            usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        )
+
+    @pytest.fixture
+    def mock_litellm_completion_stream_response(self):
+        from litellm.types.utils import ModelResponseStream, StreamingChoices, Usage
+
+        return iter(
+            [
+                ModelResponseStream(
+                    id="chatcmpl-test",
+                    created=0,
+                    choices=[StreamingChoices(index=0, delta={"role": "assistant", "content": "hi"})],
+                ),
+                ModelResponseStream(
+                    id="chatcmpl-test",
+                    created=0,
+                    choices=[StreamingChoices(index=0, delta={}, finish_reason="stop")],
+                    usage=Usage(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+                ),
+            ]
+        )
+
+    def test_generate_uses_deployment_credentials(self, vllm_model_list, mock_litellm_completion_response):
+        """Unset model-level api_base/api_key must not override the credentials of each deployment."""
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "hi"}])]
+        model = LiteLLMRouterModel(model_id="vllm-group", model_list=vllm_model_list)
+
+        with patch("litellm.completion", return_value=mock_litellm_completion_response) as completion:
+            model.generate(messages)
+
+        assert completion.call_args.kwargs["api_base"] == "http://10.0.0.5:8000/v1"
+        assert completion.call_args.kwargs["api_key"] == "sk-deployment"
+
+    def test_generate_stream_uses_deployment_credentials(
+        self, vllm_model_list, mock_litellm_completion_stream_response
+    ):
+        """Unset model-level api_base/api_key must not override the credentials of each deployment."""
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "hi"}])]
+        model = LiteLLMRouterModel(model_id="vllm-group", model_list=vllm_model_list)
+
+        with patch("litellm.completion", return_value=mock_litellm_completion_stream_response) as completion:
+            deltas = list(model.generate_stream(messages))
+
+        assert [delta.content for delta in deltas if delta.content] == ["hi"]
+        assert completion.call_args.kwargs["api_base"] == "http://10.0.0.5:8000/v1"
+        assert completion.call_args.kwargs["api_key"] == "sk-deployment"
+
+    def test_explicit_credentials_override_deployments(self, vllm_model_list, mock_litellm_completion_response):
+        """Explicit model-level api_base/api_key must still override every deployment's credentials."""
+        messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "hi"}])]
+        model = LiteLLMRouterModel(
+            model_id="vllm-group",
+            model_list=vllm_model_list,
+            api_base="http://10.0.0.9:9000/v1",
+            api_key="sk-router-override",
+        )
+
+        with patch("litellm.completion", return_value=mock_litellm_completion_response) as completion:
+            model.generate(messages)
+
+        assert completion.call_args.kwargs["api_base"] == "http://10.0.0.9:9000/v1"
+        assert completion.call_args.kwargs["api_key"] == "sk-router-override"
+
 
 class TestOpenAIModel:
     def test_client_kwargs_passed_correctly(self):
@@ -591,6 +707,108 @@ class TestOpenAIModel:
             assert "and this should be removed" not in result.content
 
 
+class TestLlamaCppModel:
+    @pytest.mark.parametrize("openai_api_key", [None, "personal-openai-key"])
+    def test_default_client_does_not_use_openai_environment_credentials(self, monkeypatch, openai_api_key):
+        if openai_api_key is None:
+            monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        else:
+            monkeypatch.setenv("OPENAI_API_KEY", openai_api_key)
+
+        with patch("openai.OpenAI") as MockOpenAI:
+            model = LlamaCppModel(model_id="ggml-org/gpt-oss-20b-GGUF:MXFP4")
+
+        MockOpenAI.assert_called_once_with(
+            base_url="http://127.0.0.1:9931/v1",
+            api_key="no-key-required",
+            organization=None,
+            project=None,
+        )
+        assert model.client == MockOpenAI.return_value
+
+    def test_explicit_endpoint_and_key_overrides(self):
+        with patch("openai.OpenAI") as MockOpenAI:
+            LlamaCppModel(
+                model_id="local-tool-model",
+                api_base="http://127.0.0.1:12345/v1",
+                api_key="local-test-key",
+                client_kwargs={"max_retries": 5},
+            )
+
+        MockOpenAI.assert_called_once_with(
+            base_url="http://127.0.0.1:12345/v1",
+            api_key="local-test-key",
+            organization=None,
+            project=None,
+            max_retries=5,
+        )
+
+    def test_generate_forwards_exact_model_id_tools_and_options(self):
+        model_id = "ggml-org/gpt-oss-20b-GGUF:MXFP4"
+
+        @tool
+        def lookup_order(order_id: str) -> str:
+            """Look up an order.
+
+            Args:
+                order_id: The order identifier to look up.
+            """
+            return f"Order {order_id} is ready."
+
+        mock_response = MagicMock()
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.content = "Order A-10042 is ready."
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+
+        with patch("openai.OpenAI"):
+            model = LlamaCppModel(model_id=model_id, temperature=0.2, max_tokens=128)
+            model.client.chat.completions.create.return_value = mock_response
+            result = model.generate(
+                [ChatMessage(role=MessageRole.USER, content="Look up order A-10042")],
+                tools_to_call_from=[lookup_order],
+                top_p=0.9,
+            )
+
+        completion_kwargs = model.client.chat.completions.create.call_args.kwargs
+        assert completion_kwargs["model"] == model_id
+        assert completion_kwargs["tools"] == [get_tool_json_schema(lookup_order)]
+        assert completion_kwargs["tool_choice"] == "required"
+        assert completion_kwargs["temperature"] == 0.2
+        assert completion_kwargs["max_tokens"] == 128
+        assert completion_kwargs["top_p"] == 0.9
+        assert result.content == "Order A-10042 is ready."
+
+    def test_public_import_and_serialization_round_trip(self):
+        from smolagents import LlamaCppModel as PublicLlamaCppModel
+        from smolagents.models import MODEL_REGISTRY
+
+        assert PublicLlamaCppModel is LlamaCppModel
+        assert MODEL_REGISTRY["LlamaCppModel"] is LlamaCppModel
+
+        with patch("openai.OpenAI"):
+            model = LlamaCppModel(
+                model_id="organization/model-alias:Q4_K_M",
+                api_base="http://127.0.0.1:12345/v1",
+                api_key="local-test-key",
+                temperature=0.3,
+            )
+            serialized = model.to_dict()
+            restored = MODEL_REGISTRY["LlamaCppModel"].from_dict(serialized)
+
+        assert serialized == {
+            "model_id": "organization/model-alias:Q4_K_M",
+            "api_base": "http://127.0.0.1:12345/v1",
+            "temperature": 0.3,
+        }
+        assert "api_key" not in serialized
+        assert restored.model_id == model.model_id
+        assert restored.api_base == model.api_base
+        assert restored.kwargs == model.kwargs
+        assert restored.client_kwargs["api_key"] == "no-key-required"
+
+
 class TestAmazonBedrockModel:
     def test_client_for_bedrock(self):
         model_id = "us.amazon.nova-pro-v1:0"
@@ -647,6 +865,31 @@ class TestAmazonBedrockModel:
         )
         _, converse_kwargs = model.client.converse.call_args
         assert converse_kwargs["inferenceConfig"] == {"stopSequences": ["STOP"]}
+
+    def test_generate_handles_missing_tool_calls(self):
+        """Test that generate() handles responses without tool_calls key (issue #1941)."""
+        model_id = "us.amazon.nova-pro-v1:0"
+
+        with patch("boto3.client"):
+            model = AmazonBedrockModel(model_id=model_id)
+
+        # Mock a text-only response (no tool_calls key in message)
+        mock_response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Here is my response."}],
+                }
+            },
+            "usage": {"inputTokens": 10, "outputTokens": 20},
+        }
+        model.client.converse.return_value = mock_response
+
+        messages = [ChatMessage(role="user", content="Hello")]
+        result = model.generate(messages)
+
+        assert result.content == "Here is my response."
+        assert result.tool_calls is None
 
 
 class TestAzureOpenAIModel:

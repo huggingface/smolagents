@@ -347,6 +347,17 @@ def get_clean_message_list(
     """
     output_message_list: list[dict[str, Any]] = []
     message_list = deepcopy(message_list)  # Avoid modifying the original list
+
+    def _message_content_as_text(content: str | list[dict[str, Any]] | None) -> str:
+        if isinstance(content, list):
+            return content[0]["text"]
+        return content or ""
+
+    def _message_content_as_blocks(content: str | list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+        if isinstance(content, list):
+            return content
+        return [{"type": "text", "text": content or ""}]
+
     for message in message_list:
         if isinstance(message, dict):
             message = ChatMessage.from_dict(message)
@@ -373,11 +384,16 @@ def get_clean_message_list(
                         element["image"] = encode_image_base64(element["image"])
 
         if len(output_message_list) > 0 and message.role == output_message_list[-1]["role"]:
-            assert isinstance(message.content, list), "Error: wrong content:" + str(message.content)
             if flatten_messages_as_text:
-                output_message_list[-1]["content"] += "\n" + message.content[0]["text"]
+                output_message_list[-1]["content"] += "\n" + _message_content_as_text(message.content)
             else:
-                for el in message.content:
+                previous_content = output_message_list[-1]["content"]
+                if isinstance(previous_content, str) and not isinstance(message.content, list):
+                    output_message_list[-1]["content"] += "\n" + _message_content_as_text(message.content)
+                    continue
+                if isinstance(previous_content, str):
+                    output_message_list[-1]["content"] = _message_content_as_blocks(previous_content)
+                for el in _message_content_as_blocks(message.content):
                     if el["type"] == "text" and output_message_list[-1]["content"][-1]["type"] == "text":
                         # Merge consecutive text messages rather than creating new ones
                         output_message_list[-1]["content"][-1]["text"] += "\n" + el["text"]
@@ -385,7 +401,7 @@ def get_clean_message_list(
                         output_message_list[-1]["content"].append(el)
         else:
             if flatten_messages_as_text:
-                content = message.content[0]["text"]
+                content = _message_content_as_text(message.content)
             else:
                 content = message.content
             output_message_list.append(
@@ -1263,6 +1279,17 @@ class LiteLLMModel(ApiModel):
 
         return litellm
 
+    def _get_credentials_kwargs(self) -> dict[str, str]:
+        """Build credential kwargs, passing api_base and api_key only when they are set.
+
+        Unset (None) values must not be forwarded: litellm's Router merges completion kwargs over each
+        deployment's litellm_params with `{**litellm_params, **kwargs}`, so explicit Nones would override
+        the api_base and api_key configured on each deployment.
+        """
+        return {
+            key: value for key, value in (("api_base", self.api_base), ("api_key", self.api_key)) if value is not None
+        }
+
     def generate(
         self,
         messages: list[ChatMessage | dict],
@@ -1277,8 +1304,7 @@ class LiteLLMModel(ApiModel):
             response_format=response_format,
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
-            api_base=self.api_base,
-            api_key=self.api_key,
+            **self._get_credentials_kwargs(),
             convert_images_to_image_urls=True,
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
@@ -1320,8 +1346,7 @@ class LiteLLMModel(ApiModel):
             response_format=response_format,
             tools_to_call_from=tools_to_call_from,
             model=self.model_id,
-            api_base=self.api_base,
-            api_key=self.api_key,
+            **self._get_credentials_kwargs(),
             custom_role_conversions=self.custom_role_conversions,
             convert_images_to_image_urls=True,
             **kwargs,
@@ -1796,6 +1821,54 @@ class OpenAIModel(ApiModel):
 OpenAIServerModel = OpenAIModel
 
 
+class LlamaCppModel(OpenAIModel):
+    """This model connects to an already-running [Llama App](https://llama.app/docs/serve) server.
+
+    Llama App owns the server, model weights, and runtime. This class only supplies an OpenAI-compatible client.
+
+    Parameters:
+        model_id (`str`):
+            The full model identifier from Llama App's `/v1/models` catalog. The identifier is forwarded verbatim,
+            including any organization prefix, alias, or quantization suffix.
+        api_base (`str`, *optional*):
+            The base URL of the Llama App OpenAI-compatible API. Override this for a different host or port.
+            Defaults to `"http://127.0.0.1:9931/v1"`.
+        api_key (`str`, *optional*, defaults to `"no-key-required"`):
+            The API key for a key-protected Llama App instance. The default placeholder works with an unauthenticated
+            local app and prevents credentials from `OPENAI_API_KEY` being used implicitly.
+        client_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to the OpenAI client, such as `timeout` or `max_retries`.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+        flatten_messages_as_text (`bool`, default `False`):
+            Whether to flatten messages as text.
+        **kwargs:
+            Additional generation options to forward to chat completion calls, such as `temperature`, `max_tokens`,
+            or `top_p`.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        api_base: str = "http://127.0.0.1:9931/v1",
+        api_key: str = "no-key-required",
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        flatten_messages_as_text: bool = False,
+        **kwargs,
+    ):
+        self.api_base = api_base
+        super().__init__(
+            model_id=model_id,
+            api_base=api_base,
+            api_key=api_key,
+            client_kwargs=client_kwargs,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
+
+
 class AzureOpenAIModel(OpenAIModel):
     """This model connects to an Azure OpenAI deployment.
 
@@ -2058,7 +2131,7 @@ class AmazonBedrockModel(ApiModel):
         return ChatMessage(
             role=response["output"]["message"]["role"],
             content=content,
-            tool_calls=response["output"]["message"]["tool_calls"],
+            tool_calls=response["output"]["message"].get("tool_calls"),
             raw=response,
             token_usage=TokenUsage(
                 input_tokens=response["usage"]["inputTokens"],
@@ -2082,6 +2155,7 @@ MODEL_REGISTRY = {
     "LiteLLMRouterModel": LiteLLMRouterModel,
     "InferenceClientModel": InferenceClientModel,
     "OpenAIModel": OpenAIModel,
+    "LlamaCppModel": LlamaCppModel,
     "AzureOpenAIModel": AzureOpenAIModel,
     "AmazonBedrockModel": AmazonBedrockModel,
 }
@@ -2100,6 +2174,7 @@ __all__ = [
     "LiteLLMRouterModel",
     "OpenAIServerModel",
     "OpenAIModel",
+    "LlamaCppModel",
     "VLLMModel",
     "AzureOpenAIServerModel",
     "AzureOpenAIModel",

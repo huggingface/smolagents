@@ -13,10 +13,10 @@ concurrency:
 
 jobs:
   build:
-    uses: huggingface/doc-builder/.github/workflows/build_pr_documentation.yml@61704e23fa97c0502ce5355c489c6bec4194bff1  # main
+    uses: huggingface/doc-builder/.github/workflows/build_pr_documentation.yml@145b9d4f6ab65ad3af87c66773b2c43294e52446  # main
     with:
       commit_sha: ${{ github.event.pull_request.head.sha }}
       pr_number: ${{ github.event.number }}
       package: smolagents
-      languages: en hi ko zh
+      path_to_docs: smolagents/docs/source/en/
       # additional_args: --not_python_module # use this arg if repository is documentation only
