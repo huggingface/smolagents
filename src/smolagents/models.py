@@ -1560,15 +1560,22 @@ class InferenceClientModel(ApiModel):
         token = token if token is not None else api_key
         if token is None:
             token = os.getenv("HF_TOKEN")
+        # `InferenceClient` takes the model from its own constructor or per request, never both, and it refuses
+        # `model` together with `base_url`. With a base URL the model goes with every call instead, so the caller's
+        # `model_id` still reaches the server rather than the client's "dummy" placeholder (#3230).
         self.client_kwargs = {
             **(client_kwargs or {}),
-            "model": model_id,
             "provider": provider,
             "token": token,
             "timeout": timeout,
             "bill_to": bill_to,
-            "base_url": base_url,
         }
+        self.per_request_model = base_url is not None
+
+        if base_url is None:
+            self.client_kwargs["model"] = model_id
+        else:
+            self.client_kwargs["base_url"] = base_url
         super().__init__(model_id=model_id, custom_role_conversions=custom_role_conversions, **kwargs)
 
     def create_client(self):
@@ -1597,6 +1604,7 @@ class InferenceClientModel(ApiModel):
             # response_format=response_format,
             convert_images_to_image_urls=True,
             custom_role_conversions=self.custom_role_conversions,
+            **({"model": self.model_id} if self.per_request_model else {}),
             **kwargs,
         )
         self._apply_rate_limit()
