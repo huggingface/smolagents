@@ -2049,6 +2049,24 @@ class TestToolCallingAgent:
                 "expected_final_outputs": ["This is the final answer"],
                 "expected_error": None,
             },
+            # Case: two calls sharing an id must both run and be recorded
+            {
+                "tool_calls": [
+                    ChatMessageToolCall(
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "A"}),
+                    ),
+                    ChatMessageToolCall(
+                        id="call_1",
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "B"}),
+                    ),
+                ],
+                "expected_observations": "Processed: A\nProcessed: B",
+                "expected_final_outputs": ["Processed: A", "Processed: B"],
+                "expected_error": None,
+            },
             # Case 6: Invalid arguments
             {
                 "tool_calls": [
