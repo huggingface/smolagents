@@ -137,6 +137,17 @@ import numpy as np
         )
         assert output == "import numpy as np"
 
+    def test_parse_code_blobs_markdown_language_tag(self):
+        tags = ("<code>", "</code>")
+        # The whole language tag is consumed, including numeric suffixes.
+        assert parse_code_blobs("Thought: x\n```python3\nprint(1)\n```", tags) == "print(1)"
+        # Tags are matched case-insensitively.
+        assert parse_code_blobs("Thought: x\n```Python\nprint(1)\n```", tags) == "print(1)"
+        assert parse_code_blobs("Thought: x\n```PY\nprint(1)\n```", tags) == "print(1)"
+        # A non-Python tag must not leak a prefix into the code.
+        with pytest.raises(ValueError):
+            parse_code_blobs("Thought: x\n```pycon\n>>> print(1)\n```", tags)
+
     def test_multiple_code_blobs(self):
         test_input = "<code>\nFoo\n</code>\n\n<code>\ncode_a\n</code>\n\n<code>\ncode_b\n</code>"
         result = parse_code_blobs(test_input, ("<code>", "</code>"))

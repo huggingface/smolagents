@@ -211,7 +211,11 @@ def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     """
     matches = extract_code_from_text(text, code_block_tags)
     if not matches:  # Fallback to markdown pattern
-        matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
+        # Match the whole language tag (case-insensitively) and consume the rest
+        # of the info line, so "```python3" doesn't leak a "3" into the code and
+        # uppercase tags like "```PY" are recognised. The word boundary keeps
+        # "```pycon" from being treated as a Python block.
+        matches = extract_code_from_text(text, (r"(?i:```(?:python3?|py))(?![\w-])[^\n]*", "\n```"))
     if matches:
         return matches
     # Maybe the LLM outputted a code blob directly
