@@ -27,6 +27,7 @@ from smolagents.utils import (
     get_source,
     instance_to_source,
     is_valid_name,
+    make_json_serializable,
     parse_code_blobs,
     parse_json_blob,
 )
@@ -552,3 +553,70 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+def test_make_json_serializable_circular_references():
+    """Test that make_json_serializable handles circular references without RecursionError."""
+    # 1. Circular list
+    circular_list = []
+    circular_list.append(circular_list)
+    serialized_list = make_json_serializable(circular_list)
+    assert serialized_list == ["<CircularReference: list>"]
+
+    # 2. Circular dictionary
+    circular_dict = {}
+    circular_dict["self"] = circular_dict
+    serialized_dict = make_json_serializable(circular_dict)
+    assert serialized_dict == {"self": "<CircularReference: dict>"}
+
+    # 3. Mutually referencing lists
+    list_a = []
+    list_b = [list_a]
+    list_a.append(list_b)
+    serialized_mutual = make_json_serializable(list_a)
+    assert serialized_mutual == [["<CircularReference: list>"]]
+
+    # 4. Circular custom class
+    class Node:
+        def __init__(self, name: str):
+            self.name = name
+            self.child = None
+
+    node1 = Node("node1")
+    node2 = Node("node2")
+    node1.child = node2
+    node2.child = node1
+
+    serialized_node = make_json_serializable(node1)
+    assert serialized_node == {
+        "_type": "Node",
+        "name": "node1",
+        "child": {
+            "_type": "Node",
+            "name": "node2",
+            "child": "<CircularReference: Node>",
+        },
+    }
+
+    # 5. Self-referencing custom class
+    node_self = Node("self")
+    node_self.child = node_self
+    serialized_self_node = make_json_serializable(node_self)
+    assert serialized_self_node == {
+        "_type": "Node",
+        "name": "self",
+        "child": "<CircularReference: Node>",
+    }
+
+
+def test_make_json_serializable_shared_non_circular_references():
+    """Test that shared non-circular references (DAG) are correctly preserved and not treated as circular."""
+    shared_obj = {"key": "value"}
+    dag_list = [shared_obj, shared_obj]
+    assert make_json_serializable(dag_list) == [{"key": "value"}, {"key": "value"}]
+
+    dag_dict = {"first": shared_obj, "second": shared_obj}
+    assert make_json_serializable(dag_dict) == {
+        "first": {"key": "value"},
+        "second": {"key": "value"},
+    }
