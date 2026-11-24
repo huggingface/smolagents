@@ -2626,3 +2626,29 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class TestCustomInstructionsSurviveASave:
+    """`instructions` feed the system prompt, so a reload has to keep them."""
+
+    INSTRUCTIONS = "Always answer in one short sentence."
+
+    def save_and_reload(self, tmp_path):
+        from smolagents import LiteLLMModel
+
+        model = LiteLLMModel(model_id="openai/gpt-4o-mini")
+        agent = CodeAgent(tools=[], model=model, instructions=self.INSTRUCTIONS)
+
+        agent.save(tmp_path)
+
+        return CodeAgent.from_folder(tmp_path)
+
+    def test_the_reloaded_agent_keeps_its_instructions(self, tmp_path):
+        reloaded = self.save_and_reload(tmp_path)
+
+        assert reloaded.instructions == self.INSTRUCTIONS
+
+    def test_the_reloaded_system_prompt_carries_them(self, tmp_path):
+        reloaded = self.save_and_reload(tmp_path)
+
+        assert self.INSTRUCTIONS in reloaded.system_prompt
