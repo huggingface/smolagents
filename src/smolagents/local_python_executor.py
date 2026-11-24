@@ -263,15 +263,17 @@ class PrintContainer:
         return len(self.value)
 
 
-class BreakException(Exception):
+# Control-flow signals must inherit from BaseException, not Exception, so a
+# user `except Exception` in agent code cannot swallow a return/break/continue.
+class BreakException(BaseException):
     pass
 
 
-class ContinueException(Exception):
+class ContinueException(BaseException):
     pass
 
 
-class ReturnException(Exception):
+class ReturnException(BaseException):
     def __init__(self, value):
         self.value = value
 

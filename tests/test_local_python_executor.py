@@ -1455,6 +1455,33 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         result, _ = evaluate_python_code(code, {"final_answer": (lambda answer: 2 * answer)}, state={})
         assert result == 4
 
+    def test_return_break_continue_not_caught_by_except_exception(self):
+        """return/break/continue are control-flow signals, not catchable Exceptions."""
+        code = dedent("""
+            def f():
+                try:
+                    return 1
+                except Exception:
+                    return 2
+
+            def g():
+                seen = []
+                for i in [0, 1, 2]:
+                    try:
+                        if i == 1:
+                            break
+                    except Exception:
+                        seen.append(i)
+                return seen
+
+            a = f()
+            b = g()
+        """)
+        state = {}
+        evaluate_python_code(code, {}, state=state)
+        assert state["a"] == 1
+        assert state["b"] == []
+
     def test_final_answer_not_caught_by_except_exception(self):
         """Test that final_answer is not caught by generic 'except Exception' clauses.
 
