@@ -2626,3 +2626,39 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class TestFromFolderUsesTheSavedClass:
+    """`agent.json` records which class wrote the folder; loading should honour it."""
+
+    def model(self):
+        from smolagents import LiteLLMModel
+
+        return LiteLLMModel(model_id="openai/gpt-4o-mini")
+
+    def saved_tool_calling_agent(self, tmp_path):
+        ToolCallingAgent(tools=[], model=self.model()).save(tmp_path)
+        return tmp_path
+
+    def test_loading_through_the_base_class_gives_the_saved_class(self, tmp_path):
+        from smolagents.agents import MultiStepAgent
+
+        reloaded = MultiStepAgent.from_folder(self.saved_tool_calling_agent(tmp_path))
+
+        assert type(reloaded) is ToolCallingAgent
+
+    def test_loading_through_another_class_gives_the_saved_class(self, tmp_path):
+        reloaded = CodeAgent.from_folder(self.saved_tool_calling_agent(tmp_path))
+
+        assert type(reloaded) is ToolCallingAgent
+
+    def test_a_folder_from_an_unknown_class_is_rejected(self, tmp_path):
+        folder = self.saved_tool_calling_agent(tmp_path)
+        agent_json = folder / "agent.json"
+        agent_json.write_text(
+            agent_json.read_text().replace('"ToolCallingAgent"', '"NoSuchAgent"'),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="Unknown agent class 'NoSuchAgent'"):
+            CodeAgent.from_folder(folder)

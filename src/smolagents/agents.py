@@ -1128,6 +1128,17 @@ You have been provided with these additional arguments, that you can access dire
         # Load agent.json
         folder = Path(folder)
         agent_dict = json.loads((folder / "agent.json").read_text())
+        # The folder records which class wrote it, so honour that instead of the class this
+        # was called on: `CodeAgent.from_folder` on a saved ToolCallingAgent used to return a
+        # CodeAgent, and `MultiStepAgent.from_folder` could not instantiate anything at all.
+        # Folders written before `class` was recorded fall back to the class this was called on.
+        saved_class_name = agent_dict.get("class")
+        saved_class = cls if saved_class_name is None else AGENT_REGISTRY.get(saved_class_name)
+        if saved_class is None:
+            raise ValueError(
+                f"Unknown agent class '{agent_dict.get('class')}'. "
+                f"Supported agents: {', '.join(sorted(AGENT_REGISTRY.keys()))}"
+            )
         # Handle HfApiModel -> InferenceClientModel rename for old agents
         if agent_dict.get("model", {}).get("class") == "HfApiModel":
             agent_dict["model"]["class"] = "InferenceClientModel"
@@ -1157,7 +1168,7 @@ You have been provided with these additional arguments, that you can access dire
         if managed_agents:
             kwargs["managed_agents"] = managed_agents
 
-        return cls.from_dict(agent_dict, **kwargs)
+        return saved_class.from_dict(agent_dict, **kwargs)
 
     def push_to_hub(
         self,
