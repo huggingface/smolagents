@@ -490,7 +490,10 @@ You have been provided with these additional arguments, that you can access dire
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
 
         if getattr(self, "python_executor", None):
-            self.python_executor.send_variables(variables=self.state)
+            if reset:
+                self.python_executor.send_variables(variables=self.state)
+            elif additional_args:
+                self.python_executor.send_variables(variables=additional_args)
             self.python_executor.send_tools({**self.tools, **self.managed_agents})
 
         if stream:
