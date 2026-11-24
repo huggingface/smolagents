@@ -691,12 +691,13 @@ class Tool(BaseTool):
                     self.output_type = "any"
                 self.is_initialized = True
 
-            def sanitize_argument_for_prediction(self, arg):
+            def sanitize_argument_for_prediction(self, arg, temp_files):
                 from gradio_client.utils import is_http_url_like
                 from PIL.Image import Image
 
                 if isinstance(arg, Image):
                     temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                    temp_files.append(temp_file.name)
                     arg.save(temp_file.name)
                     arg = temp_file.name
                 if (
@@ -708,27 +709,37 @@ class Tool(BaseTool):
                 return arg
 
             def forward(self, *args, **kwargs):
-                # Preprocess args and kwargs:
-                args = list(args)
-                for i, arg in enumerate(args):
-                    args[i] = self.sanitize_argument_for_prediction(arg)
-                for arg_name, arg in kwargs.items():
-                    kwargs[arg_name] = self.sanitize_argument_for_prediction(arg)
+                # Temp PNGs created for PIL arguments must live until predict()
+                # uploads them, then be removed on every exit path.
+                temp_files: list[str] = []
+                try:
+                    # Preprocess args and kwargs:
+                    args = list(args)
+                    for i, arg in enumerate(args):
+                        args[i] = self.sanitize_argument_for_prediction(arg, temp_files)
+                    for arg_name, arg in kwargs.items():
+                        kwargs[arg_name] = self.sanitize_argument_for_prediction(arg, temp_files)
 
-                output = self.client.predict(*args, api_name=self.api_name, **kwargs)
-                if isinstance(output, tuple) or isinstance(output, list):
-                    if isinstance(output[1], str):
-                        raise ValueError("The space returned this message: " + output[1])
-                    output = output[
-                        0
-                    ]  # Sometime the space also returns the generation seed, in which case the result is at index 0
-                IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
-                AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
-                if isinstance(output, str) and any([output.endswith(ext) for ext in IMAGE_EXTENSIONS]):
-                    output = AgentImage(output)
-                elif isinstance(output, str) and any([output.endswith(ext) for ext in AUDIO_EXTENSIONS]):
-                    output = AgentAudio(output)
-                return output
+                    output = self.client.predict(*args, api_name=self.api_name, **kwargs)
+                    if isinstance(output, tuple) or isinstance(output, list):
+                        if isinstance(output[1], str):
+                            raise ValueError("The space returned this message: " + output[1])
+                        output = output[
+                            0
+                        ]  # Sometime the space also returns the generation seed, in which case the result is at index 0
+                    IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
+                    AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
+                    if isinstance(output, str) and any([output.endswith(ext) for ext in IMAGE_EXTENSIONS]):
+                        output = AgentImage(output)
+                    elif isinstance(output, str) and any([output.endswith(ext) for ext in AUDIO_EXTENSIONS]):
+                        output = AgentAudio(output)
+                    return output
+                finally:
+                    for path in temp_files:
+                        try:
+                            os.unlink(path)
+                        except OSError:
+                            pass
 
         return SpaceToolWrapper(
             space_id=space_id,
