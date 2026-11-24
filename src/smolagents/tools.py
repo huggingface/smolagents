@@ -16,6 +16,18 @@
 # limitations under the License.
 from __future__ import annotations
 
+
+__all__ = [
+    "AUTHORIZED_TYPES",
+    "FunctionTool",
+    "Tool",
+    "function_tool",
+    "tool",
+    "load_tool",
+    "launch_gradio_demo",
+    "ToolCollection",
+]
+
 import ast
 import inspect
 import json
@@ -101,6 +113,56 @@ class BaseTool(ABC):
     @abstractmethod
     def __call__(self, *args, **kwargs) -> Any:
         pass
+
+
+class FunctionTool(BaseTool):
+    def __init__(self, func: Callable, name: str | None = None):
+        self.func = func
+        self.name = name or func.__name__
+
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
+
+    def to_code_prompt(self) -> str:
+        tool_doc = f'"""{inspect.getdoc(self.func)}\n"""'
+        return f"def {self.name}{inspect.signature(self.func)}:\n{textwrap.indent(tool_doc, '    ')}"
+
+    def to_tool_calling_prompt(self) -> str:
+        schema = get_json_schema(self.func)
+        return json.dumps(schema["function"])
+
+
+def function_tool(tool_function: Callable) -> FunctionTool:
+    """
+    Convert a function into a [`FunctionTool`] instance.
+
+    This decorator wraps a regular function to create a [`FunctionTool`] that can be used
+    with agents. The function should have proper type hints and a docstring with
+    argument descriptions.
+
+    Args:
+        tool_function (`Callable`): Function to convert into a FunctionTool instance.
+            Should have type hints for each input and a type hint for the output.
+            Should also have a docstring including the description of the function
+            and an 'Args:' part where each argument is described.
+
+    Returns:
+        `FunctionTool`: FunctionTool instance wrapping the provided function.
+
+    Example:
+        ```python
+        @function_tool
+        def calculate_sum(a: int, b: int) -> int:
+            '''Calculate the sum of two numbers.
+
+            Args:
+                a: First number
+                b: Second number
+            '''
+            return a + b
+        ```
+    """
+    return FunctionTool(tool_function)
 
 
 class Tool(BaseTool):
@@ -1410,13 +1472,3 @@ def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
         expected_type = list(tool.inputs.values())[0]["type"]
         if _get_json_schema_type(type(arguments))["type"] != expected_type and not expected_type == "any":
             raise TypeError(f"Argument has type '{type(arguments).__name__}' but should be '{expected_type}'")
-
-
-__all__ = [
-    "AUTHORIZED_TYPES",
-    "Tool",
-    "tool",
-    "load_tool",
-    "launch_gradio_demo",
-    "ToolCollection",
-]
