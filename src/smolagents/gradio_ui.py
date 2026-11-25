@@ -328,7 +328,16 @@ class GradioUI:
 
         original_name = os.path.basename(file_path)
         sanitized_name = re.sub(r"[^\w\-.]", "_", original_name)
+        base, ext = os.path.splitext(sanitized_name)
+
+        # Two different uploads may share the same original name; give each a
+        # unique destination instead of overwriting an earlier upload.
         dest_path = os.path.join(self.file_upload_folder, sanitized_name)
+        counter = 1
+        while os.path.exists(dest_path):
+            dest_path = os.path.join(self.file_upload_folder, f"{base}_{counter}{ext}")
+            counter += 1
+
         shutil.copy(file_path, dest_path)
         return dest_path
 
