@@ -137,7 +137,72 @@ class TestModel:
             agglomerated_stream_delta.tool_calls[0].function.arguments
             == ' {"query": "current pope name and date of birth"}'
         )
+        assert agglomerated_stream_delta.tool_calls[0].id == "tool_call_0000"
         assert agglomerated_stream_delta.token_usage.total_tokens == 1372
+
+    def test_agglomerate_stream_deltas_gives_missing_ids_a_distinct_index(self):
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            agglomerate_stream_deltas,
+        )
+
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id=None,
+                        type="function",
+                        function=ChatMessageToolCallFunction(arguments="", name="add"),
+                    )
+                ],
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        function=ChatMessageToolCallFunction(arguments='{"item": "A"}', name=""),
+                    )
+                ],
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=1,
+                        id="",
+                        type="function",
+                        function=ChatMessageToolCallFunction(arguments='{"item": "B"}', name="add"),
+                    )
+                ],
+            ),
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=2,
+                        id="call_real",
+                        type="function",
+                        function=ChatMessageToolCallFunction(arguments='{"item": "C"}', name="add"),
+                    )
+                ],
+            ),
+        ]
+        agglomerated = agglomerate_stream_deltas(stream_deltas)
+        assert [tool_call.id for tool_call in agglomerated.tool_calls] == [
+            "tool_call_0000",
+            "tool_call_0001",
+            "call_real",
+        ]
+        assert [tool_call.function.arguments for tool_call in agglomerated.tool_calls] == [
+            '{"item": "A"}',
+            '{"item": "B"}',
+            '{"item": "C"}',
+        ]
 
     @pytest.mark.parametrize(
         "model_id, stop_sequences, should_contain_stop",
