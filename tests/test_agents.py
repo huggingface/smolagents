@@ -60,6 +60,7 @@ from smolagents.memory import (
 )
 from smolagents.models import (
     ChatMessage,
+    ChatMessageStreamDelta,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
     InferenceClientModel,
@@ -2626,3 +2627,55 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class _StreamingPlanModel(Model):
+    """Prompt tokens on the first delta, then a usage-only trailing delta."""
+
+    def generate(self, messages, stop_sequences=None, **kwargs):
+        return ChatMessage(role=MessageRole.ASSISTANT, content="plan\n", token_usage=TokenUsage(1, 1))
+
+    def generate_stream(self, messages, stop_sequences=None, **kwargs):
+        yield ChatMessageStreamDelta(content="plan", token_usage=TokenUsage(input_tokens=1500, output_tokens=1))
+        yield ChatMessageStreamDelta(content="\n", token_usage=TokenUsage(input_tokens=0, output_tokens=1))
+        yield ChatMessageStreamDelta(content=None, token_usage=TokenUsage(input_tokens=0, output_tokens=3))
+
+
+def test_streaming_planning_step_sums_input_tokens():
+    agent = CodeAgent(tools=[], model=_StreamingPlanModel(), planning_interval=1, verbosity_level=0)
+    agent.stream_outputs = True
+    steps = list(agent._generate_planning_step("Say ok.", is_first_step=True, step=1))
+    plan = steps[-1]
+    assert isinstance(plan, PlanningStep)
+    assert plan.token_usage.input_tokens == 1500
+    assert plan.token_usage.output_tokens == 5
+
+    steps = list(agent._generate_planning_step("Say ok.", is_first_step=False, step=2))
+    plan = steps[-1]
+    assert plan.token_usage.input_tokens == 1500
+    assert plan.token_usage.output_tokens == 5
+
+
+class _StreamingPlanAndAnswerModel(_StreamingPlanModel):
+    def generate_stream(self, messages, stop_sequences=None, **kwargs):
+        if stop_sequences == ["<end_plan>"]:
+            yield from super().generate_stream(messages, stop_sequences, **kwargs)
+        else:
+            yield ChatMessageStreamDelta(content="<code>final_answer('ok')</code>", token_usage=TokenUsage(20, 7))
+
+
+def test_streaming_plan_usage_reaches_run_result_and_resets():
+    agent = CodeAgent(
+        tools=[],
+        model=_StreamingPlanAndAnswerModel(),
+        planning_interval=1,
+        stream_outputs=True,
+        return_full_result=True,
+        verbosity_level=0,
+    )
+
+    for _ in range(2):
+        result = agent.run("Say ok.")
+        assert result.output == "ok"
+        assert result.state == "success"
+        assert result.token_usage == TokenUsage(1520, 12)
