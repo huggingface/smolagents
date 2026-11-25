@@ -81,17 +81,23 @@ class AgentImage(AgentType, PIL.Image.Image):
         PIL.Image.Image.__init__(self)
 
         self._path = None
-        self._raw = None
         self._tensor = None
+        image = None
 
         if isinstance(value, AgentImage):
-            self._raw, self._path, self._tensor = value._raw, value._path, value._tensor
+            self._path, self._tensor = value._path, value._tensor
+            if value._im is not None:
+                image = value.copy()
         elif isinstance(value, PIL.Image.Image):
-            self._raw = value
+            image = value.copy()
         elif isinstance(value, bytes):
-            self._raw = PIL.Image.open(BytesIO(value))
+            with PIL.Image.open(BytesIO(value)) as raw_image:
+                image = raw_image.copy()
         elif isinstance(value, (str, pathlib.Path)):
             self._path = value
+            if os.path.isfile(value):
+                with PIL.Image.open(value) as raw_image:
+                    image = raw_image.copy()
         else:
             try:
                 import torch
@@ -105,8 +111,18 @@ class AgentImage(AgentType, PIL.Image.Image):
             except ModuleNotFoundError:
                 pass
 
-        if self._path is None and self._raw is None and self._tensor is None:
+            if self._tensor is not None:
+                import numpy as np
+
+                array = self._tensor.cpu().detach().numpy()
+                image = PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
+
+        if image is None and self._path is None:
             raise TypeError(f"Unsupported type for {self.__class__.__name__}: {type(value)}")
+
+        if image is not None:
+            # Adopt the copied image's Pillow state so inherited Image methods operate on this object.
+            self.__dict__.update(image.__dict__)
 
     def _ipython_display_(self, include=None, exclude=None):
         """
@@ -120,18 +136,10 @@ class AgentImage(AgentType, PIL.Image.Image):
         """
         Returns the "raw" version of that object. In the case of an AgentImage, it is a PIL.Image.Image.
         """
-        if self._raw is not None:
-            return self._raw
-
-        if self._path is not None:
-            self._raw = PIL.Image.open(self._path)
-            return self._raw
-
-        if self._tensor is not None:
-            import numpy as np
-
-            array = self._tensor.cpu().detach().numpy()
-            return PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
+        if self._im is None and self._path is not None:
+            with PIL.Image.open(self._path) as raw_image:
+                self.__dict__.update(raw_image.copy().__dict__)
+        return self.copy()
 
     def to_string(self):
         """
@@ -141,25 +149,10 @@ class AgentImage(AgentType, PIL.Image.Image):
         if self._path is not None:
             return self._path
 
-        if self._raw is not None:
-            directory = tempfile.mkdtemp()
-            self._path = os.path.join(directory, str(uuid.uuid4()) + ".png")
-            self._raw.save(self._path, format="png")
-            return self._path
-
-        if self._tensor is not None:
-            import numpy as np
-
-            array = self._tensor.cpu().detach().numpy()
-
-            # There is likely simpler than load into image into save
-            img = PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
-
-            directory = tempfile.mkdtemp()
-            self._path = os.path.join(directory, str(uuid.uuid4()) + ".png")
-            img.save(self._path, format="png")
-
-            return self._path
+        directory = tempfile.mkdtemp()
+        self._path = os.path.join(directory, str(uuid.uuid4()) + ".png")
+        PIL.Image.Image.save(self, self._path, format="png")
+        return self._path
 
     def save(self, output_bytes, format: str = None, **params):
         """
@@ -169,8 +162,7 @@ class AgentImage(AgentType, PIL.Image.Image):
             format (str): The format to use for the output image. The format is the same as in PIL.Image.save.
             **params: Additional parameters to pass to PIL.Image.save.
         """
-        img = self.to_raw()
-        img.save(output_bytes, format=format, **params)
+        PIL.Image.Image.save(self, output_bytes, format=format, **params)
 
 
 class AgentAudio(AgentType, str):
