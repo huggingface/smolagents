@@ -568,6 +568,11 @@ You have been provided with these additional arguments, that you can access dire
                 self._finalize_step(planning_step)
                 self.memory.steps.append(planning_step)
 
+            # A planning callback may have called interrupt(); honour it before
+            # starting the action step instead of continuing the same turn.
+            if self.interrupt_switch:
+                raise AgentError("Agent interrupted.", self.logger)
+
             # Start action step!
             action_step_start_time = time.time()
             action_step = ActionStep(
