@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from smolagents._function_type_hints_utils import DocstringParsingException, get_imports, get_json_schema
+from smolagents.tools import Tool, tool
 
 
 @pytest.fixture
@@ -450,6 +451,49 @@ class TestGetJsonSchema:
     def test_with_special_words_in_description_func(self, keywords_in_description_func):
         schema = get_json_schema(keywords_in_description_func)
         assert schema["function"]["description"] == "Function with Args: or Returns: keywords in its description."
+
+    def test_wrapped_description_keeps_lines_that_look_like_args(self):
+        def fetch(url: str, count: int) -> str:
+            """Fetch a page.
+
+            Args:
+                url: See the docs at
+                    https://example.com/a
+                    Note: include the scheme
+                count: How many items.
+
+            Returns:
+                str: The body.
+            """
+            return url * count
+
+        schema = get_json_schema(fetch)
+        props = schema["function"]["parameters"]["properties"]
+        assert props["url"]["description"] == "See the docs at https://example.com/a Note: include the scheme"
+        assert props["count"]["description"] == "How many items."
+
+
+def test_wrapped_argument_description_survives_tool_save_and_reload(tmp_path):
+    @tool
+    def repeat(text: str, count: int) -> str:
+        """Repeat text.
+
+        Args:
+            text: The literal text.
+                Note: punctuation is preserved.
+            count: Number of repeats.
+        Returns:
+            The repeated text.
+        """
+        return text * count
+
+    assert repeat.inputs["text"]["description"] == "The literal text. Note: punctuation is preserved."
+    assert repeat.inputs["count"]["description"] == "Number of repeats."
+    repeat.save(tmp_path, make_gradio_app=False)
+
+    restored = Tool.from_code((tmp_path / "tool.py").read_text(encoding="utf-8"))
+    assert restored.inputs == repeat.inputs
+    assert restored(text="ok!", count=2) == "ok!ok!"
 
 
 class TestGetCode:
