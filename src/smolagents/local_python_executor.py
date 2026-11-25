@@ -593,7 +593,10 @@ def evaluate_class_def(
             else:
                 raise InterpreterError(f"Unsupported AnnAssign target in class body: {type(target).__name__}")
         elif isinstance(stmt, ast.Assign):
-            value = evaluate_ast(stmt.value, state, static_tools, custom_tools, authorized_imports)
+            # Names in a class body resolve to earlier class-local bindings
+            # before the enclosing scope, just like CPython.
+            class_scope = {**state, **class_dict}
+            value = evaluate_ast(stmt.value, class_scope, static_tools, custom_tools, authorized_imports)
             for target in stmt.targets:
                 if isinstance(target, ast.Name):
                     class_dict[target.id] = value
