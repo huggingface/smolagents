@@ -489,11 +489,13 @@ def create_function(
         # Handle variable arguments
         if func_def.args.vararg:
             vararg_name = func_def.args.vararg.arg
-            func_state[vararg_name] = args
+            # Only store excess positional args (those not consumed by named parameters)
+            func_state[vararg_name] = args[len(arg_names):]
 
         if func_def.args.kwarg:
             kwarg_name = func_def.args.kwarg.arg
-            func_state[kwarg_name] = kwargs
+            # Only store excess keyword args (those not consumed by named parameters)
+            func_state[kwarg_name] = {k: v for k, v in kwargs.items() if k not in arg_names}
 
         # Set default values for arguments that were not provided
         for name, value in defaults.items():
