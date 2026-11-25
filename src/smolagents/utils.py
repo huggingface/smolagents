@@ -299,12 +299,16 @@ def instance_to_source(instance, base_cls=None):
         class_lines.append(f'    """{cls.__doc__}"""')
 
     # Add class-level attributes
+    # Descriptors are code, not plain data: emitting their repr would produce
+    # invalid Python (e.g. "suffix = <property object at 0x...>").
+    descriptors = (property, classmethod, staticmethod)
     class_attrs = {
         name: value
         for name, value in cls.__dict__.items()
         if not name.startswith("__")
         and not name == "_abc_impl"
         and not callable(value)
+        and not isinstance(value, descriptors)
         and not (base_cls and hasattr(base_cls, name) and getattr(base_cls, name) == value)
     }
 
@@ -323,21 +327,27 @@ def instance_to_source(instance, base_cls=None):
         class_lines.append("")
 
     # Add methods
-    methods = {
-        name: func.__wrapped__ if hasattr(func, "__wrapped__") else func
-        for name, func in cls.__dict__.items()
-        if callable(func)
-        and (
-            not base_cls
-            or not hasattr(base_cls, name)
-            or (
-                isinstance(func, (staticmethod, classmethod))
-                or (getattr(base_cls, name).__code__.co_code != func.__code__.co_code)
-            )
-        )
-    }
+    methods = {}
+    for name, func in cls.__dict__.items():
+        decorator = None
+        if isinstance(func, property):
+            decorator, func = "@property", func.fget
+        elif isinstance(func, classmethod):
+            decorator, func = "@classmethod", func.__func__
+        # staticmethod stays as-is: its __wrapped__ already points at the
+        # original function, which carries the correct source.
 
-    for name, method in methods.items():
+        if func is None or not callable(func):
+            continue
+        # Keep methods that override a base implementation, like before.
+        if base_cls and hasattr(base_cls, name) and decorator is None:
+            base_attr = getattr(base_cls, name)
+            if hasattr(base_attr, "__code__") and hasattr(func, "__code__"):
+                if base_attr.__code__.co_code == func.__code__.co_code:
+                    continue
+        methods[name] = (func.__wrapped__ if hasattr(func, "__wrapped__") else func, decorator)
+
+    for name, (method, decorator) in methods.items():
         method_source = get_source(method)
         # Clean up the indentation
         method_lines = method_source.split("\n")
@@ -345,6 +355,7 @@ def instance_to_source(instance, base_cls=None):
         indent = len(first_line) - len(first_line.lstrip())
         method_lines = [line[indent:] for line in method_lines]
         method_source = "\n".join(["    " + line if line.strip() else line for line in method_lines])
+        # get_source already includes decorators such as @property/@classmethod.
         class_lines.append(method_source)
         class_lines.append("")
 
