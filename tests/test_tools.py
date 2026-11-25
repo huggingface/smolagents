@@ -850,6 +850,7 @@ class TestToolCollection:
             assert tool_collection.tools[0].name == "echo_tool", "Expected tool name to be 'echo_tool'"
             assert tool_collection.tools[0](text="Hello") == "Hello", "Expected tool to echo the input text"
 
+    @require_run_all
     def test_integration_from_mcp_with_streamable_http(self):
         import subprocess
         import time
@@ -887,6 +888,7 @@ class TestToolCollection:
             server_process.kill()
             server_process.wait()
 
+    @require_run_all
     def test_integration_from_mcp_with_sse(self):
         import subprocess
         import time
