@@ -14,10 +14,11 @@ from scripts.text_web_browser import (
     SimpleTextBrowser,
     VisitTool,
 )
-from scripts.visual_qa import visualizer
+from scripts.visual_qa import VisualQAOpenAITool
 
 from smolagents import (
     CodeAgent,
+    DuckDuckGoSearchTool,
     GoogleSearchTool,
     # InferenceClientModel,
     LiteLLMModel,
@@ -37,6 +38,10 @@ def parse_args():
         "question", type=str, help="for example: 'How many studio albums did Mercedes Sosa release before 2007?'"
     )
     parser.add_argument("--model-id", type=str, default="o1")
+    parser.add_argument("--visualqa-model-id", type=str, default="gpt-4o")
+    parser.add_argument(
+        "--search-engine", type=str, default="google", help="which search engine to use. Options: google, ddgs"
+    )
     return parser.parse_args()
 
 
@@ -57,7 +62,7 @@ BROWSER_CONFIG = {
 os.makedirs(f"./{BROWSER_CONFIG['downloads_folder']}", exist_ok=True)
 
 
-def create_agent(model_id="o1"):
+def create_agent(model_id="o1", visual_qa_model_id="gpt-4o", search_engine="google"):
     model_params = {
         "model_id": model_id,
         "custom_role_conversions": custom_role_conversions,
@@ -69,8 +74,12 @@ def create_agent(model_id="o1"):
 
     text_limit = 100000
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
+    if search_engine == "ddgs":
+        WEB_TOOLS = [DuckDuckGoSearchTool()]
+    else:
+        WEB_TOOLS = [GoogleSearchTool(provider="serper")]
     WEB_TOOLS = [
-        GoogleSearchTool(provider="serper"),
+        *WEB_TOOLS,
         VisitTool(browser),
         PageUpTool(browser),
         PageDownTool(browser),
@@ -100,7 +109,7 @@ def create_agent(model_id="o1"):
 
     manager_agent = CodeAgent(
         model=model,
-        tools=[visualizer, TextInspectorTool(model, text_limit)],
+        tools=[VisualQAOpenAITool(visual_qa_model_id), TextInspectorTool(model, text_limit)],
         max_steps=12,
         verbosity_level=2,
         additional_authorized_imports=["*"],
@@ -114,7 +123,9 @@ def create_agent(model_id="o1"):
 def main():
     args = parse_args()
 
-    agent = create_agent(model_id=args.model_id)
+    agent = create_agent(
+        model_id=args.model_id, visual_qa_model_id=args.visualqa_model_id, search_engine=args.search_engine
+    )
 
     answer = agent.run(args.question)
 
