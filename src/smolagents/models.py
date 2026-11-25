@@ -197,6 +197,12 @@ def parse_json_if_needed(arguments: str | dict) -> str | dict:
         try:
             return json.loads(arguments)
         except Exception:
+            # A tool call's arguments are serialized as a JSON object. If the
+            # string looks like the start of one but is incomplete (e.g. a
+            # stream ended mid-argument), do not silently pass the fragment on
+            # as a single tool value - surface the truncation as an error.
+            if isinstance(arguments, str) and arguments.lstrip().startswith("{"):
+                raise ValueError(f"Invalid JSON tool arguments: {arguments!r}") from None
             return arguments
 
 
