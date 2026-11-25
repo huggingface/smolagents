@@ -1608,7 +1608,20 @@ class InferenceClientModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        response = self.retryer(self.client.chat_completion, **completion_kwargs)
+        try:
+            response = self.retryer(self.client.chat_completion, **completion_kwargs)
+        except Exception as e:
+            # Catch 401/403 errors to provide better context for gated models
+            error_str = str(e).lower()
+            if any(code in error_str for code in ["401", "403", "unauthorized", "forbidden"]):
+                raise ValueError(
+                    f"Authentication or access failed for model '{self.model_id}'. "
+                    f"Please ensure your Hugging Face token is valid. "
+                    f"If '{self.model_id}' is a gated model (like Llama), you must accept its license agreement on the Hugging Face model page. "
+                    f"Original error: {e}"
+                ) from e
+            raise
+
         content = response.choices[0].message.content
         if stop_sequences is not None and not self.supports_stop_parameter:
             content = remove_content_after_stop_sequences(content, stop_sequences)
@@ -1624,7 +1637,6 @@ class InferenceClientModel(ApiModel):
             if getattr(response, "usage", None) is not None
             else None,
         )
-
     def generate_stream(
         self,
         messages: list[ChatMessage | dict],
@@ -1644,12 +1656,26 @@ class InferenceClientModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.retryer(
-            self.client.chat.completions.create,
-            **completion_kwargs,
-            stream=True,
-            stream_options={"include_usage": True},
-        ):
+        try:
+            stream_generator = self.retryer(
+                self.client.chat.completions.create,
+                **completion_kwargs,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+        except Exception as e:
+            # Catch 401/403 errors to provide better context for gated models
+            error_str = str(e).lower()
+            if any(code in error_str for code in ["401", "403", "unauthorized", "forbidden"]):
+                raise ValueError(
+                    f"Authentication or access failed for model '{self.model_id}'. "
+                    f"Please ensure your Hugging Face token is valid. "
+                    f"If '{self.model_id}' is a gated model (like Llama), you must accept its license agreement on the Hugging Face model page. "
+                    f"Original error: {e}"
+                ) from e
+            raise
+
+        for event in stream_generator:
             if getattr(event, "usage", None):
                 yield ChatMessageStreamDelta(
                     content="",
@@ -1678,7 +1704,6 @@ class InferenceClientModel(ApiModel):
                 else:
                     if not getattr(choice, "finish_reason", None):
                         raise ValueError(f"No content or tool calls in event: {event}")
-
 
 class OpenAIModel(ApiModel):
     """This model connects to an OpenAI-compatible API server.
