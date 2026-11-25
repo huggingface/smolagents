@@ -1377,9 +1377,23 @@ def evaluate_generatorexp(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Generator[Any]:
+    # CPython evaluates the leftmost iterable and obtains its iterator at
+    # generator creation, while later clauses remain lazy. Evaluating it
+    # inside generator() lets a later rebinding of the iterable variable
+    # silently change the generated values.
+    first_iter = iter(
+        evaluate_ast(
+            genexp.generators[0].iter, state, static_tools, custom_tools, authorized_imports
+        )
+    )
+
     def generator():
-        for gen in genexp.generators:
-            iter_value = evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+        for index, gen in enumerate(genexp.generators):
+            iter_value = (
+                first_iter
+                if index == 0
+                else evaluate_ast(gen.iter, state, static_tools, custom_tools, authorized_imports)
+            )
             for value in iter_value:
                 new_state = state.copy()
                 set_value(
