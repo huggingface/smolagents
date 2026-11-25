@@ -404,7 +404,8 @@ def evaluate_unaryop(
     if isinstance(expression.op, ast.USub):
         return -operand
     elif isinstance(expression.op, ast.UAdd):
-        return operand
+        # Python's unary plus converts bool to int; identity would not.
+        return +operand
     elif isinstance(expression.op, ast.Not):
         return not operand
     elif isinstance(expression.op, ast.Invert):
