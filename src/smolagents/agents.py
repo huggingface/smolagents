@@ -1384,7 +1384,9 @@ class ToolCallingAgent(MultiStepAgent):
         # Helper function to process a single tool call
         def process_single_tool_call(tool_call: ToolCall) -> ToolOutput:
             tool_name = tool_call.name
-            tool_arguments = tool_call.arguments or {}
+            # Preserve valid falsy scalars (0, False, ""); only None means
+            # "no arguments supplied".
+            tool_arguments = {} if tool_call.arguments is None else tool_call.arguments
             self.logger.log(
                 Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
                 level=LogLevel.INFO,
