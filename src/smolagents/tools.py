@@ -94,6 +94,22 @@ AUTHORIZED_TYPES = [
 
 CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
 
+# Mapping from JSON schema types to Python type hint strings
+# This is the reverse of CONVERSION_DICT and _BASE_TYPE_MAPPING from _function_type_hints_utils
+JSON_SCHEMA_TO_PYTHON_TYPE = {
+    "string": "str",
+    "integer": "int",
+    "number": "float",
+    "boolean": "bool",
+    "array": "list",
+    "object": "dict",
+    "any": "Any",
+    "null": "None",
+    # Special types that don't have direct Python equivalents
+    "image": "image",
+    "audio": "audio",
+}
+
 
 class BaseTool(ABC):
     name: str
@@ -255,12 +271,64 @@ class Tool(BaseTool):
         """
         self.is_initialized = True
 
+    def _schema_to_python_type(self, schema: dict | str) -> str:
+        """
+        Convert a JSON schema type to a Python type hint string.
+
+        This method recursively converts JSON schema type definitions into Python type hint
+        strings that can be used in function signatures. It handles simple types, arrays,
+        objects, unions, and nested structures.
+
+        Args:
+            schema: JSON schema dictionary (e.g., {"type": "string"}) or type string (e.g., "string")
+
+        Returns:
+            Python type hint string (e.g., "str", "list[int]", "dict[str, str]")
+
+        Examples:
+            >>> self._schema_to_python_type("string")
+            'str'
+            >>> self._schema_to_python_type({"type": "array", "items": {"type": "integer"}})
+            'list[int]'
+            >>> self._schema_to_python_type({"type": "object", "additionalProperties": {"type": "string"}})
+            'dict[str, str]'
+        """
+        # Normalize input: convert string to dict format
+        if isinstance(schema, str):
+            schema = {"type": schema}
+
+        schema_type = schema.get("type")
+
+        # Handle union types (list of types like ["string", "integer"])
+        if isinstance(schema_type, list):
+            type_strs = [JSON_SCHEMA_TO_PYTHON_TYPE.get(t, t) for t in schema_type]
+            return " | ".join(sorted(type_strs))
+
+        # Handle array types: recursively process items
+        if schema_type == "array":
+            if "items" in schema:
+                item_type = self._schema_to_python_type(schema["items"])
+                return f"list[{item_type}]"
+            return "list"
+
+        # Handle object/dict types: recursively process value types
+        if schema_type == "object":
+            if "additionalProperties" in schema:
+                value_type = self._schema_to_python_type(schema["additionalProperties"])
+                return f"dict[str, {value_type}]"
+            return "dict"
+
+        # Handle all other types using the centralized mapping
+        return JSON_SCHEMA_TO_PYTHON_TYPE.get(schema_type, schema_type)
+
     def to_code_prompt(self) -> str:
-        args_signature = ", ".join(f"{arg_name}: {arg_schema['type']}" for arg_name, arg_schema in self.inputs.items())
+        args_signature = ", ".join(
+            f"{arg_name}: {self._schema_to_python_type(arg_schema)}" for arg_name, arg_schema in self.inputs.items()
+        )
 
         # Use dict type for tools with output schema to indicate structured return
         has_schema = hasattr(self, "output_schema") and self.output_schema is not None
-        output_type = "dict" if has_schema else self.output_type
+        output_type = "dict" if has_schema else self._schema_to_python_type({"type": self.output_type})
         tool_signature = f"({args_signature}) -> {output_type}"
         tool_doc = self.description
 
