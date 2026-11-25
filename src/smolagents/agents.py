@@ -565,8 +565,10 @@ You have been provided with these additional arguments, that you can access dire
                     start_time=planning_start_time,
                     end_time=planning_end_time,
                 )
-                self._finalize_step(planning_step)
+                # Record the step before running callbacks: a callback's own
+                # I/O can fail, and the completed step must still be in memory.
                 self.memory.steps.append(planning_step)
+                self._finalize_step(planning_step)
 
             # Start action step!
             action_step_start_time = time.time()
@@ -600,8 +602,9 @@ You have been provided with these additional arguments, that you can access dire
                 # Other AgentError types are caused by the Model, so we should log them and iterate.
                 action_step.error = e
             finally:
-                self._finalize_step(action_step)
+                # Keep the completed action even if a step callback fails.
                 self.memory.steps.append(action_step)
+                self._finalize_step(action_step)
                 yield action_step
                 self.step_number += 1
 
