@@ -415,6 +415,11 @@ _BASE_TYPE_MAPPING = {
 def _get_json_schema_type(param_type: type) -> dict[str, str]:
     if param_type in _BASE_TYPE_MAPPING:
         return copy(_BASE_TYPE_MAPPING[param_type])
+    # Agent media wrappers represent image/audio arguments, not generic objects.
+    if getattr(param_type, "__name__", None) == "AgentImage":
+        return {"type": "image"}
+    if getattr(param_type, "__name__", None) == "AgentAudio":
+        return {"type": "audio"}
     if str(param_type) == "Image":
         from PIL.Image import Image
 
