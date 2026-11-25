@@ -650,7 +650,7 @@ class SpeechToTextTool(PipelineTool):
     inputs = {
         "audio": {
             "type": "audio",
-            "description": "The audio to transcribe. Can be a local path, an url, or a tensor.",
+            "description": "The audio to transcribe. Can be a local path, a URL, or a tensor.",
         }
     }
     output_type = "string"
