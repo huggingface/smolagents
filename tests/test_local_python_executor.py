@@ -100,6 +100,22 @@ class TestEvaluatePythonCode:
         with pytest.raises(InterpreterError, match="Forbidden function evaluation: 'add_two'"):
             evaluate_python_code(code, {}, state=state)
 
+    def test_repr_builtin(self):
+        # `repr` belongs next to `str`: agents use it constantly when debugging
+        # or formatting values, and `__repr__` is already an allowed dunder.
+        result, _ = evaluate_python_code("repr('hello')", BASE_PYTHON_TOOLS, state={})
+        assert result == "'hello'"
+
+        class Item:
+            def __init__(self, value):
+                self.value = value
+
+            def __repr__(self):
+                return f"Item({self.value})"
+
+        result, _ = evaluate_python_code("repr(Item(3))", BASE_PYTHON_TOOLS, state={"Item": Item})
+        assert result == "Item(3)"
+
     @pytest.mark.parametrize(
         "code, expected_result",
         [
