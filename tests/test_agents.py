@@ -142,6 +142,51 @@ class FakeToolCallModel(Model):
             )
 
 
+RECORDED_ITEMS: list[str] = []
+
+
+class SharedIdToolCallModel(Model):
+    """Model that emits two tool calls sharing one id, then the final answer.
+
+    Streamed replies fill missing ids with "" in ``agglomerate_stream_deltas``,
+    and models can repeat an id, so both shapes land two calls on one key.
+    """
+
+    def __init__(self, shared_id: str):
+        super().__init__()
+        self.shared_id = shared_id
+
+    def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+        if len(messages) < 3:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="I will record two items.",
+                tool_calls=[
+                    ChatMessageToolCall(
+                        id=self.shared_id,
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="record", arguments={"item": "first"}),
+                    ),
+                    ChatMessageToolCall(
+                        id=self.shared_id,
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="record", arguments={"item": "second"}),
+                    ),
+                ],
+            )
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="I will return the final answer.",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_final",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "done"}),
+                )
+            ],
+        )
+
+
 class FakeToolCallModelImage(Model):
     def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
         if len(messages) < 3:
@@ -423,6 +468,32 @@ class TestAgent:
         assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
         assert "7.2904" in agent.memory.steps[1].observations
         assert agent.memory.steps[2].model_output == "I will return the final answer."
+
+    @pytest.mark.parametrize("shared_id", ["call_shared", ""])
+    def test_toolcalling_agent_executes_tool_calls_that_share_an_id(self, shared_id):
+        RECORDED_ITEMS.clear()
+
+        @tool
+        def record(item: str) -> str:
+            """Record one item.
+
+            Args:
+                item: The item to record.
+            """
+            RECORDED_ITEMS.append(item)
+            return item
+
+        agent = ToolCallingAgent(tools=[record], model=SharedIdToolCallModel(shared_id), max_steps=2)
+        output = agent.run("Record two items.")
+        assert output == "done"
+        assert sorted(RECORDED_ITEMS) == ["first", "second"]
+        executed = [
+            tool_call.name for step in agent.memory.steps for tool_call in getattr(step, "tool_calls", [])
+        ]
+        assert executed.count("record") == 2
+        record_step = next(step for step in agent.memory.steps if getattr(step, "tool_calls", None))
+        assert "first" in record_step.observations
+        assert "second" in record_step.observations
 
     def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
         import PIL.Image
