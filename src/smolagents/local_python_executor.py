@@ -1194,6 +1194,11 @@ def evaluate_try(
     try:
         for stmt in try_node.body:
             evaluate_ast(stmt, state, static_tools, custom_tools, authorized_imports)
+    except (BreakException, ContinueException, ReturnException):
+        # These are interpreter control-flow signals, not errors raised by user code.
+        # Re-raise before handler matching so a user `except` cannot swallow return/break/continue.
+        # The finally clause below still runs, matching CPython.
+        raise
     except Exception as e:
         matched = False
         for handler in try_node.handlers:

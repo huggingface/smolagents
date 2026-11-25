@@ -1473,6 +1473,155 @@ exec(compile('{unsafe_code}', 'no filename', 'exec'))
         assert result == 1
         assert is_final_answer is True
 
+    def test_try_except_does_not_swallow_return_break_or_continue(self):
+        """return, break, and continue inside try are not user exceptions.
+
+        Reproduces GitHub issue #3274. ReturnException, BreakException, and
+        ContinueException subclass Exception, and evaluate_try used to match
+        them against the caller's handlers before they could unwind.
+        """
+        code = dedent(
+            """
+            def f():
+                try:
+                    return 1
+                except Exception:
+                    return 2
+
+            def g():
+                seen = []
+                for i in [0, 1, 2]:
+                    try:
+                        if i == 1:
+                            break
+                    except Exception:
+                        seen.append(i)
+                return seen
+
+            def h():
+                seen = []
+                for i in [0, 1, 2]:
+                    try:
+                        if i == 1:
+                            continue
+                    except Exception:
+                        seen.append("err")
+                    seen.append(i)
+                return seen
+
+            def bare():
+                try:
+                    return 1
+                except:
+                    return 2
+
+            def from_base_exception():
+                try:
+                    return 1
+                except BaseException:
+                    return 2
+
+            log = []
+
+            def with_finally():
+                try:
+                    return 1
+                except Exception:
+                    return 2
+                finally:
+                    log.append("fin")
+
+            fin_log = []
+            for i in [0, 1]:
+                try:
+                    if i == 0:
+                        break
+                except Exception:
+                    fin_log.append("except")
+                finally:
+                    fin_log.append(i)
+                fin_log.append("after")
+
+            def with_else_on_return():
+                try:
+                    return 1
+                except Exception:
+                    return 2
+                else:
+                    return 3
+
+            def with_else_on_success():
+                try:
+                    x = 1
+                except Exception:
+                    return 2
+                else:
+                    return x + 2
+
+            def caught_real_error():
+                try:
+                    return 1 / 0
+                except ZeroDivisionError:
+                    return 4
+
+            def return_from_handler():
+                try:
+                    1 / 0
+                except ZeroDivisionError:
+                    return 5
+
+            def nested():
+                try:
+                    try:
+                        return 1
+                    except Exception:
+                        return 2
+                except Exception:
+                    return 3
+
+            def from_while():
+                seen = []
+                i = 0
+                while i < 3:
+                    try:
+                        if i == 1:
+                            break
+                    except Exception:
+                        seen.append(i)
+                    i += 1
+                return seen
+
+            a = f()
+            b = g()
+            c = h()
+            d = bare()
+            base_result = from_base_exception()
+            e = with_finally()
+            f_else = with_else_on_return()
+            g_else = with_else_on_success()
+            h_err = caught_real_error()
+            i_handler = return_from_handler()
+            j_nested = nested()
+            k_while = from_while()
+            """
+        )
+        executor = LocalPythonExecutor([], timeout_seconds=None)
+        executor(code)
+        assert executor.state["a"] == 1
+        assert executor.state["b"] == []
+        assert executor.state["c"] == [0, 2]
+        assert executor.state["d"] == 1
+        assert executor.state["base_result"] == 1
+        assert executor.state["e"] == 1
+        assert executor.state["log"] == ["fin"]
+        assert executor.state["fin_log"] == [0]
+        assert executor.state["f_else"] == 1
+        assert executor.state["g_else"] == 3
+        assert executor.state["h_err"] == 4
+        assert executor.state["i_handler"] == 5
+        assert executor.state["j_nested"] == 1
+        assert executor.state["k_while"] == []
+
     def test_dangerous_builtins_are_callable_if_explicitly_added(self):
         dangerous_code = dedent("""
             eval("1 + 1")
