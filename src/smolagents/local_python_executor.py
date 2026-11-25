@@ -509,7 +509,9 @@ def create_function(
         result = None
         try:
             for stmt in func_def.body:
-                result = evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
+                # A function without an explicit `return` must yield None,
+                # not the value of its last statement as CPython does.
+                evaluate_ast(stmt, func_state, static_tools, custom_tools, authorized_imports)
         except ReturnException as e:
             result = e.value
 
