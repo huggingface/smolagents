@@ -1153,8 +1153,9 @@ You have been provided with these additional arguments, that you can access dire
             tools.append({"name": tool_name, "code": tool_code})
         agent_dict["tools"] = tools
 
-        # Add managed agents to kwargs to override the empty list in from_dict
-        if managed_agents:
+        # An explicit managed_agents override from the caller wins over the
+        # agents reconstructed from the folder.
+        if managed_agents and "managed_agents" not in kwargs:
             kwargs["managed_agents"] = managed_agents
 
         return cls.from_dict(agent_dict, **kwargs)
