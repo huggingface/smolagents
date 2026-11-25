@@ -27,6 +27,7 @@ from smolagents.utils import (
     get_source,
     instance_to_source,
     is_valid_name,
+    make_json_serializable,
     parse_code_blobs,
     parse_json_blob,
 )
@@ -552,3 +553,17 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+def test_make_json_serializable_handles_circular_references():
+    items = []
+    items.append(items)
+    assert make_json_serializable(items) == [None]
+
+    data = {}
+    data["self"] = data
+    assert make_json_serializable(data) == {"self": None}
+
+
+def test_make_json_serializable_nested_without_cycle():
+    assert make_json_serializable([1, {"a": [2, 3]}]) == [1, {"a": [2, 3]}]

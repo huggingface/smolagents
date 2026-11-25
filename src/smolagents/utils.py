@@ -137,8 +137,15 @@ class AgentGenerationError(AgentError):
     pass
 
 
-def make_json_serializable(obj: Any) -> Any:
-    """Recursive function to make objects JSON serializable"""
+def make_json_serializable(obj: Any, seen: set[int] | None = None) -> Any:
+    """Recursive function to make objects JSON serializable.
+
+    Tracks the identity of already-visited containers so a cyclic reference
+    terminates as ``None`` instead of recursing until ``RecursionError``.
+    """
+    if seen is None:
+        seen = set()
+
     if obj is None:
         return None
     elif isinstance(obj, (str, int, float, bool)):
@@ -147,17 +154,26 @@ def make_json_serializable(obj: Any) -> Any:
             try:
                 if (obj.startswith("{") and obj.endswith("}")) or (obj.startswith("[") and obj.endswith("]")):
                     parsed = json.loads(obj)
-                    return make_json_serializable(parsed)
+                    return make_json_serializable(parsed, seen)
             except json.JSONDecodeError:
                 pass
         return obj
     elif isinstance(obj, (list, tuple)):
-        return [make_json_serializable(item) for item in obj]
+        if id(obj) in seen:
+            return None
+        seen.add(id(obj))
+        return [make_json_serializable(item, seen) for item in obj]
     elif isinstance(obj, dict):
-        return {str(k): make_json_serializable(v) for k, v in obj.items()}
+        if id(obj) in seen:
+            return None
+        seen.add(id(obj))
+        return {str(k): make_json_serializable(v, seen) for k, v in obj.items()}
     elif hasattr(obj, "__dict__"):
+        if id(obj) in seen:
+            return None
+        seen.add(id(obj))
         # For custom objects, convert their __dict__ to a serializable format
-        return {"_type": obj.__class__.__name__, **{k: make_json_serializable(v) for k, v in obj.__dict__.items()}}
+        return {"_type": obj.__class__.__name__, **{k: make_json_serializable(v, seen) for k, v in obj.__dict__.items()}}
     else:
         # For any other type, convert to string
         return str(obj)
