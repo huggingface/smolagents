@@ -137,7 +137,7 @@ class AgentGenerationError(AgentError):
     pass
 
 
-def make_json_serializable(obj: Any) -> Any:
+def make_json_serializable(obj: Any, _seen: set[int] | None = None) -> Any:
     """Recursive function to make objects JSON serializable"""
     if obj is None:
         return None
@@ -147,17 +147,40 @@ def make_json_serializable(obj: Any) -> Any:
             try:
                 if (obj.startswith("{") and obj.endswith("}")) or (obj.startswith("[") and obj.endswith("]")):
                     parsed = json.loads(obj)
-                    return make_json_serializable(parsed)
+                    return make_json_serializable(parsed, _seen)
             except json.JSONDecodeError:
                 pass
         return obj
-    elif isinstance(obj, (list, tuple)):
-        return [make_json_serializable(item) for item in obj]
+
+    if _seen is None:
+        _seen = set()
+
+    obj_id = id(obj)
+    if obj_id in _seen:
+        return f"<CircularReference: {type(obj).__name__}>"
+
+    if isinstance(obj, (list, tuple)):
+        _seen.add(obj_id)
+        try:
+            return [make_json_serializable(item, _seen) for item in obj]
+        finally:
+            _seen.remove(obj_id)
     elif isinstance(obj, dict):
-        return {str(k): make_json_serializable(v) for k, v in obj.items()}
+        _seen.add(obj_id)
+        try:
+            return {str(k): make_json_serializable(v, _seen) for k, v in obj.items()}
+        finally:
+            _seen.remove(obj_id)
     elif hasattr(obj, "__dict__"):
         # For custom objects, convert their __dict__ to a serializable format
-        return {"_type": obj.__class__.__name__, **{k: make_json_serializable(v) for k, v in obj.__dict__.items()}}
+        _seen.add(obj_id)
+        try:
+            return {
+                "_type": obj.__class__.__name__,
+                **{k: make_json_serializable(v, _seen) for k, v in obj.__dict__.items()},
+            }
+        finally:
+            _seen.remove(obj_id)
     else:
         # For any other type, convert to string
         return str(obj)
