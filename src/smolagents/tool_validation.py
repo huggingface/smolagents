@@ -226,7 +226,12 @@ def validate_tool_attributes(cls, check_imports: bool = True) -> None:
     class_level_checker = ClassLevelChecker()
     source = get_source(cls)
     tree = ast.parse(source)
-    class_node = tree.body[0]
+    # A class built by `Tool.from_code` carries the imports it needs, so its own source
+    # is not the first statement; look it up by name (#3244).
+    class_node = next(
+        (node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == cls.__name__),
+        tree.body[0],
+    )
     if not isinstance(class_node, ast.ClassDef):
         raise ValueError("Source code must define a class")
     class_level_checker.visit(class_node)

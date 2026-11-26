@@ -1066,3 +1066,38 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class TestToolFromCodeSave:
+    """A tool built by `Tool.from_code` keeps the code it was built from (#3244)."""
+
+    CODE = """from smolagents import Tool
+
+class DoublerTool(Tool):
+    name = "doubler"
+    description = "Doubles a number."
+    inputs = {"x": {"type": "integer", "description": "a number"}}
+    output_type = "integer"
+
+    def forward(self, x: int) -> int:
+        return x * 2
+"""
+
+    def test_to_dict_keeps_the_source_it_was_built_from(self):
+        tool = Tool.from_code(self.CODE)
+
+        tool_dict = tool.to_dict()
+
+        assert "from smolagents import Tool" in tool_dict["code"]
+        assert tool_dict["name"] == "doubler"
+        assert tool_dict["requirements"] == ["smolagents"]
+
+    def test_save_writes_a_tool_file_that_loads_again(self, tmp_path):
+        tool = Tool.from_code(self.CODE)
+
+        tool.save(tmp_path)
+
+        assert set(os.listdir(tmp_path)) == {"requirements.txt", "app.py", "tool.py"}
+        reloaded = Tool.from_code((tmp_path / "tool.py").read_text())
+        assert reloaded.name == "doubler"
+        assert reloaded(21) == 42
