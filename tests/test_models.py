@@ -140,6 +140,42 @@ class TestModel:
         )
         assert agglomerated_stream_delta.token_usage.total_tokens == 1372
 
+    def test_agglomerate_stream_deltas_without_index(self):
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            agglomerate_stream_deltas,
+        )
+
+        # Gemini's OpenAI-compatible endpoint streams each parallel tool call whole, with an id and no index
+        # (recorded in pydantic-ai's cassette test_compatible_api_gemini_3_tool_call_thought_signature[True]).
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        id="call_108766",
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="get_weather", arguments='{"city":"Taipei"}'),
+                    )
+                ]
+            ),
+            ChatMessageStreamDelta(
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        id="call_108772",
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="get_weather", arguments='{"city":"Kaohsiung"}'),
+                    )
+                ]
+            ),
+        ]
+        tool_calls = agglomerate_stream_deltas(stream_deltas).tool_calls
+        assert [(tc.id, tc.function.name, tc.function.arguments) for tc in tool_calls] == [
+            ("call_108766", "get_weather", '{"city":"Taipei"}'),
+            ("call_108772", "get_weather", '{"city":"Kaohsiung"}'),
+        ]
+
     @pytest.mark.parametrize(
         "model_id, stop_sequences, should_contain_stop",
         [

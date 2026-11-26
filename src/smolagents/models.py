@@ -217,6 +217,27 @@ class ChatMessageStreamDelta:
     token_usage: TokenUsage | None = None
 
 
+def _tool_call_delta_index(
+    tool_call_delta: ChatMessageToolCallStreamDelta,
+    accumulated_tool_calls: dict[int, ChatMessageToolCallStreamDelta],
+    last_index: int | None,
+) -> int:
+    """Index of the tool call a streamed delta belongs to.
+
+    Some OpenAI-compatible servers (Gemini's OpenAI endpoint, Mistral) send each tool call whole
+    with an id but no index. For those, a new id starts a new tool call and a delta without an id
+    continues the latest one.
+    """
+    if tool_call_delta.index is not None:
+        return tool_call_delta.index
+    for index, tool_call in accumulated_tool_calls.items():
+        if tool_call_delta.id and tool_call.id == tool_call_delta.id:
+            return index
+    if tool_call_delta.id or last_index is None:
+        return max(accumulated_tool_calls, default=-1) + 1
+    return last_index
+
+
 def agglomerate_stream_deltas(
     stream_deltas: list[ChatMessageStreamDelta], role: MessageRole = MessageRole.ASSISTANT
 ) -> ChatMessage:
@@ -227,6 +248,7 @@ def agglomerate_stream_deltas(
     accumulated_content = ""
     total_input_tokens = 0
     total_output_tokens = 0
+    last_index: int | None = None
     for stream_delta in stream_deltas:
         if stream_delta.token_usage:
             total_input_tokens += stream_delta.token_usage.input_tokens
@@ -234,28 +256,27 @@ def agglomerate_stream_deltas(
         if stream_delta.content:
             accumulated_content += stream_delta.content
         if stream_delta.tool_calls:
-            for tool_call_delta in stream_delta.tool_calls:  # ?ormally there should be only one call at a time
+            for tool_call_delta in stream_delta.tool_calls:
+                index = _tool_call_delta_index(tool_call_delta, accumulated_tool_calls, last_index)
+                last_index = index
                 # Extend accumulated_tool_calls list to accommodate the new tool call if needed
-                if tool_call_delta.index is not None:
-                    if tool_call_delta.index not in accumulated_tool_calls:
-                        accumulated_tool_calls[tool_call_delta.index] = ChatMessageToolCallStreamDelta(
-                            id=tool_call_delta.id,
-                            type=tool_call_delta.type,
-                            function=ChatMessageToolCallFunction(name="", arguments=""),
-                        )
-                    # Update the tool call at the specific index
-                    tool_call = accumulated_tool_calls[tool_call_delta.index]
-                    if tool_call_delta.id:
-                        tool_call.id = tool_call_delta.id
-                    if tool_call_delta.type:
-                        tool_call.type = tool_call_delta.type
-                    if tool_call_delta.function:
-                        if tool_call_delta.function.name and len(tool_call_delta.function.name) > 0:
-                            tool_call.function.name = tool_call_delta.function.name
-                        if tool_call_delta.function.arguments:
-                            tool_call.function.arguments += tool_call_delta.function.arguments
-                else:
-                    raise ValueError(f"Tool call index is not provided in tool delta: {tool_call_delta}")
+                if index not in accumulated_tool_calls:
+                    accumulated_tool_calls[index] = ChatMessageToolCallStreamDelta(
+                        id=tool_call_delta.id,
+                        type=tool_call_delta.type,
+                        function=ChatMessageToolCallFunction(name="", arguments=""),
+                    )
+                # Update the tool call at the specific index
+                tool_call = accumulated_tool_calls[index]
+                if tool_call_delta.id:
+                    tool_call.id = tool_call_delta.id
+                if tool_call_delta.type:
+                    tool_call.type = tool_call_delta.type
+                if tool_call_delta.function:
+                    if tool_call_delta.function.name and len(tool_call_delta.function.name) > 0:
+                        tool_call.function.name = tool_call_delta.function.name
+                    if tool_call_delta.function.arguments:
+                        tool_call.function.arguments += tool_call_delta.function.arguments
 
     return ChatMessage(
         role=role,
