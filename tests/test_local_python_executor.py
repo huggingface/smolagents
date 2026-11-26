@@ -1278,6 +1278,54 @@ n = f(1, n=667)
         assert res == 1000
         assert not is_final_answer
 
+    def test_keyword_only_default_arg_in_function(self):
+        code = """
+def f(*, a=3, b):
+    return a * 10 + b
+res = f(b=4)
+"""
+        res, is_final_answer = evaluate_python_code(code, {}, {})
+        assert res == 34
+        assert not is_final_answer
+
+    def test_keyword_only_default_is_overridden(self):
+        code = """
+def f(*, a=3):
+    return a
+res = f(a=4)
+"""
+        res, _ = evaluate_python_code(code, {}, {})
+        assert res == 4
+
+    def test_keyword_only_default_shadows_outer_value(self):
+        code = """
+a = 99
+def f(*, a=3):
+    return a
+res = f()
+"""
+        res, _ = evaluate_python_code(code, {}, {})
+        assert res == 3
+
+    def test_keyword_only_default_of_none(self):
+        code = """
+def f(*, a=None):
+    return a
+res = f()
+"""
+        res, _ = evaluate_python_code(code, {}, {})
+        assert res is None
+
+        # An outer name of the same spelling must not be picked up either.
+        code = """
+a = 99
+def f(*, a=None):
+    return a
+res = f()
+"""
+        res, _ = evaluate_python_code(code, {}, {})
+        assert res is None
+
     def test_set(self):
         code = """
 S1 = {'a', 'b', 'c'}
