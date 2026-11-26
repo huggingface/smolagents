@@ -953,8 +953,9 @@ def evaluate_subscript(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Any:
-    index = evaluate_ast(subscript.slice, state, static_tools, custom_tools, authorized_imports)
+    # Match CPython: the container expression is evaluated before the index expression.
     value = evaluate_ast(subscript.value, state, static_tools, custom_tools, authorized_imports)
+    index = evaluate_ast(subscript.slice, state, static_tools, custom_tools, authorized_imports)
     try:
         return value[index]
     except (KeyError, IndexError, TypeError) as e:
