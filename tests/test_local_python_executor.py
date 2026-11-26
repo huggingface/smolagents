@@ -1278,6 +1278,64 @@ n = f(1, n=667)
         assert res == 1000
         assert not is_final_answer
 
+    def test_default_arg_evaluated_once(self):
+        # A mutable default is evaluated once, at `def` time, like CPython:
+        # it is shared (and persists) across calls instead of being rebuilt.
+        code = """
+def f(x, acc=[]):
+    acc.append(x)
+    return acc
+a = f(1)
+b = f(2)
+(a, b)
+"""
+        res, _ = evaluate_python_code(code, {}, {})
+        assert res == ([1, 2], [1, 2])
+
+    def test_default_arg_captures_value_at_definition(self):
+        # A default naming an outer variable sees that variable's value at
+        # `def` time, not its value when the function is called.
+        code = """
+n = 10
+def f(x=n):
+    return x
+n = 20
+f()
+"""
+        res, _ = evaluate_python_code(code, {}, {})
+        assert res == 10
+
+    def test_lambda_default_arg(self):
+        # A lambda default is evaluated once, at lambda creation, so the
+        # loop-capture idiom `lambda k=i: k` binds the value of `i`.
+        code = """
+fs = []
+for i in range(3):
+    fs.append(lambda k=i: k)
+[f() for f in fs]
+"""
+        res, _ = evaluate_python_code(code, {"range": range}, state={})
+        assert res == [0, 1, 2]
+
+    def test_lambda_default_arg_overridden(self):
+        # A value passed explicitly still overrides a lambda default.
+        code = """
+f = lambda x=3: x + 1
+(f(), f(10))
+"""
+        res, _ = evaluate_python_code(code, {}, state={})
+        assert res == (4, 11)
+
+    def test_default_arg_overridden(self):
+        # A value passed explicitly still overrides a def default.
+        code = """
+def f(x=3):
+    return x
+(f(), f(10))
+"""
+        res, _ = evaluate_python_code(code, {}, {})
+        assert res == (3, 10)
+
     def test_set(self):
         code = """
 S1 = {'a', 'b', 'c'}
