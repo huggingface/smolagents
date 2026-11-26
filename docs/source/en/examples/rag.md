@@ -40,7 +40,7 @@ An agent with retrieval tools can:
 
 This approach naturally implements advanced RAG techniques:
 - **Hypothetical Document Embedding (HyDE)**: Instead of using the user query directly, the agent formulates retrieval-optimized queries ([paper reference](https://huggingface.co/papers/2212.10496))
-- **Self-Query Refinement**: The agent can analyze initial results and perform follow-up retrievals with refined queries ([technique reference](https://docs.llamaindex.ai/en/stable/examples/evaluation/RetryQuery/))
+- **Self-Query Refinement**: The agent can analyze initial results and perform follow-up retrievals with refined queries ([technique reference](https://developers.llamaindex.ai/python/examples/evaluation/retryquery/))
 
 ## Building an Agentic RAG System
 

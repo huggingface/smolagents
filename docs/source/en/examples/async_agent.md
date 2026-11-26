@@ -75,7 +75,7 @@ curl -X POST http://localhost:8000/run-agent -H 'Content-Type: application/json'
 
 ## Further Reading
 
-- [Starlette Documentation](https://www.starlette.io/)
+- [Starlette Documentation](https://starlette.dev/)
 - [anyio Documentation](https://anyio.readthedocs.io/)
 
 ---
