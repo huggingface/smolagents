@@ -15,7 +15,7 @@ on:
 
 jobs:
    build:
-    uses: huggingface/doc-builder/.github/workflows/build_main_documentation.yml@145b9d4f6ab65ad3af87c66773b2c43294e52446  # main
+    uses: huggingface/doc-builder/.github/workflows/build_main_documentation.yml@911ed7872ad44fe0e1e6f03c232fbf4ab42c5957  # main
     with:
       commit_sha: ${{ github.sha }}
       package: smolagents
