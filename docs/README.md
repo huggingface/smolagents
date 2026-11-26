@@ -76,7 +76,7 @@ The `preview` command only works with existing doc files. When you add a complet
 Accepted files are Markdown (.md).
 
 Create a file with its extension and put it in the source directory. You can then link it to the toc-tree by putting
-the filename without the extension in the [`_toctree.yml`](https://github.com/huggingface/smolagents/blob/main/docs/source/_toctree.yml) file.
+the filename without the extension in the [`_toctree.yml`](https://github.com/huggingface/smolagents/blob/main/docs/source/en/_toctree.yml) file.
 
 ## Renaming section headers and moving sections
 
@@ -114,8 +114,8 @@ although we can write them directly in Markdown.
 
 Adding a new tutorial or section is done in two steps:
 
-- Add a new Markdown (.md) file under `./source`.
-- Link that file in `./source/_toctree.yml` on the correct toc-tree.
+- Add a new Markdown (.md) file under `./source/en`.
+- Link that file in `./source/en/_toctree.yml` on the correct toc-tree.
 
 Make sure to put your new file under the proper section. If you have a doubt, feel free to ask in a Github Issue or PR.
 
