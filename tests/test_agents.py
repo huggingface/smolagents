@@ -23,6 +23,7 @@ from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
+from threading import Event
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
@@ -494,6 +495,52 @@ class TestAgent:
         record_step = next(step for step in agent.memory.steps if getattr(step, "tool_calls", None))
         assert "first" in record_step.observations
         assert "second" in record_step.observations
+
+    @pytest.mark.parametrize("ids", [("same", "same"), ("", ""), ("z", "a")])
+    def test_parallel_tool_outputs_keep_call_order_when_completion_is_reversed(self, ids):
+        # Contributed by @JonnyFaeth: positional mapping also preserves model
+        # order when tools finish in the opposite order (#3275).
+        release_first = Event()
+
+        @tool
+        def ordered_echo(item: str) -> str:
+            """Echo an item after controlled synchronization.
+
+            Args:
+                item: Item to return.
+            """
+            if item == "first" and not release_first.wait(timeout=5):
+                raise RuntimeError("first call was not released")
+            return item
+
+        agent = ToolCallingAgent(
+            tools=[ordered_echo], model=SharedIdToolCallModel("unused"), max_tool_threads=2
+        )
+        message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            tool_calls=[
+                ChatMessageToolCall(
+                    id=identifier,
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="ordered_echo", arguments={"item": item}),
+                )
+                for identifier, item in zip(ids, ("first", "second"))
+            ],
+        )
+        step = ActionStep(step_number=1, timing=Timing(start_time=0))
+        outputs = []
+        try:
+            for event in agent.process_tool_calls(message, step):
+                if isinstance(event, ToolOutput):
+                    outputs.append(event)
+                    if event.output == "second":
+                        release_first.set()
+        finally:
+            release_first.set()
+        assert [output.output for output in outputs] == ["second", "first"]
+        assert [call.id for call in step.tool_calls] == list(ids)
+        assert [call.arguments["item"] for call in step.tool_calls] == ["first", "second"]
+        assert step.observations.index("first") < step.observations.index("second")
 
     def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
         import PIL.Image
