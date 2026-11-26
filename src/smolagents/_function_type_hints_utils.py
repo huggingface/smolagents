@@ -233,16 +233,27 @@ def get_json_schema(func: Callable) -> dict:
 
 # Extracts the initial segment of the docstring, containing the function description
 description_re = re.compile(r"^(.*?)(?=\n\s*(Args:|Returns:|Raises:)|\Z)", re.DOTALL)
-# Extracts the Args: block from the docstring
-args_re = re.compile(r"\n\s*Args:\n\s*(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
-# Splits the Args: block into individual arguments
-args_split_re = re.compile(
-    r"(?:^|\n)"  # Match the start of the args block, or a newline
-    r"\s*(\w+)\s*(?:\([^)]*?\))?:\s*"  # Capture the argument name (ignore the type) and strip spacing
-    r"(.*?)\s*"  # Capture the argument description, which can span multiple lines, and strip trailing spacing
-    r"(?=\n\s*\w+\s*(?:\([^)]*?\))?:|\Z)",  # Stop when you hit the next argument (with or without type) or the end of the block
-    re.DOTALL | re.VERBOSE,
-)
+# Extracts the Args: block from the docstring, together with the indentation of its first argument
+args_re = re.compile(r"\n\s*Args:\n(\s*)(.*?)[\n\s]*(Returns:|Raises:|\Z)", re.DOTALL)
+
+
+def _split_args(docstring_args: str, indent: str) -> list[tuple[str, str]]:
+    """Splits the Args: block into (name, description) pairs.
+
+    A new argument only starts on a line that is not indented deeper than the first argument, so that wrapped
+    description lines such as `https://...` or `Note: ...` stay part of the previous argument's description.
+    """
+    name_re = r"(\w+)\s*(?:\([^)]*?\))?:"  # Argument name (ignore the type)
+    next_arg_re = rf"\n[ \t]{{0,{len(indent)}}}\w+\s*(?:\([^)]*?\))?:"
+    args_split_re = re.compile(
+        rf"(?:^|\n)\s*{name_re}\s*"  # Match the start of the args block, or a newline, then the argument name
+        r"(.*?)\s*"  # Capture the argument description, which can span multiple lines, and strip trailing spacing
+        rf"(?={next_arg_re}|\Z)",  # Stop when you hit the next argument at the same level or the end of the block
+        re.DOTALL,
+    )
+    return args_split_re.findall(docstring_args)
+
+
 # Extracts the Returns: block from the docstring, if present. Note that most chat templates ignore the return type/doc!
 returns_re = re.compile(
     r"\n\s*Returns:\n\s*"
@@ -274,13 +285,14 @@ def _parse_google_format_docstring(
 
     # Clean and store the sections
     description = description_match.group(1).strip() if description_match else None
-    docstring_args = args_match.group(1).strip() if args_match else None
+    docstring_args = args_match.group(2).strip() if args_match else None
+    args_indent = args_match.group(1).rsplit("\n", 1)[-1] if args_match else ""
     returns = returns_match.group(1).strip() if returns_match else None
 
     # Parsing the arguments into a dictionary
     if docstring_args is not None:
         docstring_args = "\n".join([line for line in docstring_args.split("\n") if line.strip()])  # Remove blank lines
-        matches = args_split_re.findall(docstring_args)
+        matches = _split_args(args_indent + docstring_args, args_indent)
         args_dict = {match[0]: re.sub(r"\s*\n+\s*", " ", match[1].strip()) for match in matches}
     else:
         args_dict = {}
