@@ -54,6 +54,15 @@ ERRORS = {
     if isinstance(getattr(builtins, name), type) and issubclass(getattr(builtins, name), BaseException)
 }
 
+# Decorators that only wrap the function in a standard descriptor. They are
+# so common in class bodies that they resolve even though they are not part
+# of BASE_PYTHON_TOOLS; user-defined names still shadow them.
+STRUCTURAL_DECORATORS = {
+    "staticmethod": staticmethod,
+    "classmethod": classmethod,
+    "property": property,
+}
+
 DEFAULT_MAX_LEN_OUTPUT = 50000
 MAX_OPERATIONS = 10000000
 MAX_WHILE_ITERATIONS = 1000000
@@ -526,6 +535,24 @@ def create_function(
     return new_func
 
 
+def resolve_decorator(
+    decorator: ast.expr,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Callable:
+    if (
+        isinstance(decorator, ast.Name)
+        and decorator.id in STRUCTURAL_DECORATORS
+        and decorator.id not in state
+        and decorator.id not in static_tools
+        and decorator.id not in custom_tools
+    ):
+        return STRUCTURAL_DECORATORS[decorator.id]
+    return evaluate_ast(decorator, state, static_tools, custom_tools, authorized_imports)
+
+
 def evaluate_function_def(
     func_def: ast.FunctionDef,
     state: dict[str, Any],
@@ -533,8 +560,15 @@ def evaluate_function_def(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Callable:
-    custom_tools[func_def.name] = create_function(func_def, state, static_tools, custom_tools, authorized_imports)
-    return custom_tools[func_def.name]
+    func = create_function(func_def, state, static_tools, custom_tools, authorized_imports)
+    # CPython applies decorators bottom-up, in the scope where the def runs.
+    for decorator in reversed(func_def.decorator_list):
+        decorator_fn = resolve_decorator(decorator, state, static_tools, custom_tools, authorized_imports)
+        if not callable(decorator_fn):
+            raise InterpreterError(f"Decorator is not callable: {decorator_fn!r}")
+        func = decorator_fn(func)
+    custom_tools[func_def.name] = func
+    return func
 
 
 def evaluate_class_def(
@@ -614,6 +648,12 @@ def evaluate_class_def(
             raise InterpreterError(f"Unsupported statement in class body: {stmt.__class__.__name__}")
 
     new_class = metaclass(class_name, tuple(bases), class_dict)
+    # Class decorators apply bottom-up, in the enclosing scope.
+    for decorator in reversed(class_def.decorator_list):
+        decorator_fn = resolve_decorator(decorator, state, static_tools, custom_tools, authorized_imports)
+        if not callable(decorator_fn):
+            raise InterpreterError(f"Decorator is not callable: {decorator_fn!r}")
+        new_class = decorator_fn(new_class)
     state[class_name] = new_class
     return new_class
 
