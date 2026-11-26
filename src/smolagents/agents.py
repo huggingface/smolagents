@@ -622,7 +622,13 @@ You have been provided with these additional arguments, that you can access dire
     def _finalize_step(self, memory_step: ActionStep | PlanningStep | FinalAnswerStep):
         if not isinstance(memory_step, FinalAnswerStep):
             memory_step.timing.end_time = time.time()
-        self.step_callbacks.callback(memory_step, agent=self)
+        try:
+            self.step_callbacks.callback(memory_step, agent=self)
+        except BaseException:
+            # The caller's normal append is skipped when a callback aborts the run.
+            if not isinstance(memory_step, FinalAnswerStep):
+                self.memory.steps.append(memory_step)
+            raise
 
     def _handle_max_steps_reached(self, task: str) -> Any:
         action_step_start_time = time.time()
