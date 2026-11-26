@@ -468,15 +468,18 @@ def create_function(
 ) -> Callable:
     source_code = ast.unparse(func_def)
 
+    # CPython evaluates default parameter values once, in the enclosing
+    # scope, when the `def` statement runs — not again on every call.
+    arg_names = [arg.arg for arg in func_def.args.args]
+    default_values = [
+        evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
+    ]
+
+    # Apply default values
+    defaults = dict(zip(arg_names[-len(default_values) :], default_values))
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
-        arg_names = [arg.arg for arg in func_def.args.args]
-        default_values = [
-            evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
-        ]
-
-        # Apply default values
-        defaults = dict(zip(arg_names[-len(default_values) :], default_values))
 
         # Set positional arguments
         for name, value in zip(arg_names, args):
