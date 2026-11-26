@@ -79,6 +79,7 @@ BASE_PYTHON_TOOLS = {
     "int": int,
     "bool": bool,
     "str": str,
+    "repr": repr,
     "set": set,
     "list": list,
     "dict": dict,
@@ -456,6 +457,10 @@ def evaluate_while(
         iterations += 1
         if iterations > MAX_WHILE_ITERATIONS:
             raise InterpreterError(f"Maximum number of {MAX_WHILE_ITERATIONS} iterations in While loop exceeded")
+    # The loop finished normally (the condition turned false, no break occurred):
+    # run the else clause, like CPython.
+    for node in while_loop.orelse:
+        evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
     return None
 
 
@@ -526,6 +531,51 @@ def create_function(
     return new_func
 
 
+# Builtins that are valid decorators even though they are not callable tools:
+# they only need to be resolvable at decoration time. A user-defined name with
+# the same identifier still takes precedence over this fallback.
+STRUCTURAL_DECORATORS = {
+    "staticmethod": staticmethod,
+    "classmethod": classmethod,
+    "property": property,
+}
+
+
+def evaluate_decorator(
+    decorator: ast.expr,
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Callable:
+    """Resolve a decorator expression to the callable that will be applied."""
+    if isinstance(decorator, ast.Name):
+        name = decorator.id
+        if (
+            name in STRUCTURAL_DECORATORS
+            and name not in state
+            and name not in static_tools
+            and name not in custom_tools
+        ):
+            return STRUCTURAL_DECORATORS[name]
+    return evaluate_ast(decorator, state, static_tools, custom_tools, authorized_imports)
+
+
+def apply_decorators(
+    obj: Any,
+    decorator_list: list[ast.expr],
+    state: dict[str, Any],
+    static_tools: dict[str, Callable],
+    custom_tools: dict[str, Callable],
+    authorized_imports: list[str],
+) -> Any:
+    """Apply decorators bottom-up, like CPython does when a def/class statement executes."""
+    for decorator in reversed(decorator_list):
+        decorator_callable = evaluate_decorator(decorator, state, static_tools, custom_tools, authorized_imports)
+        obj = decorator_callable(obj)
+    return obj
+
+
 def evaluate_function_def(
     func_def: ast.FunctionDef,
     state: dict[str, Any],
@@ -533,8 +583,10 @@ def evaluate_function_def(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Callable:
-    custom_tools[func_def.name] = create_function(func_def, state, static_tools, custom_tools, authorized_imports)
-    return custom_tools[func_def.name]
+    func = create_function(func_def, state, static_tools, custom_tools, authorized_imports)
+    func = apply_decorators(func, func_def.decorator_list, state, static_tools, custom_tools, authorized_imports)
+    custom_tools[func_def.name] = func
+    return func
 
 
 def evaluate_class_def(
@@ -614,6 +666,10 @@ def evaluate_class_def(
             raise InterpreterError(f"Unsupported statement in class body: {stmt.__class__.__name__}")
 
     new_class = metaclass(class_name, tuple(bases), class_dict)
+    # Apply class decorators bottom-up, like CPython does when the class statement executes.
+    new_class = apply_decorators(
+        new_class, class_def.decorator_list, state, static_tools, custom_tools, authorized_imports
+    )
     state[class_name] = new_class
     return new_class
 
@@ -1078,6 +1134,12 @@ def evaluate_for(
                 return result
             except ContinueException:
                 break
+    # The loop finished normally (the iterator was exhausted, no break occurred):
+    # run the else clause, like CPython.
+    for node in for_loop.orelse:
+        line_result = evaluate_ast(node, state, static_tools, custom_tools, authorized_imports)
+        if line_result is not None:
+            result = line_result
     return result
 
 
