@@ -1005,6 +1005,9 @@ You have been provided with these additional arguments, that you can access dire
             "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
+            # `instructions` go into the system prompt, so dropping them here changed the
+            # agent that came back from `from_folder` / `from_hub` (#3268).
+            "instructions": self.instructions,
             "requirements": sorted(requirements),
         }
         return agent_dict
@@ -1055,6 +1058,7 @@ You have been provided with these additional arguments, that you can access dire
             "planning_interval": agent_dict.get("planning_interval"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
+            "instructions": agent_dict.get("instructions"),
         }
         # Filter out None values to use defaults from __init__
         agent_args = {k: v for k, v in agent_args.items() if v is not None}
