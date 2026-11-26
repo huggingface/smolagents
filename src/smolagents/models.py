@@ -1883,6 +1883,55 @@ class LlamaCppModel(OpenAIModel):
         )
 
 
+class NvidiaModel(OpenAIModel):
+    """This model connects to [NVIDIA NIM](https://build.nvidia.com/) through its OpenAI-compatible API.
+
+    It works with the hosted NVIDIA API catalog and with self-hosted NIM microservices.
+
+    Parameters:
+        model_id (`str`):
+            The model identifier from the NIM `/v1/models` catalog, e.g. `"nvidia/nemotron-3.5-super-vl-120b-a12b"`.
+            The identifier is forwarded verbatim.
+        api_base (`str`, *optional*):
+            The base URL of the NIM OpenAI-compatible API. Override this for a self-hosted NIM.
+            Defaults to `"https://integrate.api.nvidia.com/v1"`.
+        api_key (`str`, *optional*):
+            The NVIDIA API key. If not provided, it will be inferred from the `NVIDIA_API_KEY` environment variable.
+            When neither is set, the placeholder `"no-key-required"` is sent, which works with an unauthenticated
+            self-hosted NIM and prevents credentials from `OPENAI_API_KEY` being used implicitly.
+        client_kwargs (`dict[str, Any]`, *optional*):
+            Additional keyword arguments to pass to the OpenAI client, such as `timeout` or `max_retries`.
+        custom_role_conversions (`dict[str, str]`, *optional*):
+            Custom role conversion mapping to convert message roles in others.
+        flatten_messages_as_text (`bool`, default `False`):
+            Whether to flatten messages as text.
+        **kwargs:
+            Additional generation options to forward to chat completion calls, such as `temperature`, `max_tokens`,
+            or `top_p`.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        api_base: str = "https://integrate.api.nvidia.com/v1",
+        api_key: str | None = None,
+        client_kwargs: dict[str, Any] | None = None,
+        custom_role_conversions: dict[str, str] | None = None,
+        flatten_messages_as_text: bool = False,
+        **kwargs,
+    ):
+        self.api_base = api_base
+        super().__init__(
+            model_id=model_id,
+            api_base=api_base,
+            api_key=api_key or os.getenv("NVIDIA_API_KEY") or "no-key-required",
+            client_kwargs=client_kwargs,
+            custom_role_conversions=custom_role_conversions,
+            flatten_messages_as_text=flatten_messages_as_text,
+            **kwargs,
+        )
+
+
 class AzureOpenAIModel(OpenAIModel):
     """This model connects to an Azure OpenAI deployment.
 
@@ -2172,6 +2221,7 @@ MODEL_REGISTRY = {
     "InferenceClientModel": InferenceClientModel,
     "OpenAIModel": OpenAIModel,
     "LlamaCppModel": LlamaCppModel,
+    "NvidiaModel": NvidiaModel,
     "AzureOpenAIModel": AzureOpenAIModel,
     "AmazonBedrockModel": AmazonBedrockModel,
 }
@@ -2191,6 +2241,7 @@ __all__ = [
     "OpenAIServerModel",
     "OpenAIModel",
     "LlamaCppModel",
+    "NvidiaModel",
     "VLLMModel",
     "AzureOpenAIServerModel",
     "AzureOpenAIModel",

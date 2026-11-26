@@ -195,6 +195,29 @@ See the [Llama App walkthrough](../examples/using_different_models#using-llamacp
 
 [[autodoc]] LlamaCppModel
 
+### NvidiaModel
+
+`NvidiaModel` connects to [NVIDIA NIM](https://build.nvidia.com/) through its OpenAI-compatible API. You must provide the full `model_id` from the NIM `/v1/models` catalog; it is forwarded verbatim.
+
+The default `api_base` is `https://integrate.api.nvidia.com/v1`, the hosted NVIDIA API catalog; override it to use a self-hosted NIM. The API key is read from the `NVIDIA_API_KEY` environment variable unless you pass `api_key` explicitly, so an `OPENAI_API_KEY` environment variable is never used implicitly.
+
+Inherited generation options such as `temperature`, `max_tokens`, and `top_p` can be passed directly to the constructor and are forwarded to chat completion calls:
+
+```py
+from smolagents import NvidiaModel
+
+model = NvidiaModel(
+    model_id="nvidia/nemotron-3.5-super-vl-120b-a12b",
+    temperature=0.7,
+    max_tokens=1000,
+    top_p=0.9,
+)
+```
+
+See the [NVIDIA NIM walkthrough](../examples/using_different_models#using-nvidia-nim-models) for a complete tool-calling example.
+
+[[autodoc]] NvidiaModel
+
 ### AzureOpenAIModel
 
 `AzureOpenAIModel` allows you to connect to any Azure OpenAI deployment. 

@@ -154,6 +154,16 @@ model = LlamaCppModel(model_id="ggml-org/gpt-oss-20b-GGUF:MXFP4")
 ```
 </details>
 <details>
+<summary> <b>NVIDIA NIM models</b></summary>
+
+```py
+from smolagents import NvidiaModel
+
+# Reads the API key from the NVIDIA_API_KEY environment variable
+model = NvidiaModel(model_id="nvidia/nemotron-3.5-super-vl-120b-a12b")
+```
+</details>
+<details>
 <summary> <b>Azure models</b></summary>
 
 ```py

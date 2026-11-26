@@ -11,13 +11,14 @@ This guide will show you how to use different model types with your agents.
 1. [`InferenceClientModel`]: Uses Hugging Face's Inference API to access models
 2. [`TransformersModel`]: Runs models locally using the Transformers library
 3. [`LlamaCppModel`]: Connects to models served by an already-running Llama App
-4. [`VLLMModel`]: Uses vLLM for fast inference with optimized serving
-5. [`MLXModel`]: Optimized for Apple Silicon devices using MLX
-6. [`LiteLLMModel`]: Provides access to hundreds of LLMs through LiteLLM
-7. [`LiteLLMRouterModel`]: Distributes requests among multiple models
-8. [`OpenAIModel`]: Provides access to any provider that implements an OpenAI-compatible API
-9. [`AzureOpenAIModel`]: Uses Azure's OpenAI service
-10. [`AmazonBedrockModel`]: Connects to AWS Bedrock's API
+4. [`NvidiaModel`]: Connects to NVIDIA NIM, hosted or self-hosted
+5. [`VLLMModel`]: Uses vLLM for fast inference with optimized serving
+6. [`MLXModel`]: Optimized for Apple Silicon devices using MLX
+7. [`LiteLLMModel`]: Provides access to hundreds of LLMs through LiteLLM
+8. [`LiteLLMRouterModel`]: Distributes requests among multiple models
+9. [`OpenAIModel`]: Provides access to any provider that implements an OpenAI-compatible API
+10. [`AzureOpenAIModel`]: Uses Azure's OpenAI service
+11. [`AmazonBedrockModel`]: Connects to AWS Bedrock's API
 
 All model classes support passing additional keyword arguments (like `temperature`, `max_tokens`, `top_p`, etc.) directly at instantiation time.
 These parameters are automatically forwarded to the underlying model's completion calls, allowing you to configure model behavior such as creativity, response length, and sampling strategies.
@@ -61,6 +62,46 @@ print(result)
 ```
 
 The model ID is sent unchanged to Llama App. The default endpoint is `http://127.0.0.1:9931/v1`; pass `api_base` for a different host or port, and `api_key` if your instance requires authentication.
+
+## Using NVIDIA NIM models
+
+[`NvidiaModel`] connects smolagents to [NVIDIA NIM](https://build.nvidia.com/) through its OpenAI-compatible API, either the hosted NVIDIA API catalog or a self-hosted NIM.
+
+Install the OpenAI-compatible client dependency:
+
+```bash
+pip install 'smolagents[openai]'
+```
+
+Create an API key on [build.nvidia.com](https://build.nvidia.com/) and export it as `NVIDIA_API_KEY`. List the model IDs available to you:
+
+```bash
+curl -s https://integrate.api.nvidia.com/v1/models | jq -r '.data[].id'
+```
+
+Then pass the full ID of a tool-capable model as `model_id`:
+
+```python
+from smolagents import NvidiaModel, ToolCallingAgent, tool
+
+
+@tool
+def lookup_order(order_id: str) -> str:
+    """Look up the status of an order.
+
+    Args:
+        order_id: The order identifier to look up.
+    """
+    return f"Order {order_id} is ready for pickup."
+
+
+model = NvidiaModel(model_id="nvidia/nemotron-3.5-super-vl-120b-a12b")
+agent = ToolCallingAgent(tools=[lookup_order], model=model)
+result = agent.run("Look up order A-10042 and tell me its status.")
+print(result)
+```
+
+Other models you can use include `nvidia/nemotron-3.5-lightning-30b-a3b` and `nvidia/nemotron-3-ultra-550b-a55b`. The default endpoint is `https://integrate.api.nvidia.com/v1`; pass `api_base` to use a self-hosted NIM, and `api_key` to set the key explicitly instead of reading `NVIDIA_API_KEY`.
 
 ## Using Google Gemini Models
 
