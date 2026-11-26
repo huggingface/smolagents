@@ -1372,14 +1372,17 @@ class ToolCallingAgent(MultiStepAgent):
         Yields:
             `ToolCall | ToolOutput`: The tool call or tool output.
         """
-        parallel_calls: dict[str, ToolCall] = {}
+        # Calls must stay keyed by position, not by id: models can repeat an id and
+        # streamed replies fill missing ids with "", so keying by id silently drops
+        # the earlier call before it ever runs (#3275).
+        parallel_calls: list[ToolCall] = []
         assert chat_message.tool_calls is not None
         for chat_tool_call in chat_message.tool_calls:
             tool_call = ToolCall(
                 name=chat_tool_call.function.name, arguments=chat_tool_call.function.arguments, id=chat_tool_call.id
             )
             yield tool_call
-            parallel_calls[tool_call.id] = tool_call
+            parallel_calls.append(tool_call)
 
         # Helper function to process a single tool call
         def process_single_tool_call(tool_call: ToolCall) -> ToolOutput:
@@ -1419,23 +1422,23 @@ class ToolCallingAgent(MultiStepAgent):
         outputs = {}
         if len(parallel_calls) == 1:
             # If there's only one call, process it directly
-            tool_call = list(parallel_calls.values())[0]
+            tool_call = parallel_calls[0]
             tool_output = process_single_tool_call(tool_call)
-            outputs[tool_output.id] = tool_output
+            outputs[0] = tool_output
             yield tool_output
         else:
             # If multiple tool calls, process them in parallel
             with ThreadPoolExecutor(self.max_tool_threads) as executor:
-                futures = []
-                for tool_call in parallel_calls.values():
+                futures = {}
+                for index, tool_call in enumerate(parallel_calls):
                     ctx = copy_context()
-                    futures.append(executor.submit(ctx.run, process_single_tool_call, tool_call))
+                    futures[executor.submit(ctx.run, process_single_tool_call, tool_call)] = index
                 for future in as_completed(futures):
                     tool_output = future.result()
-                    outputs[tool_output.id] = tool_output
+                    outputs[futures[future]] = tool_output
                     yield tool_output
 
-        memory_step.tool_calls = [parallel_calls[k] for k in sorted(parallel_calls.keys())]
+        memory_step.tool_calls = parallel_calls
         memory_step.observations = memory_step.observations or ""
         for tool_output in [outputs[k] for k in sorted(outputs.keys())]:
             memory_step.observations += tool_output.observation + "\n"

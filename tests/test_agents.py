@@ -23,6 +23,7 @@ from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
+from threading import Event
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
@@ -140,6 +141,51 @@ class FakeToolCallModel(Model):
                     )
                 ],
             )
+
+
+RECORDED_ITEMS: list[str] = []
+
+
+class SharedIdToolCallModel(Model):
+    """Model that emits two tool calls sharing one id, then the final answer.
+
+    Streamed replies fill missing ids with "" in ``agglomerate_stream_deltas``,
+    and models can repeat an id, so both shapes land two calls on one key.
+    """
+
+    def __init__(self, shared_id: str):
+        super().__init__()
+        self.shared_id = shared_id
+
+    def generate(self, messages, tools_to_call_from=None, stop_sequences=None):
+        if len(messages) < 3:
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="I will record two items.",
+                tool_calls=[
+                    ChatMessageToolCall(
+                        id=self.shared_id,
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="record", arguments={"item": "first"}),
+                    ),
+                    ChatMessageToolCall(
+                        id=self.shared_id,
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="record", arguments={"item": "second"}),
+                    ),
+                ],
+            )
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="I will return the final answer.",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_final",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "done"}),
+                )
+            ],
+        )
 
 
 class FakeToolCallModelImage(Model):
@@ -423,6 +469,78 @@ class TestAgent:
         assert agent.memory.steps[0].task == "What is 2 multiplied by 3.6452?"
         assert "7.2904" in agent.memory.steps[1].observations
         assert agent.memory.steps[2].model_output == "I will return the final answer."
+
+    @pytest.mark.parametrize("shared_id", ["call_shared", ""])
+    def test_toolcalling_agent_executes_tool_calls_that_share_an_id(self, shared_id):
+        RECORDED_ITEMS.clear()
+
+        @tool
+        def record(item: str) -> str:
+            """Record one item.
+
+            Args:
+                item: The item to record.
+            """
+            RECORDED_ITEMS.append(item)
+            return item
+
+        agent = ToolCallingAgent(tools=[record], model=SharedIdToolCallModel(shared_id), max_steps=2)
+        output = agent.run("Record two items.")
+        assert output == "done"
+        assert sorted(RECORDED_ITEMS) == ["first", "second"]
+        executed = [
+            tool_call.name for step in agent.memory.steps for tool_call in getattr(step, "tool_calls", [])
+        ]
+        assert executed.count("record") == 2
+        record_step = next(step for step in agent.memory.steps if getattr(step, "tool_calls", None))
+        assert "first" in record_step.observations
+        assert "second" in record_step.observations
+
+    @pytest.mark.parametrize("ids", [("same", "same"), ("", ""), ("z", "a")])
+    def test_parallel_tool_outputs_keep_call_order_when_completion_is_reversed(self, ids):
+        # Contributed by @JonnyFaeth: positional mapping also preserves model
+        # order when tools finish in the opposite order (#3275).
+        release_first = Event()
+
+        @tool
+        def ordered_echo(item: str) -> str:
+            """Echo an item after controlled synchronization.
+
+            Args:
+                item: Item to return.
+            """
+            if item == "first" and not release_first.wait(timeout=5):
+                raise RuntimeError("first call was not released")
+            return item
+
+        agent = ToolCallingAgent(
+            tools=[ordered_echo], model=SharedIdToolCallModel("unused"), max_tool_threads=2
+        )
+        message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            tool_calls=[
+                ChatMessageToolCall(
+                    id=identifier,
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="ordered_echo", arguments={"item": item}),
+                )
+                for identifier, item in zip(ids, ("first", "second"))
+            ],
+        )
+        step = ActionStep(step_number=1, timing=Timing(start_time=0))
+        outputs = []
+        try:
+            for event in agent.process_tool_calls(message, step):
+                if isinstance(event, ToolOutput):
+                    outputs.append(event)
+                    if event.output == "second":
+                        release_first.set()
+        finally:
+            release_first.set()
+        assert [output.output for output in outputs] == ["second", "first"]
+        assert [call.id for call in step.tool_calls] == list(ids)
+        assert [call.arguments["item"] for call in step.tool_calls] == ["first", "second"]
+        assert step.observations.index("first") < step.observations.index("second")
 
     def test_toolcalling_agent_handles_image_tool_outputs(self, shared_datadir):
         import PIL.Image
