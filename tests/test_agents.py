@@ -2626,3 +2626,33 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class TestExecutionSettingsSurviveASave:
+    """What a run yields is part of the agent, so a reload has to keep these."""
+
+    def model(self):
+        from smolagents import LiteLLMModel
+
+        return LiteLLMModel(model_id="openai/gpt-4o-mini")
+
+    def test_streaming_survives_for_both_agent_classes(self, tmp_path):
+        for index, agent_class in enumerate((CodeAgent, ToolCallingAgent)):
+            folder = tmp_path / str(index)
+            agent = agent_class(tools=[], model=self.model(), stream_outputs=True)
+            agent.save(folder)
+
+            assert agent_class.from_folder(folder).stream_outputs is True
+
+    def test_the_tool_thread_limit_survives(self, tmp_path):
+        agent = ToolCallingAgent(tools=[], model=self.model(), max_tool_threads=3)
+        agent.save(tmp_path)
+
+        assert ToolCallingAgent.from_folder(tmp_path).max_tool_threads == 3
+
+    def test_an_agent_saved_without_them_keeps_the_defaults(self, tmp_path):
+        CodeAgent(tools=[], model=self.model()).save(tmp_path)
+
+        reloaded = CodeAgent.from_folder(tmp_path)
+
+        assert reloaded.stream_outputs is False

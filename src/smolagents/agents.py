@@ -1005,6 +1005,9 @@ You have been provided with these additional arguments, that you can access dire
             "planning_interval": self.planning_interval,
             "name": self.name,
             "description": self.description,
+            # Streaming changes what a run yields, so it is part of what "the same agent"
+            # means; it fell back to False on every reload.
+            "stream_outputs": self.stream_outputs,
             "requirements": sorted(requirements),
         }
         return agent_dict
@@ -1055,6 +1058,7 @@ You have been provided with these additional arguments, that you can access dire
             "planning_interval": agent_dict.get("planning_interval"),
             "name": agent_dict.get("name"),
             "description": agent_dict.get("description"),
+            "stream_outputs": agent_dict.get("stream_outputs"),
         }
         # Filter out None values to use defaults from __init__
         agent_args = {k: v for k, v in agent_args.items() if v is not None}
@@ -1258,6 +1262,20 @@ class ToolCallingAgent(MultiStepAgent):
             )
         # Tool calling setup
         self.max_tool_threads = max_tool_threads
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the agent to a dictionary representation."""
+        agent_dict = super().to_dict()
+        agent_dict["max_tool_threads"] = self.max_tool_threads
+        return agent_dict
+
+    @classmethod
+    def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "ToolCallingAgent":
+        """Create a ToolCallingAgent from a dictionary representation."""
+        saved_threads = {"max_tool_threads": agent_dict.get("max_tool_threads")}
+        return super().from_dict(
+            agent_dict, **{key: value for key, value in saved_threads.items() if value is not None}, **kwargs
+        )
 
     @property
     def tools_and_managed_agents(self):
