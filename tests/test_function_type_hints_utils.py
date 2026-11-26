@@ -451,6 +451,28 @@ class TestGetJsonSchema:
         schema = get_json_schema(keywords_in_description_func)
         assert schema["function"]["description"] == "Function with Args: or Returns: keywords in its description."
 
+    def test_wrapped_description_lines_that_look_like_arguments(self):
+        def get_weather(city: str, units: str = "metric") -> str:
+            """Get the current weather for a city.
+
+            Args:
+                city: Name of the city, spelled as on
+                    https://openweathermap.org/find, e.g. "Mumbai".
+                units: Unit system, "metric" or "imperial".
+                    Note: wind speed is always in m/s.
+            """
+            return city
+
+        properties = get_json_schema(get_weather)["function"]["parameters"]["properties"]
+        assert (
+            properties["city"]["description"]
+            == 'Name of the city, spelled as on https://openweathermap.org/find, e.g. "Mumbai".'
+        )
+        assert (
+            properties["units"]["description"]
+            == 'Unit system, "metric" or "imperial". Note: wind speed is always in m/s.'
+        )
+
 
 class TestGetCode:
     @pytest.mark.parametrize(
