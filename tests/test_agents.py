@@ -46,6 +46,7 @@ from smolagents.agents import (
     ToolCall,
     ToolCallingAgent,
     ToolOutput,
+    format_tool_error_observation,
     populate_template,
 )
 from smolagents.default_tools import DuckDuckGoSearchTool, FinalAnswerTool, PythonInterpreterTool, VisitWebpageTool
@@ -68,7 +69,7 @@ from smolagents.models import (
     TransformersModel,
 )
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
-from smolagents.tools import Tool, tool
+from smolagents.tools import RetryPolicy, Tool, tool
 from smolagents.utils import (
     BASE_BUILTIN_MODULES,
     AgentExecutionError,
@@ -2626,3 +2627,172 @@ def test_tool_calling_agents_raises_agent_execution_error_when_tool_raises():
     agent = ToolCallingAgent(model=FakeToolCallModel(), tools=[_sample_tool])
     with pytest.raises(AgentExecutionError):
         agent.execute_tool_call(_sample_tool.name, "sample")
+
+
+class TestToolCallingAgentRetryAndSanitizedErrors:
+    def test_agent_level_tool_retry_policy_and_per_tool_override(self):
+        counts = {"agent_default": 0, "per_tool": 0}
+
+        @tool
+        def default_retried_tool(city: str) -> str:
+            """Lookup weather using agent retry policy.
+
+            Args:
+                city: City name.
+            """
+            counts["agent_default"] += 1
+            if counts["agent_default"] <= 2:
+                raise TimeoutError("504 Gateway Timeout")
+            return f"Clear in {city}"
+
+        @tool(max_retries=1, retry_backoff=0.0, retry_exceptions=(TimeoutError,), fallback_value="cached-fallback")
+        def custom_policy_tool(city: str) -> str:
+            """Lookup weather using tool-specific retry policy.
+
+            Args:
+                city: City name.
+            """
+            counts["per_tool"] += 1
+            raise TimeoutError("upstream down")
+
+        agent = ToolCallingAgent(
+            model=MagicMock(),
+            tools=[default_retried_tool, custom_policy_tool],
+            tool_retry_policy=RetryPolicy(max_retries=3, retry_backoff=0.0, retry_exceptions=(TimeoutError,)),
+        )
+
+        assert str(agent.execute_tool_call("default_retried_tool", {"city": "Berlin"})) == "Clear in Berlin"
+        assert counts["agent_default"] == 3
+
+        # Per-tool retry_policy (max_retries=1 -> 2 attempts) must not be multiplied by agent tool_retry_policy
+        assert str(agent.execute_tool_call("custom_policy_tool", {"city": "Berlin"})) == "cached-fallback"
+        assert counts["per_tool"] == 2
+
+        # Deterministic argument errors must fail fast without retrying
+        with pytest.raises(AgentToolCallError):
+            agent.execute_tool_call("default_retried_tool", {"wrong_arg": "Berlin"})
+        assert counts["agent_default"] == 3
+
+    def test_sanitized_error_observations_strip_tracebacks_and_preserve_parallel_siblings(self):
+        @tool
+        def healthy_tool(topic: str) -> str:
+            """Return summary for topic.
+
+            Args:
+                topic: Topic name.
+            """
+            return f"Summary for {topic}"
+
+        @tool(max_retries=1, retry_backoff=0.0, retry_exceptions=(ConnectionError,))
+        def failing_api_tool(endpoint: str) -> str:
+            """Query external endpoint.
+
+            Args:
+                endpoint: Endpoint URL.
+            """
+            raise ConnectionError(
+                f"Failed reaching {endpoint}\n"
+                + "detail-" * 40
+                + "\nTraceback (most recent call last):\n  File 'client.py', line 99, in send\nConnectionError: boom"
+            )
+
+        agent = ToolCallingAgent(
+            tools=[healthy_tool, failing_api_tool],
+            model=MagicMock(),
+            sanitize_error_observations=True,
+            max_error_message_length=90,
+        )
+
+        chat_message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_1",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="healthy_tool", arguments={"topic": "RL"}),
+                ),
+                ChatMessageToolCall(
+                    id="call_2",
+                    type="function",
+                    function=ChatMessageToolCallFunction(
+                        name="failing_api_tool", arguments={"endpoint": "https://api.example.com"}
+                    ),
+                ),
+                ChatMessageToolCall(
+                    id="call_3",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="healthy_tool", arguments={"bad_key": "RL"}),
+                ),
+                ChatMessageToolCall(
+                    id="call_4",
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="unknown_tool", arguments={}),
+                ),
+            ],
+        )
+        memory_step = ActionStep(step_number=1, timing=Timing(start_time=0.0))
+        events = list(agent.process_tool_calls(chat_message, memory_step))
+        tool_outputs = {ev.id: ev for ev in events if isinstance(ev, ToolOutput)}
+
+        assert tool_outputs["call_1"].observation == "Summary for RL"
+
+        runtime_err = json.loads(tool_outputs["call_2"].observation)
+        assert runtime_err["status"] == "error"
+        assert runtime_err["tool"] == "failing_api_tool"
+        assert runtime_err["error_type"] == "ConnectionError"
+        assert "Traceback" not in runtime_err["message"]
+        assert len(runtime_err["message"]) <= 90
+        assert runtime_err["message"].endswith("...")
+
+        arg_err = json.loads(tool_outputs["call_3"].observation)
+        assert arg_err["status"] == "error"
+        assert arg_err["tool"] == "healthy_tool"
+        assert arg_err["error_type"] in {"ValueError", "TypeError"}
+        assert "schema" in arg_err["suggestion"]
+
+        unknown_err = json.loads(tool_outputs["call_4"].observation)
+        assert unknown_err["status"] == "error"
+        assert unknown_err["tool"] == "unknown_tool"
+        assert "available tools" in unknown_err["suggestion"]
+
+        lines = memory_step.observations.splitlines()
+        assert len(lines) == 4
+        assert lines[0] == "Summary for RL"
+
+    def test_format_tool_error_observation_traceback_only_message(self):
+        only_tb = RuntimeError(
+            "Traceback (most recent call last):\n  File 'x.py', line 1\nRuntimeError: socket closed"
+        )
+        rendered = json.loads(format_tool_error_observation("net_tool", only_tb))
+        assert rendered == {
+            "status": "error",
+            "tool": "net_tool",
+            "error_type": "RuntimeError",
+            "message": "RuntimeError: socket closed",
+            "suggestion": "Verify parameters, try again later, or use an alternative tool.",
+        }
+
+    def test_code_agent_executes_tool_with_declarative_retry_policy(self):
+        attempts = {"n": 0}
+
+        @tool(max_retries=2, retry_backoff=0.0, retry_exceptions=(TimeoutError,))
+        def flaky_calc(val: int) -> int:
+            """Double an integer after transient timeouts.
+
+            Args:
+                val: Input integer.
+            """
+            attempts["n"] += 1
+            if attempts["n"] < 3:
+                raise TimeoutError("temporary timeout")
+            return val * 2
+
+        model = MagicMock()
+        model.generate.return_value = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="<code>\nres = flaky_calc(21)\nfinal_answer(res)\n</code>",
+        )
+        agent = CodeAgent(tools=[flaky_calc], model=model, max_steps=2)
+        assert agent.run("Compute 21 * 2") == 42
+        assert attempts["n"] == 3

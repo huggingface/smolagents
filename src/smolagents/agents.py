@@ -78,7 +78,7 @@ from .monitoring import (
     TokenUsage,
 )
 from .remote_executors import BlaxelExecutor, DockerExecutor, E2BExecutor, ModalExecutor
-from .tools import BaseTool, Tool, validate_tool_arguments
+from .tools import BaseTool, RetryPolicy, Tool, validate_tool_arguments
 from .utils import (
     AgentError,
     AgentExecutionError,
@@ -97,6 +97,56 @@ from .utils import (
 
 
 logger = getLogger(__name__)
+
+
+def _sanitize_error_message(raw_message: str, max_length: int = 500) -> str:
+    text = raw_message.strip()
+    tb_marker = "Traceback (most recent call last):"
+    if tb_marker in text:
+        prefix, _, tail = text.partition(tb_marker)
+        if prefix.strip():
+            text = prefix.strip()
+        else:
+            non_empty_lines = [line.strip() for line in tail.splitlines() if line.strip()]
+            text = non_empty_lines[-1] if non_empty_lines else tb_marker
+    text = " ".join(line.strip() for line in text.splitlines() if line.strip())
+    if max_length > 0 and len(text) > max_length:
+        if max_length <= 3:
+            return text[:max_length]
+        return text[: max_length - 3].rstrip() + "..."
+    return text
+
+
+def format_tool_error_observation(
+    tool_name: str,
+    error: BaseException,
+    *,
+    max_message_length: int = 500,
+    suggestion: str | None = None,
+) -> str:
+    """Format an unhandled tool failure as a compact, structured JSON observation without raw stack dumps."""
+    root_error = error.__cause__ if isinstance(error, AgentError) and error.__cause__ is not None else error
+    error_type = type(root_error).__name__
+    raw_message = str(root_error) if root_error is not error else str(getattr(error, "message", error))
+    message = _sanitize_error_message(raw_message, max_length=max_message_length) or error_type
+
+    if suggestion is None:
+        if isinstance(error, AgentToolCallError):
+            suggestion = "Verify tool parameter names and types against the tool schema."
+        elif isinstance(error, AgentToolExecutionError) and error.__cause__ is None:
+            suggestion = "Select one of the available tools listed in the system prompt."
+        else:
+            suggestion = "Verify parameters, try again later, or use an alternative tool."
+
+    return json.dumps(
+        {
+            "status": "error",
+            "tool": tool_name,
+            "error_type": error_type,
+            "message": message,
+            "suggestion": suggestion,
+        }
+    )
 
 
 def populate_template(template: str, variables: dict[str, Any]) -> str:
@@ -1227,6 +1277,12 @@ class ToolCallingAgent(MultiStepAgent):
         max_tool_threads (`int`, *optional*): Maximum number of threads for parallel tool calls.
             Higher values increase concurrency but resource usage as well.
             Defaults to `ThreadPoolExecutor`'s default.
+        tool_retry_policy (`RetryPolicy`, *optional*): Default [`RetryPolicy`] applied when executing tools that do not
+            define their own `retry_policy`.
+        sanitize_error_observations (`bool`, *optional*, default `False`): If `True`, unhandled tool errors during step
+            execution are recorded as compact structured JSON observations instead of raw multi-line error strings.
+        max_error_message_length (`int`, *optional*, default `500`): Maximum character length for the `message` field
+            in sanitized error observations.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1238,8 +1294,23 @@ class ToolCallingAgent(MultiStepAgent):
         planning_interval: int | None = None,
         stream_outputs: bool = False,
         max_tool_threads: int | None = None,
+        tool_retry_policy: RetryPolicy | None = None,
+        sanitize_error_observations: bool = False,
+        max_error_message_length: int = 500,
         **kwargs,
     ):
+        if tool_retry_policy is not None and not isinstance(tool_retry_policy, RetryPolicy):
+            raise TypeError(
+                f"`tool_retry_policy` must be a RetryPolicy instance or None, got {type(tool_retry_policy)} instead."
+            )
+        if (
+            isinstance(max_error_message_length, bool)
+            or not isinstance(max_error_message_length, int)
+            or max_error_message_length <= 0
+        ):
+            raise ValueError(
+                f"`max_error_message_length` must be a positive integer, got {max_error_message_length!r}."
+            )
         prompt_templates = prompt_templates or yaml.safe_load(
             importlib.resources.files("smolagents.prompts").joinpath("toolcalling_agent.yaml").read_text()
         )
@@ -1258,6 +1329,9 @@ class ToolCallingAgent(MultiStepAgent):
             )
         # Tool calling setup
         self.max_tool_threads = max_tool_threads
+        self.tool_retry_policy = tool_retry_policy
+        self.sanitize_error_observations = sanitize_error_observations
+        self.max_error_message_length = max_error_message_length
 
     @property
     def tools_and_managed_agents(self):
@@ -1389,7 +1463,28 @@ class ToolCallingAgent(MultiStepAgent):
                 Panel(Text(f"Calling tool: '{tool_name}' with arguments: {tool_arguments}")),
                 level=LogLevel.INFO,
             )
-            tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
+            if self.sanitize_error_observations:
+                try:
+                    tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
+                except (AgentToolCallError, AgentToolExecutionError) as exc:
+                    observation = format_tool_error_observation(
+                        tool_name,
+                        exc,
+                        max_message_length=self.max_error_message_length,
+                    )
+                    self.logger.log(
+                        f"Observations: {observation.replace('[', '|')}",
+                        level=LogLevel.INFO,
+                    )
+                    return ToolOutput(
+                        id=tool_call.id,
+                        output=observation,
+                        is_final_answer=False,
+                        observation=observation,
+                        tool_call=tool_call,
+                    )
+            else:
+                tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
             tool_call_result_type = type(tool_call_result)
             if tool_call_result_type in [AgentImage, AgentAudio]:
                 if tool_call_result_type == AgentImage:
@@ -1482,23 +1577,36 @@ class ToolCallingAgent(MultiStepAgent):
             error_msg = f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}"
             raise AgentToolExecutionError(error_msg, self.logger) from e
 
-        try:
-            # Call tool with appropriate arguments
+        def _invoke_tool() -> Any:
             if isinstance(arguments, dict):
                 return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
-            else:
-                return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+            return tool(arguments) if is_managed_agent else tool(arguments, sanitize_inputs_outputs=True)
+
+        try:
+            # Apply agent-level retry policy only when the tool has no per-tool retry_policy of its own
+            if (
+                not is_managed_agent
+                and getattr(tool, "retry_policy", None) is None
+                and self.tool_retry_policy is not None
+            ):
+                return self.tool_retry_policy.execute(_invoke_tool)
+            return _invoke_tool()
 
         except Exception as e:
             # Handle execution errors
+            rendered_exc = (
+                _sanitize_error_message(str(e), max_length=self.max_error_message_length)
+                if self.sanitize_error_observations
+                else str(e)
+            )
             if is_managed_agent:
                 error_msg = (
-                    f"Error executing request to team member '{tool_name}' with arguments {str(arguments)}: {e}\n"
+                    f"Error executing request to team member '{tool_name}' with arguments {str(arguments)}: {rendered_exc}\n"
                     "Please try again or request to another team member"
                 )
             else:
                 error_msg = (
-                    f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {e}\n"
+                    f"Error executing tool '{tool_name}' with arguments {str(arguments)}: {type(e).__name__}: {rendered_exc}\n"
                     "Please try again or use another tool"
                 )
             raise AgentToolExecutionError(error_msg, self.logger) from e
