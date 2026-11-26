@@ -252,3 +252,29 @@ def test_wikipedia_search(language, content_type, extract_format, query):
         assert len(result.split()) < 1000, "Summary mode should return a shorter text"
     if content_type == "text":
         assert len(result.split()) > 1000, "Full text mode should return a longer text"
+
+
+def test_web_search_duckduckgo_parser_discards_incomplete_previous_result():
+    """A result that never completed (e.g. no snippet) must not leak its link
+    into the next result. Regression test for the URL-pairing bug where a title
+    could be emitted with the previous result's URL."""
+    from smolagents import WebSearchTool
+
+    parser = WebSearchTool()._create_duckduckgo_parser()
+    parser.feed(
+        """
+<table>
+<tr><td><a class="result-link">First</a></td></tr>
+<tr><td><span class="link-text">first.example</span></td></tr>
+<tr><td><a class="result-link">Second</a></td></tr>
+<tr><td class="result-snippet">Second snippet</td></tr>
+<tr><td><span class="link-text">second.example</span></td></tr>
+</table>
+"""
+    )
+
+    assert len(parser.results) == 1, "Only the complete second result should be kept"
+    result = parser.results[0]
+    assert result["title"] == "Second"
+    assert result["description"] == "Second snippet"
+    assert result["link"] == "https://second.example", "Link must belong to this result, not the previous one"
