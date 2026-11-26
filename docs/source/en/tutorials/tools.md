@@ -118,6 +118,30 @@ with MCPClient({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-htt
     agent.run("Please find a remedy for hangover.")
 ```
 
+If the server requires authentication, pass a bearer token through `headers`.
+You can also call a tool directly without starting a model, for example to look
+up a note in a private handbook with a viewer token:
+
+```python
+import os
+
+from smolagents import MCPClient
+
+server_url = os.environ["MCP_SERVER_URL"]
+token = os.environ["MCP_VIEWER_TOKEN"]
+
+with MCPClient(
+    {
+        "url": server_url,
+        "transport": "streamable-http",
+        "headers": {"Authorization": f"Bearer {token}"},
+    }
+) as tools:
+    note = tools["knowledge_search"]("weekly planning")
+    source = tools["knowledge_source"](note)
+print(note, source)
+```
+
 You can also manually manage the connection lifecycle with the try...finally pattern:
 
 ```python
