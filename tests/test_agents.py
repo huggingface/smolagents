@@ -2088,6 +2088,35 @@ class TestToolCallingAgent:
                     for tool_call in test_case["tool_calls"]
                 ]
 
+    @pytest.mark.parametrize("shared_id", ["call_1", ""])
+    def test_process_tool_calls_shared_id(self, shared_id, test_tool):
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock())
+        tool_calls = [
+            ChatMessageToolCall(
+                id=shared_id,
+                type="function",
+                function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value1"}),
+            ),
+            ChatMessageToolCall(
+                id=shared_id,
+                type="function",
+                function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": "value2"}),
+            ),
+        ]
+        chat_message = ChatMessage(role=MessageRole.ASSISTANT, content="", tool_calls=tool_calls)
+        memory_step = ActionStep(step_number=10, timing="mock_timing", model_output="")
+
+        yielded = list(agent.process_tool_calls(chat_message, memory_step))
+        tool_outputs = [item for item in yielded if isinstance(item, ToolOutput)]
+
+        assert len(tool_outputs) == 2
+        assert {item.output for item in tool_outputs} == {"Processed: value1", "Processed: value2"}
+        assert memory_step.observations == "Processed: value1\nProcessed: value2"
+        assert memory_step.tool_calls == [
+            ToolCall(name="test_tool", arguments={"input": "value1"}, id=shared_id),
+            ToolCall(name="test_tool", arguments={"input": "value2"}, id=shared_id),
+        ]
+
 
 class TestCodeAgent:
     def test_code_agent_instructions(self):

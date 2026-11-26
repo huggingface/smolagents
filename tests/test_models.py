@@ -140,6 +140,39 @@ class TestModel:
         )
         assert agglomerated_stream_delta.token_usage.total_tokens == 1372
 
+    def test_agglomerate_stream_deltas_missing_ids_get_distinct_ids(self):
+        from smolagents.models import (
+            ChatMessageStreamDelta,
+            ChatMessageToolCallFunction,
+            ChatMessageToolCallStreamDelta,
+            agglomerate_stream_deltas,
+        )
+
+        stream_deltas = [
+            ChatMessageStreamDelta(
+                content="",
+                tool_calls=[
+                    ChatMessageToolCallStreamDelta(
+                        index=0,
+                        id=None,
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="add", arguments='{"item": "A"}'),
+                    ),
+                    ChatMessageToolCallStreamDelta(
+                        index=1,
+                        id=None,
+                        type="function",
+                        function=ChatMessageToolCallFunction(name="add", arguments='{"item": "B"}'),
+                    ),
+                ],
+            )
+        ]
+        agglomerated = agglomerate_stream_deltas(stream_deltas)
+        assert len(agglomerated.tool_calls) == 2
+        assert agglomerated.tool_calls[0].id != agglomerated.tool_calls[1].id
+        assert agglomerated.tool_calls[0].id == "call_0"
+        assert agglomerated.tool_calls[1].id == "call_1"
+
     @pytest.mark.parametrize(
         "model_id, stop_sequences, should_contain_stop",
         [

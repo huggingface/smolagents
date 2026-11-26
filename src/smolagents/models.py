@@ -266,10 +266,10 @@ def agglomerate_stream_deltas(
                     name=tool_call_stream_delta.function.name,
                     arguments=tool_call_stream_delta.function.arguments,
                 ),
-                id=tool_call_stream_delta.id or "",
+                id=tool_call_stream_delta.id or f"call_{index}",
                 type="function",
             )
-            for tool_call_stream_delta in accumulated_tool_calls.values()
+            for index, tool_call_stream_delta in sorted(accumulated_tool_calls.items())
             if tool_call_stream_delta.function
         ],
         token_usage=TokenUsage(
