@@ -480,6 +480,10 @@ You have been provided with these additional arguments, that you can access dire
         if reset:
             self.memory.reset()
             self.monitor.reset()
+            # A fresh conversation must not inherit the previous run's Python
+            # variables: reset the executor namespace too, so code from an
+            # earlier run cannot leak into this one (issue #3234).
+            self.python_executor.reset()
 
         self.logger.log_task(
             content=self.task.strip(),
