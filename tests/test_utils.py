@@ -27,6 +27,7 @@ from smolagents.utils import (
     get_source,
     instance_to_source,
     is_valid_name,
+    make_json_serializable,
     parse_code_blobs,
     parse_json_blob,
 )
@@ -552,3 +553,31 @@ def test_agent_gradio_app_template_excludes_class_keyword():
         ast.parse(result)
     except SyntaxError as e:
         pytest.fail(f"Generated app.py contains syntax error: {e}")
+
+
+class CircularThing:
+    def __init__(self):
+        self.items = []
+
+
+def test_make_json_serializable_handles_circular_references():
+    circular_list = []
+    circular_list.append(circular_list)
+    circular_dict = {}
+    circular_dict["self"] = circular_dict
+    thing = CircularThing()
+    thing.items.append(thing)
+
+    assert make_json_serializable(circular_list) == ["..."]
+    assert make_json_serializable(circular_dict) == {"self": "..."}
+    assert make_json_serializable(thing) == {"_type": "CircularThing", "items": ["..."]}
+
+
+def test_make_json_serializable_shares_siblings():
+    # the same object appearing twice in a flat structure is not a cycle
+    shared = {"k": "v"}
+    assert make_json_serializable([shared, shared]) == [{"k": "v"}, {"k": "v"}]
+    assert make_json_serializable({"a": [shared, shared], "b": shared}) == {
+        "a": [{"k": "v"}, {"k": "v"}],
+        "b": {"k": "v"},
+    }
