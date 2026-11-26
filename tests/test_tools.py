@@ -30,6 +30,16 @@ from smolagents.tools import AUTHORIZED_TYPES, Tool, ToolCollection, launch_grad
 from .utils.markers import require_run_all
 
 
+@tool
+def total(items: list[int]) -> dict:
+    """Sum the items.
+
+    Args:
+        items: the numbers to add up.
+    """
+    return {"total": sum(items)}
+
+
 class ToolTesterMixin:
     def test_inputs_output(self):
         assert hasattr(self.tool, "inputs")
@@ -1066,3 +1076,18 @@ def test_validate_tool_arguments_nullable(scenario, type_hint, default, input_va
     else:
         # Should not raise any exception
         validate_tool_arguments(test_tool, input_dict)
+
+
+class TestToolWhoseNameAppearsInItsBody:
+    """Saving a tool must rename its definition and nothing else."""
+
+    def test_the_body_keeps_its_own_text(self):
+        code = total.to_dict()["code"]
+
+        assert 'return {"total": sum(items)}' in code
+        assert "def forward(self, items: list[int]) -> dict:" in code
+
+    def test_the_saved_tool_returns_what_the_original_did(self):
+        restored = Tool.from_code(total.to_dict()["code"])
+
+        assert restored([1, 2, 3]) == {"total": 6}

@@ -335,7 +335,16 @@ class Tool(BaseTool):
 
                 return re.sub(pattern, replacement, source_code)
 
-            forward_source_code = forward_source_code.replace(self.name, "forward")
+            # Rename the definition, not every mention of the name: a blanket replace also
+            # rewrote the tool's own name inside the body, so a saved tool came back
+            # returning `{"forward": ...}` where it had returned `{"total": ...}` (#3246).
+            forward_source_code = re.sub(
+                rf"^(?P<indent>\s*)def\s+{re.escape(self.name)}\b",
+                r"\g<indent>def forward",
+                forward_source_code,
+                count=1,
+                flags=re.MULTILINE,
+            )
             forward_source_code = add_self_argument(forward_source_code)
             forward_source_code = forward_source_code.replace("@tool", "").strip()
             tool_code += "\n\n" + textwrap.indent(forward_source_code, "    ")
