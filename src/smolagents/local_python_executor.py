@@ -468,37 +468,98 @@ def create_function(
 ) -> Callable:
     source_code = ast.unparse(func_def)
 
+    # CPython evaluates default parameter values once, in the enclosing
+    # scope, when the `def` statement runs - not again on every call.
+    arg_names = [arg.arg for arg in func_def.args.args]
+    default_values = [
+        evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
+    ]
+
+    # Apply default values
+    defaults = dict(zip(arg_names[-len(default_values) :], default_values))
+
+    # Keyword-only defaults are evaluated once here as well.
+    kwonly_names = [arg.arg for arg in func_def.args.kwonlyargs]
+    kwonly_defaults = {
+        arg.arg: evaluate_ast(default_ast, state, static_tools, custom_tools, authorized_imports)
+        for arg, default_ast in zip(func_def.args.kwonlyargs, func_def.args.kw_defaults)
+        if default_ast is not None
+    }
+
     def new_func(*args: Any, **kwargs: Any) -> Any:
         func_state = state.copy()
-        arg_names = [arg.arg for arg in func_def.args.args]
-        default_values = [
-            evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in func_def.args.defaults
-        ]
 
-        # Apply default values
-        defaults = dict(zip(arg_names[-len(default_values) :], default_values))
+        # Bind arguments like CPython: named parameters bind positionally
+        # first, then by keyword; *args receives only the leftover
+        # positional values; **kwargs receives only keywords with no
+        # matching named parameter; and arity/name mismatches raise an
+        # error instead of being silently swallowed.
+        num_positional = len(arg_names)
+
+        if func_def.args.vararg is None and len(args) > num_positional:
+            raise InterpreterError(
+                f"{func_def.name}() takes {num_positional} positional argument"
+                f"{'s' if num_positional != 1 else ''} but {len(args)} were given"
+            )
+        if func_def.args.kwarg is None:
+            for name in kwargs:
+                if name not in arg_names and name not in kwonly_names:
+                    raise InterpreterError(
+                        f"{func_def.name}() got an unexpected keyword argument '{name}'"
+                    )
+        overwritten = [
+            name for name in arg_names[: min(len(args), num_positional)] if name in kwargs
+        ]
+        if overwritten:
+            raise InterpreterError(
+                f"{func_def.name}() got multiple values for argument '{overwritten[0]}'"
+            )
 
         # Set positional arguments
+        provided = set(arg_names[: min(len(args), num_positional)])
         for name, value in zip(arg_names, args):
             func_state[name] = value
 
-        # Set keyword arguments
-        for name, value in kwargs.items():
-            func_state[name] = value
-
-        # Handle variable arguments
+        # Leftover positional arguments go to *args
         if func_def.args.vararg:
-            vararg_name = func_def.args.vararg.arg
-            func_state[vararg_name] = args
+            func_state[func_def.args.vararg.arg] = tuple(args[num_positional:])
 
+        # Set keyword arguments; keywords with no matching named parameter
+        # are collected for **kwargs
+        leftover_kwargs = dict(kwargs)
+        for name in kwargs:
+            if name in arg_names or name in kwonly_names:
+                func_state[name] = kwargs[name]
+                leftover_kwargs.pop(name)
+                provided.add(name)
         if func_def.args.kwarg:
-            kwarg_name = func_def.args.kwarg.arg
-            func_state[kwarg_name] = kwargs
+            func_state[func_def.args.kwarg.arg] = leftover_kwargs
 
         # Set default values for arguments that were not provided
         for name, value in defaults.items():
-            if name not in func_state:
+            if name not in provided:
                 func_state[name] = value
+        for name, value in kwonly_defaults.items():
+            if name not in kwargs:
+                func_state[name] = value
+
+        # Arguments still unbound are required and missing. The leading
+        # self/cls parameter is exempt: methods are called both with and
+        # without a bound instance in this interpreter.
+        required_positional = arg_names
+        if required_positional and required_positional[0] in ("self", "cls"):
+            required_positional = required_positional[1:]
+        missing = [
+            name for name in required_positional if name not in provided and name not in defaults
+        ]
+        missing += [
+            name for name in kwonly_names if name not in kwargs and name not in kwonly_defaults
+        ]
+        if missing:
+            raise InterpreterError(
+                f"{func_def.name}() missing {len(missing)} required argument"
+                f"{'s' if len(missing) != 1 else ''}: '{missing[0]}'"
+            )
 
         # Update function state with self and __class__
         if func_def.args.args and func_def.args.args[0].arg == "self":
