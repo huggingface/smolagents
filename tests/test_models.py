@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -359,6 +360,65 @@ class TestModel:
         args = 3
         parsed_args = parse_json_if_needed(args)
         assert parsed_args == 3
+
+
+def _streamed(*chunks):
+    """A stream of chat-completion chunks carrying `chunks` as content."""
+    return [
+        SimpleNamespace(
+            usage=None,
+            choices=[SimpleNamespace(delta=SimpleNamespace(content=chunk, tool_calls=None), finish_reason=None)],
+        )
+        for chunk in chunks
+    ]
+
+
+class TestStreamingStopSequences:
+    """A model that does not take `stop` is cut here, as its non-streamed reply already was (#3228)."""
+
+    def test_openai_model_stops_a_stream_at_the_stop_sequence(self):
+        model = OpenAIModel(model_id="gpt-5", api_key="test")
+        model.client = MagicMock()
+        model.client.chat.completions.create.return_value = iter(
+            _streamed("<code>x</code>", "\nObservation: 42\n", "<code>final_answer(42)</code>")
+        )
+
+        text = "".join(
+            delta.content
+            for delta in model.generate_stream([{"role": "user", "content": "hi"}], stop_sequences=["Observation:"])
+        )
+
+        assert text == "<code>x</code>\n"
+
+    def test_a_stop_sequence_split_across_two_deltas_still_cuts_what_follows_it(self):
+        # The prefix already emitted cannot be taken back, so the assertion is the one that matters:
+        # nothing the model wrote after the stop sequence reaches the caller (#3228).
+        model = OpenAIModel(model_id="gpt-5", api_key="test")
+        model.client = MagicMock()
+        model.client.chat.completions.create.return_value = iter(
+            _streamed("<code>x</code>\nObserv", "ation: 42\n", "<code>final_answer(42)</code>")
+        )
+
+        text = "".join(
+            delta.content
+            for delta in model.generate_stream([{"role": "user", "content": "hi"}], stop_sequences=["Observation:"])
+        )
+
+        assert "<code>x</code>" in text
+        assert "42" not in text
+        assert "final_answer" not in text
+
+    def test_a_model_that_takes_stop_keeps_its_stream_untouched(self):
+        model = OpenAIModel(model_id="gpt-4o", api_key="test")
+        model.client = MagicMock()
+        model.client.chat.completions.create.return_value = iter(_streamed("<code>x</code>", "\nObservation: 42"))
+
+        text = "".join(
+            delta.content
+            for delta in model.generate_stream([{"role": "user", "content": "hi"}], stop_sequences=["Observation:"])
+        )
+
+        assert text == "<code>x</code>\nObservation: 42"
 
 
 class TestInferenceClientModel:
