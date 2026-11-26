@@ -60,12 +60,16 @@ from smolagents.memory import (
 )
 from smolagents.models import (
     ChatMessage,
+    ChatMessageStreamDelta,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
+    ChatMessageToolCallStreamDelta,
     InferenceClientModel,
     MessageRole,
     Model,
     TransformersModel,
+    agglomerate_stream_deltas,
+    parse_json_if_needed,
 )
 from smolagents.monitoring import AgentLogger, LogLevel, Timing, TokenUsage
 from smolagents.tools import Tool, tool
@@ -2087,6 +2091,150 @@ class TestToolCallingAgent:
                     ToolCall(name=tool_call.function.name, arguments=tool_call.function.arguments, id=tool_call.id)
                     for tool_call in test_case["tool_calls"]
                 ]
+
+    @pytest.mark.parametrize(
+        ("tool_call_ids", "expected_ids", "expected_inputs", "expected_outputs"),
+        [
+            (["call_1", "call_1"], ["call_1", "call_1"], ["A", "B"], ["Processed: A", "Processed: B"]),
+            (["", ""], ["", ""], ["A", "B"], ["Processed: A", "Processed: B"]),
+            (["call_2", "call_1"], ["call_1", "call_2"], ["B", "A"], ["Processed: B", "Processed: A"]),
+        ],
+    )
+    def test_process_tool_calls_keeps_every_call_when_ids_are_shared(
+        self, tool_call_ids, expected_ids, expected_inputs, expected_outputs, test_tool
+    ):
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock(), verbosity_level=-1)
+        chat_message = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content="",
+            tool_calls=[
+                ChatMessageToolCall(
+                    id=tool_call_id,
+                    type="function",
+                    function=ChatMessageToolCallFunction(name="test_tool", arguments={"input": value}),
+                )
+                for tool_call_id, value in zip(tool_call_ids, ["A", "B"])
+            ],
+        )
+        memory_step = ActionStep(step_number=10, timing="mock_timing", model_output="")
+
+        events = list(agent.process_tool_calls(chat_message, memory_step))
+        yielded_calls = [event for event in events if isinstance(event, ToolCall)]
+        tool_outputs = [event for event in events if isinstance(event, ToolOutput)]
+
+        assert [tool_call.id for tool_call in yielded_calls] == tool_call_ids
+        assert [tool_call.id for tool_call in memory_step.tool_calls or []] == expected_ids
+        assert [tool_call.arguments["input"] for tool_call in memory_step.tool_calls or []] == expected_inputs
+        if len(set(tool_call_ids)) == len(tool_call_ids):
+            assert sorted(tool_output.output for tool_output in tool_outputs) == sorted(expected_outputs)
+        else:
+            assert [tool_output.output for tool_output in tool_outputs] == expected_outputs
+        assert memory_step.observations == "\n".join(expected_outputs)
+
+    def test_run_executes_parallel_calls_that_share_an_id(self):
+        class Add(Tool):
+            name = "add"
+            description = "Record one item."
+            inputs = {"item": {"type": "string", "description": "Item to record"}}
+            output_type = "string"
+
+            def __init__(self):
+                super().__init__()
+                self.items = []
+
+            def forward(self, item: str) -> str:
+                self.items.append(item)
+                return item
+
+        class ScriptedModel(Model):
+            def __init__(self):
+                super().__init__(model_id="scripted")
+                self.n = 0
+
+            def generate(self, messages, **kwargs):
+                self.n += 1
+                if self.n == 1:
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="go",
+                        tool_calls=[
+                            ChatMessageToolCall(
+                                id="call_1",
+                                type="function",
+                                function=ChatMessageToolCallFunction(name="add", arguments={"item": "A"}),
+                            ),
+                            ChatMessageToolCall(
+                                id="call_1",
+                                type="function",
+                                function=ChatMessageToolCallFunction(name="add", arguments={"item": "B"}),
+                            ),
+                        ],
+                    )
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content="done",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id="call_2",
+                            type="function",
+                            function=ChatMessageToolCallFunction(name="final_answer", arguments={"answer": "ok"}),
+                        )
+                    ],
+                )
+
+        tool = Add()
+        agent = ToolCallingAgent(tools=[tool], model=ScriptedModel(), verbosity_level=-1, max_steps=3)
+        assert agent.run("Record A and B") == "ok"
+        assert tool.items == ["A", "B"]
+        action_steps = [step for step in agent.memory.steps if isinstance(step, ActionStep)]
+        assert [tool_call.arguments["item"] for tool_call in action_steps[0].tool_calls] == ["A", "B"]
+        assert action_steps[0].observations == "A\nB"
+
+    def test_streamed_calls_without_ids_are_all_executed(self, test_tool):
+        message = agglomerate_stream_deltas(
+            [
+                ChatMessageStreamDelta(
+                    tool_calls=[
+                        ChatMessageToolCallStreamDelta(
+                            index=0,
+                            id=None,
+                            type="function",
+                            function=ChatMessageToolCallFunction(name="test_tool", arguments=""),
+                        )
+                    ]
+                ),
+                ChatMessageStreamDelta(
+                    tool_calls=[
+                        ChatMessageToolCallStreamDelta(
+                            index=0,
+                            function=ChatMessageToolCallFunction(name="", arguments='{"input": "A"}'),
+                        )
+                    ]
+                ),
+                ChatMessageStreamDelta(
+                    tool_calls=[
+                        ChatMessageToolCallStreamDelta(
+                            index=1,
+                            id="",
+                            type="function",
+                            function=ChatMessageToolCallFunction(name="test_tool", arguments='{"input": "B"}'),
+                        )
+                    ]
+                ),
+            ]
+        )
+        for tool_call in message.tool_calls:
+            tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
+
+        agent = ToolCallingAgent(tools=[test_tool], model=MagicMock(), verbosity_level=-1)
+        memory_step = ActionStep(step_number=1, timing="mock_timing", model_output="")
+        events = list(agent.process_tool_calls(message, memory_step))
+        tool_outputs = [event for event in events if isinstance(event, ToolOutput)]
+
+        assert [tool_call.id for tool_call in message.tool_calls] == ["tool_call_0000", "tool_call_0001"]
+        assert sorted(tool_output.output for tool_output in tool_outputs) == ["Processed: A", "Processed: B"]
+        assert [tool_call.id for tool_call in memory_step.tool_calls or []] == ["tool_call_0000", "tool_call_0001"]
+        assert memory_step.observations == "Processed: A\nProcessed: B"
 
 
 class TestCodeAgent:
