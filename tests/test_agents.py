@@ -495,6 +495,33 @@ class TestAgent:
         assert output == 7.2904
         assert len(agent.memory.steps) == 3
 
+    @pytest.mark.parametrize(
+        ("next_args", "expression", "expected"),
+        [
+            (None, "remaining_budget - 10", 50),
+            ({"discount": 15}, "remaining_budget - discount", 45),
+            ({"remaining_budget": 80}, "remaining_budget - 10", 70),
+        ],
+    )
+    def test_continued_run_preserves_executor_updates(self, next_args, expression, expected):
+        model = FakeCodeModel()
+        responses = [
+            ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="<code>remaining_budget = remaining_budget - 40\nfinal_answer(remaining_budget)</code>",
+            ),
+            ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=f"<code>remaining_budget = {expression}\nfinal_answer(remaining_budget)</code>",
+            ),
+        ]
+        agent = CodeAgent(tools=[], model=model, max_steps=1)
+        with patch.object(model, "generate", side_effect=responses) as generate:
+            assert agent.run("Spend 40", additional_args={"remaining_budget": 100}) == 60
+            assert agent.run("Continue spending", reset=False, additional_args=next_args) == expected
+        assert generate.call_count == 2
+        assert agent.python_executor.state["remaining_budget"] == expected
+
     def test_setup_agent_with_empty_toolbox(self):
         ToolCallingAgent(model=FakeToolCallModel(), tools=[])
 
