@@ -177,6 +177,19 @@ def test_action_step_to_messages_no_tool_calls_with_observations():
     assert "Observation:\nThis is an observation." in observation_message.content[0]["text"]
 
 
+def test_action_step_to_messages_with_content_block_model_output():
+    """Model output can be content blocks, as ChatMessage.content allows."""
+    action_step = ActionStep(
+        timing=Timing(start_time=0.0, end_time=1.0),
+        step_number=1,
+        model_output=[{"type": "text", "text": "I will call the echo tool."}],
+    )
+    messages = action_step.to_messages()
+    assert len(messages) == 1
+    assert messages[0].role == MessageRole.ASSISTANT
+    assert messages[0].content[0]["text"] == "I will call the echo tool."
+
+
 def test_planning_step_to_messages():
     planning_step = PlanningStep(
         model_input_messages=[ChatMessage(role=MessageRole.USER, content="Hello")],
