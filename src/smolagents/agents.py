@@ -435,6 +435,14 @@ class MultiStepAgent(ABC):
         self.step_callbacks.register(ActionStep, self.monitor.update_metrics)
         self.step_callbacks.register(PlanningStep, self.monitor.update_metrics)
 
+    def reset(self):
+        """Reset the agent's memory, monitor, state, and python executor to initial state."""
+        self.memory.reset()
+        self.monitor.reset()
+        self.state = {}
+        if getattr(self, "python_executor", None) and hasattr(self.python_executor, "reset"):
+            self.python_executor.reset()
+
     def run(
         self,
         task: str,
@@ -470,16 +478,16 @@ class MultiStepAgent(ABC):
         max_steps = max_steps or self.max_steps
         self.task = task
         self.interrupt_switch = False
+
+        self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
+        if reset:
+            self.reset()
+
         if additional_args:
             self.state.update(additional_args)
             self.task += f"""
 You have been provided with these additional arguments, that you can access directly using the keys as variables:
 {str(additional_args)}."""
-
-        self.memory.system_prompt = SystemPromptStep(system_prompt=self.system_prompt)
-        if reset:
-            self.memory.reset()
-            self.monitor.reset()
 
         self.logger.log_task(
             content=self.task.strip(),

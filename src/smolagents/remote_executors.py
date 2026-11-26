@@ -130,6 +130,21 @@ locals().update(vars_dict)
 """
         self.run_code_raise_errors(code)
 
+    def reset(self):
+        """Reset the execution state in the remote environment."""
+        reset_code = """
+for _k in list(globals().keys()):
+    if not _k.startswith('__') and _k not in ('_deserialize',):
+        try:
+            del globals()[_k]
+        except Exception:
+            pass
+"""
+        try:
+            self.run_code_raise_errors(reset_code)
+        except Exception as e:
+            self.logger.log(f"Failed to reset remote executor state: {e}")
+
     def __call__(self, code_action: str) -> CodeOutput:
         """Run the code and determine if it is the final answer."""
         return self.run_code_raise_errors(code_action)

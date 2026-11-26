@@ -1712,6 +1712,10 @@ class PythonExecutor(ABC):
     @abstractmethod
     def __call__(self, code_action: str) -> CodeOutput: ...
 
+    def reset(self) -> None:
+        """Reset the execution state/namespace of the executor."""
+        pass
+
 
 class LocalPythonExecutor(PythonExecutor):
     """
@@ -1787,6 +1791,11 @@ class LocalPythonExecutor(PythonExecutor):
 
     def send_variables(self, variables: dict[str, Any]):
         self.state.update(variables)
+
+    def reset(self):
+        """Reset the execution state and custom tools of the executor."""
+        self.custom_tools = {}
+        self.state = {"__name__": "__main__"}
 
     def send_tools(self, tools: dict[str, Tool]):
         # Combine agent tools, base Python tools, and additional Python functions
