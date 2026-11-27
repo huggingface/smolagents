@@ -8,7 +8,7 @@ from smolagents import CodeAgent, InferenceClientModel, tool
 model = InferenceClientModel()
 # model = TransformersModel(model_id="meta-llama/Llama-3.2-2B-Instruct")
 
-# For anthropic: change model_id below to 'anthropic/claude-3-5-sonnet-20240620'
+# For anthropic: change model_id below to 'anthropic/claude-sonnet-5-5'
 # model = LiteLLMModel(model_id="gpt-5")
 
 

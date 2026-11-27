@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import re
 import sys
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
@@ -469,6 +470,44 @@ class TestInferenceClientModel:
 
 
 class TestLiteLLMModel:
+    DEFAULT_MODEL_ID = "anthropic/claude-sonnet-5-5"
+
+    def test_default_model_id_when_omitted(self):
+        """Omitting model_id should warn and fall back to a current Anthropic Sonnet ID."""
+        with (
+            pytest.warns(FutureWarning, match=re.escape(self.DEFAULT_MODEL_ID)),
+            patch("smolagents.models.LiteLLMModel.create_client", return_value=MagicMock()),
+        ):
+            model = LiteLLMModel()
+        assert model.model_id == self.DEFAULT_MODEL_ID
+        assert "claude-3-5-sonnet-20240620" not in model.model_id
+
+    def test_default_model_generate_forwards_tool_choice_and_temperature(self, example_tool):
+        """Default Anthropic model must still accept tool_choice='required' and temperature kwargs."""
+        mock_litellm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "ok"
+        mock_response.choices[0].message.role = "assistant"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage.prompt_tokens = 1
+        mock_response.usage.completion_tokens = 1
+        mock_litellm.completion.return_value = mock_response
+
+        with (
+            pytest.warns(FutureWarning, match=re.escape(self.DEFAULT_MODEL_ID)),
+            patch("smolagents.models.LiteLLMModel.create_client", return_value=mock_litellm),
+        ):
+            model = LiteLLMModel(temperature=0.2)
+            messages = [ChatMessage(role=MessageRole.USER, content=[{"type": "text", "text": "Use the tool"}])]
+            model.generate(messages, tools_to_call_from=[example_tool])
+
+        completion_kwargs = mock_litellm.completion.call_args.kwargs
+        assert completion_kwargs["model"] == self.DEFAULT_MODEL_ID
+        assert completion_kwargs["tool_choice"] == "required"
+        assert completion_kwargs["temperature"] == 0.2
+        assert "tools" in completion_kwargs
+
     @pytest.mark.parametrize(
         "model_id",
         [
