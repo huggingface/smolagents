@@ -211,7 +211,12 @@ def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
     """
     matches = extract_code_from_text(text, code_block_tags)
     if not matches:  # Fallback to markdown pattern
-        matches = extract_code_from_text(text, ("```(?:python|py)", "\n```"))
+        # Consume the whole info string (including a version suffix such as
+        # python3), accept any case, and do not match tags like `pycon` whose
+        # suffix would otherwise leak into the executed code.
+        matches = extract_code_from_text(
+            text, (r"```(?i:python|py)[0-9]*(?![A-Za-z0-9_])", "\n```")
+        )
     if matches:
         return matches
     # Maybe the LLM outputted a code blob directly
