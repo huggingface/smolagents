@@ -1591,8 +1591,8 @@ class InferenceClientModel(ApiModel):
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
+            response_format=response_format,
             tools_to_call_from=tools_to_call_from,
-            # response_format=response_format,
             convert_images_to_image_urls=True,
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
@@ -1621,6 +1621,11 @@ class InferenceClientModel(ApiModel):
         tools_to_call_from: list[Tool] | None = None,
         **kwargs,
     ) -> Generator[ChatMessageStreamDelta]:
+        if response_format is not None and self.client_kwargs["provider"] not in STRUCTURED_GENERATION_PROVIDERS:
+            raise ValueError(
+                "InferenceClientModel only supports structured outputs with these providers:"
+                + ", ".join(STRUCTURED_GENERATION_PROVIDERS)
+            )
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
