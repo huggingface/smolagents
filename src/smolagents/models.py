@@ -1250,10 +1250,10 @@ class LiteLLMModel(ApiModel):
             warnings.warn(
                 "The 'model_id' parameter will be required in version 2.0.0. "
                 "Please update your code to pass this parameter to avoid future errors. "
-                "For now, it defaults to 'anthropic/claude-3-5-sonnet-20240620'.",
+                "For now, it defaults to 'anthropic/claude-sonnet-5-5'.",
                 FutureWarning,
             )
-            model_id = "anthropic/claude-3-5-sonnet-20240620"
+            model_id = "anthropic/claude-sonnet-5-5"
         self.api_base = api_base
         self.api_key = api_key
         flatten_messages_as_text = (
