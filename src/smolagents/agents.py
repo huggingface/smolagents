@@ -487,6 +487,9 @@ You have been provided with these additional arguments, that you can access dire
             level=LogLevel.INFO,
             title=self.name if hasattr(self, "name") else None,
         )
+        # Remember where this run starts so RunResult.token_usage only counts this run's
+        # steps when reset=False (memory still holds previous runs' steps).
+        run_start_step_index = len(self.memory.steps)
         self.memory.steps.append(TaskStep(task=self.task, task_images=images))
 
         if getattr(self, "python_executor", None):
@@ -509,7 +512,7 @@ You have been provided with these additional arguments, that you can access dire
             total_input_tokens = 0
             total_output_tokens = 0
             correct_token_usage = True
-            for step in self.memory.steps:
+            for step in self.memory.steps[run_start_step_index:]:
                 if isinstance(step, (ActionStep, PlanningStep)):
                     if step.token_usage is None:
                         correct_token_usage = False
