@@ -2212,6 +2212,18 @@ def test_fix_final_answer_code():
             "final_answer=3.21;final_answer(final_answer)",
             "final_answer_variable=3.21;final_answer(final_answer_variable)",
         ),
+        (
+            'final_answer("In the settings file, set final_answer = true to enable it.")',
+            'final_answer("In the settings file, set final_answer = true to enable it.")',
+        ),
+        (
+            "final_answer(format_result(x, final_answer=True))",
+            "final_answer(format_result(x, final_answer=True))",
+        ),
+        (
+            'final_answer = 42\nfinal_answer(format_result(final_answer, final_answer="final_answer = 1"))',
+            'final_answer_variable = 42\nfinal_answer(format_result(final_answer_variable, final_answer="final_answer = 1"))',
+        ),
     ]
 
     for i, (input_code, expected) in enumerate(test_cases, 1):
