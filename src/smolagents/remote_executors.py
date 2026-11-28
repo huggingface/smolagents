@@ -510,7 +510,10 @@ def _websocket_run_code_raise_errors(code: str, ws, logger, allow_pickle: bool =
             if msg_type == "stream":
                 outputs.append(msg_content["text"])
             elif msg_type == "execute_result":
-                result = msg_content["data"].get("text/plain", None)
+                # A kernel can emit execute_result after the final_answer error for the same
+                # request; it must not replace the final answer.
+                if not is_final_answer:
+                    result = msg_content["data"].get("text/plain", None)
             elif msg_type == "error":
                 if msg_content.get("ename", "") == RemotePythonExecutor.FINAL_ANSWER_EXCEPTION:
                     result = RemotePythonExecutor._deserialize_final_answer(
