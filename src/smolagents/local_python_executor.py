@@ -420,12 +420,44 @@ def evaluate_lambda(
     custom_tools: dict[str, Callable],
     authorized_imports: list[str],
 ) -> Callable:
-    args = [arg.arg for arg in lambda_expression.args.args]
+    arguments = lambda_expression.args
+    positional = [arg.arg for arg in arguments.posonlyargs] + [arg.arg for arg in arguments.args]
+    default_values = [
+        evaluate_ast(d, state, static_tools, custom_tools, authorized_imports) for d in arguments.defaults
+    ]
+    defaults = dict(zip(positional[len(positional) - len(default_values) :], default_values)) if default_values else {}
+    kwonly_defaults = [
+        None if default is None else evaluate_ast(default, state, static_tools, custom_tools, authorized_imports)
+        for default in arguments.kw_defaults
+    ]
+    posonly_count = len(arguments.posonlyargs)
+    vararg_name = arguments.vararg.arg if arguments.vararg else None
+    kwarg_name = arguments.kwarg.arg if arguments.kwarg else None
 
-    def lambda_func(*values: Any) -> Any:
+    def lambda_func(*values: Any, **kwargs: Any) -> Any:
         new_state = state.copy()
-        for arg, value in zip(args, values):
-            new_state[arg] = value
+        extra_kwargs = dict(kwargs)
+        # A parameter is a local name, so its default must shadow any outer value.
+        # Install the defaults first and let explicit bindings overwrite them.
+        new_state.update(defaults)
+        # Positional arguments bind in order, including the positional-only ones.
+        for name, value in zip(positional, values):
+            new_state[name] = value
+        # Remaining positional-or-keyword parameters may arrive as keywords.
+        for index in range(len(values), len(positional)):
+            name = positional[index]
+            if index >= posonly_count and name in extra_kwargs:
+                new_state[name] = extra_kwargs.pop(name)
+        if vararg_name is not None:
+            new_state[vararg_name] = tuple(values[len(positional) :])
+        # Use the AST entry to tell "no default" apart from an explicit default of None.
+        for arg, default, default_ast in zip(arguments.kwonlyargs, kwonly_defaults, arguments.kw_defaults):
+            if arg.arg in extra_kwargs:
+                new_state[arg.arg] = extra_kwargs.pop(arg.arg)
+            elif default_ast is not None:
+                new_state[arg.arg] = default
+        if kwarg_name is not None:
+            new_state[kwarg_name] = extra_kwargs
         return evaluate_ast(
             lambda_expression.body,
             new_state,
