@@ -814,6 +814,27 @@ if char.isalpha():
         code = "from numpy.random import default_rng as d_rng\nrng = d_rng(12345)\nrng.random()"
         result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["numpy.random"])
 
+    def test_import_submodule_without_alias(self):
+        code = "import html.parser\nhtml.parser.HTMLParser"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["html.parser"])
+        assert result.__name__ == "HTMLParser"
+
+        code = "import html.parser\nhtml.escape('<tag>')"
+        result, _ = evaluate_python_code(code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["html.parser"])
+        assert result == "&lt;tag&gt;"
+
+        code = "import xml.etree.ElementTree\nxml.etree.ElementTree.Element('a').tag"
+        result, _ = evaluate_python_code(
+            code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["xml.etree.ElementTree"]
+        )
+        assert result == "a"
+
+        code = "import xml.etree.ElementTree as ET\nET.Element('a').tag"
+        result, _ = evaluate_python_code(
+            code, BASE_PYTHON_TOOLS, state={}, authorized_imports=["xml.etree.ElementTree"]
+        )
+        assert result == "a"
+
     def test_additional_imports(self):
         code = "import numpy as np"
         evaluate_python_code(code, authorized_imports=["numpy"], state={})

@@ -1339,7 +1339,22 @@ def evaluate_import(expression, state, authorized_imports):
         for alias in expression.names:
             if check_import_authorized(alias.name, authorized_imports):
                 raw_module = import_module(alias.name)
-                state[alias.asname or alias.name] = get_safe_module(raw_module, authorized_imports)
+                if alias.asname:
+                    state[alias.asname] = get_safe_module(raw_module, authorized_imports)
+                elif "." in alias.name:
+                    parts = alias.name.split(".")
+                    top_name = parts[0]
+                    if top_name not in state or not isinstance(state[top_name], ModuleType):
+                        state[top_name] = get_safe_module(import_module(top_name), authorized_imports)
+                    current = state[top_name]
+                    for i in range(1, len(parts)):
+                        sub_name = parts[i]
+                        if not hasattr(current, sub_name):
+                            sub_mod = import_module(".".join(parts[: i + 1]))
+                            setattr(current, sub_name, get_safe_module(sub_mod, authorized_imports))
+                        current = getattr(current, sub_name)
+                else:
+                    state[alias.name] = get_safe_module(raw_module, authorized_imports)
             else:
                 raise InterpreterError(
                     f"Import of {alias.name} is not allowed. Authorized imports are: {str(authorized_imports)}"
