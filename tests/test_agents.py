@@ -1008,6 +1008,43 @@ class TestRunResult:
         second = agent.run("Follow-up with tokens", reset=False)
         assert second.token_usage == TokenUsage(input_tokens=10, output_tokens=20)
 
+    @pytest.mark.parametrize("agent_class", [CodeAgent, ToolCallingAgent])
+    def test_continued_run_usage_includes_only_its_own_planning(self, agent_class):
+        """With planning enabled, reset=False must count only this run's plan + action tokens."""
+
+        class PlanningModel(FakeLLMModel):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.plan_count = 0
+
+            def generate(self, prompt, tools_to_call_from=None, **kwargs):
+                if kwargs.get("stop_sequences") == ["<end_plan>"]:
+                    self.plan_count += 1
+                    return ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content="Return the final answer directly.",
+                        token_usage=TokenUsage(input_tokens=100 * self.plan_count, output_tokens=self.plan_count),
+                    )
+                return super().generate(prompt, tools_to_call_from=tools_to_call_from, **kwargs)
+
+        agent = agent_class(
+            tools=[],
+            model=PlanningModel(),
+            planning_interval=1,
+            max_steps=1,
+            return_full_result=True,
+            verbosity_level=-1,
+        )
+        first = agent.run("First question")
+        second = agent.run("Follow-up question", reset=False)
+
+        # Distinct planning counts make the run boundary observable:
+        # first = plan(100/1) + action(10/20); second = plan(200/2) + action(10/20)
+        assert first.token_usage == TokenUsage(input_tokens=110, output_tokens=21)
+        assert second.token_usage == TokenUsage(input_tokens=210, output_tokens=22)
+        assert sum(isinstance(step, PlanningStep) for step in agent.memory.steps) == 2
+        assert sum(isinstance(step, ActionStep) for step in agent.memory.steps) == 2
+
 
 class TestMultiStepAgent:
     def test_instantiation_disables_logging_to_terminal(self):
