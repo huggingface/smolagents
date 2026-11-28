@@ -18,9 +18,11 @@ import ast
 import builtins
 import difflib
 import inspect
+import io
 import logging
 import math
 import re
+import tokenize
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -333,28 +335,69 @@ def fix_final_answer_code(code: str) -> str:
     """
     Sometimes an LLM can try to assign a variable to final_answer, which would break the final_answer() tool.
     This function fixes this behaviour by replacing variable assignments to final_answer with final_answer_variable,
-    while preserving function calls to final_answer().
+    while preserving function calls to final_answer(), string literals, comments, and keyword arguments.
     """
-    # First, find if there's a direct assignment to final_answer
-    # Use word boundary and negative lookbehind to ensure it's not an object attribute
-    assignment_pattern = r"(?<!\.)(?<!\w)\bfinal_answer\s*="
-    if "final_answer(" not in code or not re.search(assignment_pattern, code):
-        # If final_answer tool is not called in this blob, then doing the replacement is hazardous because it could false the model's memory for next steps.
-        # Let's not modify the code and leave the subsequent assignment error happen.
+    if "final_answer" not in code:
         return code
 
-    # Pattern for replacing variable assignments
-    # Looks for 'final_answer' followed by '=' with optional whitespace
-    # Negative lookbehind ensures we don't match object attributes
-    assignment_regex = r"(?<!\.)(?<!\w)(\bfinal_answer)(\s*=)"
-    code = re.sub(assignment_regex, r"final_answer_variable\2", code)
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(code).readline))
+    except (tokenize.TokenError, IndentationError):
+        return code
 
-    # Pattern for replacing variable usage but not function calls
-    # Negative lookahead (?!\s*\() ensures we don't match function calls
-    # Negative lookbehind (?<!\.|\w) ensures we don't match object methods or other variables
-    variable_regex = r"(?<!\.)(?<!\w)(\bfinal_answer\b)(?!\s*\()"
-    code = re.sub(variable_regex, "final_answer_variable", code)
-    return code
+    ignored_types = {
+        tokenize.COMMENT,
+        tokenize.NL,
+        tokenize.INDENT,
+        tokenize.DEDENT,
+        tokenize.ENCODING,
+        tokenize.ENDMARKER,
+    }
+    sig_tokens = [tok for tok in tokens if tok.type not in ignored_types]
+
+    has_call = False
+    has_assignment = False
+    candidates = []
+    paren_depth = 0
+
+    for idx, tok in enumerate(sig_tokens):
+        if tok.type == tokenize.OP:
+            if tok.string in "([{":
+                paren_depth += 1
+            elif tok.string in ")]}":
+                paren_depth = max(0, paren_depth - 1)
+        elif tok.type == tokenize.NAME and tok.string == "final_answer":
+            prev_tok = sig_tokens[idx - 1] if idx > 0 else None
+            next_tok = sig_tokens[idx + 1] if idx + 1 < len(sig_tokens) else None
+            is_attr = prev_tok is not None and prev_tok.type == tokenize.OP and prev_tok.string == "."
+            is_call = not is_attr and next_tok is not None and next_tok.type == tokenize.OP and next_tok.string == "("
+            is_eq = next_tok is not None and next_tok.type == tokenize.OP and next_tok.string == "="
+            is_assign = not is_attr and paren_depth == 0 and is_eq
+            is_kwarg = not is_attr and paren_depth > 0 and is_eq
+
+            if is_call:
+                has_call = True
+            if is_assign:
+                has_assignment = True
+            if not is_attr and not is_call and not is_kwarg:
+                candidates.append(tok)
+
+    if not (has_call and has_assignment) or not candidates:
+        return code
+
+    lines = code.splitlines(keepends=True)
+    line_offsets = [0]
+    for line in lines:
+        line_offsets.append(line_offsets[-1] + len(line))
+
+    result = code
+    for tok in reversed(candidates):
+        start_row, start_col = tok.start
+        end_row, end_col = tok.end
+        start_idx = line_offsets[start_row - 1] + start_col
+        end_idx = line_offsets[end_row - 1] + end_col
+        result = result[:start_idx] + "final_answer_variable" + result[end_idx:]
+    return result
 
 
 def build_import_tree(authorized_imports: list[str]) -> dict[str, Any]:
